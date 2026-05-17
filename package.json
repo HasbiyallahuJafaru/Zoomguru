@@ -1,0 +1,18 @@
+{
+  "name": "zoomguru",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:backend": "npm run start:dev --workspace=apps/backend",
+    "dev:landing": "npm run dev --workspace=apps/landing",
+    "dev:electron": "npm run dev --workspace=apps/electron",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:landing\" \"npm run dev:electron\"",
+    "build:backend": "npm run build --workspace=apps/backend",
+    "build:landing": "npm run build --workspace=apps/landing",
+    "build:electron": "npm run build --workspace=apps/electron"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
