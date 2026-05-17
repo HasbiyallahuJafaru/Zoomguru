@@ -23,7 +23,7 @@ zoomguru/
 ├── apps/
 │   ├── backend/      NestJS + Fastify API server (Render)
 │   ├── electron/     Desktop overlay app — Electron + Vite + React
-│   └── landing/      Marketing site — Next.js 14 + Tailwind (Netlify)
+│   └── landing/      Marketing site — Next.js 14 + Tailwind (Vercel)
 ├── .claude/          Full architecture + documentation
 └── package.json      npm workspaces root
 ```
@@ -35,7 +35,7 @@ zoomguru/
 | Layer | Technology |
 |---|---|
 | Desktop app | Electron, Vite, React 18, TypeScript |
-| Landing page | Next.js 14 (App Router), Tailwind CSS, Netlify |
+| Landing page | Next.js 14 (App Router), Tailwind CSS, Vercel |
 | Backend API | NestJS, Fastify adapter, Render |
 | Database | Neon PostgreSQL — raw SQL, no ORM |
 | AI — text | DeepSeek V3 (`deepseek-chat`) + R1 (`deepseek-reasoner`) |
@@ -143,7 +143,7 @@ npm run dev
 # Backend → Render
 cd apps/backend && npm run build
 
-# Landing → Netlify (auto-deploys on push if connected)
+# Landing → Vercel (auto-deploys on push if connected)
 cd apps/landing && npm run build
 
 # Electron — package installers

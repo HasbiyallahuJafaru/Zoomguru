@@ -100,9 +100,9 @@ npm run dev
 # Build
 npm run build
 
-# Deploy to Netlify (auto on git push if connected)
+# Deploy to Vercel (auto on git push if connected)
 # Manual deploy:
-netlify deploy --prod --dir=.next
+npx vercel --prod
 ```
 
 ---
@@ -205,17 +205,19 @@ node dist/main.js
 
 ---
 
-## Netlify Deployment (Landing)
+## Vercel Deployment (Landing)
 
 ```bash
-# Connect repo in Netlify dashboard
-# Base directory: apps/landing
-# Build command: npm run build
-# Publish directory: .next
+# Recommended — connect repo in Vercel dashboard
+# 1. Import at vercel.com/new
+# 2. Root Directory: apps/landing
+# 3. Framework: Next.js (auto-detected)
+# 4. Env var: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_...
+# Auto-deploys on every push to main
 
 # Or CLI:
 cd apps/landing
-netlify deploy --prod --dir=.next
+npx vercel --prod
 ```
 
 ---

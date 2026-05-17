@@ -3,7 +3,7 @@
 ## Stack
 - **Next.js 14** — App Router
 - **Tailwind CSS** — styling
-- **Netlify** — hosting + automatic deploys from Git
+- **Vercel** — hosting + automatic deploys from Git
 - **Paystack Inline** — payment widget
 
 ---
@@ -277,22 +277,19 @@ export function Download() {
 
 ---
 
-## netlify.toml
+## vercel.json
 
-```toml
-[build]
-  command = "npm run build"
-  publish = ".next"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-[[redirects]]
-  from = "/api/*"
-  to = "https://api.zoomguru.com/:splat"
-  status = 200
-  force = true
+```json
+{
+  "framework": "nextjs",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://api.zoomguru.com/:path*" }
+  ]
+}
 ```
+
+Vercel auto-detects Next.js — no build command or publish dir needed.
+Connect the repo in the Vercel dashboard, set root directory to `apps/landing`, and deploy.
 
 ---
 
