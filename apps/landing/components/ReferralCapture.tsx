@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect } from 'react';
 
@@ -14,9 +14,10 @@ export default function ReferralCapture() {
       const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toUTCString();
       document.cookie = `zg_ref=${encodeURIComponent(ref)}; expires=${expires}; path=/; SameSite=Lax`;
     } catch {
-      // localStorage unavailable (private browsing edge case) — ignore
+      // localStorage unavailable (private browsing edge case) â€” ignore
     }
   }, []);
 
   return null;
 }
+

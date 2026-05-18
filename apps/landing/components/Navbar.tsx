@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -8,7 +8,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20);
+    const handler = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', handler, { passive: true });
     return () => window.removeEventListener('scroll', handler);
   }, []);
@@ -16,59 +16,54 @@ export default function Navbar() {
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? 'bg-[#06060f]/90 backdrop-blur-xl border-b border-white/5 shadow-xl shadow-black/30'
-          : 'bg-transparent'
+        scrolled ? 'border-b border-white/5' : ''
       }`}
+      style={scrolled ? { background: 'rgba(8,8,8,0.75)', backdropFilter: 'blur(20px)' } : {}}
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-shadow">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}
+          >
             <span className="text-white font-black text-sm tracking-tight">Z</span>
           </div>
           <span className="text-white font-bold text-lg tracking-tight">
-            Zoom<span className="text-indigo-400">Guru</span>
+            Zoom<span className="text-white/75">Guru</span>
           </span>
         </Link>
 
-        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-1">
           {[
-            { label: 'How it works', href: '/#how-it-works' },
-            { label: 'Features', href: '/#features' },
-            { label: 'Pricing', href: '/#pricing' },
-            { label: 'FAQ', href: '/#faq' },
+            { label: 'How it works', href: '/how-it-works' },
+            { label: 'Features', href: '/features' },
+            { label: 'Pricing', href: '/pricing' },
+            { label: 'FAQ', href: '/faq' },
           ].map((link) => (
             <a
               key={link.label}
               href={link.href}
-              className="px-4 py-2 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-white/5 transition-all duration-150"
+              className="px-4 py-2 text-sm text-white/75 hover:text-white rounded-lg hover:bg-white/5 transition-all duration-150"
             >
               {link.label}
             </a>
           ))}
         </nav>
 
-        {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <a
-            href="/download"
-            className="text-sm text-zinc-400 hover:text-white transition-colors px-3 py-2"
-          >
+          <a href="/download" className="text-sm text-white/65 hover:text-white transition-colors px-3 py-2">
             Download
           </a>
           <a
             href="/#pricing"
-            className="btn-shimmer text-white text-sm font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-shadow"
+            className="btn-shimmer text-sm font-semibold px-5 py-2.5 rounded-xl"
           >
             Get started free
           </a>
         </div>
 
-        {/* Mobile hamburger */}
         <button
-          className="md:hidden p-2 text-zinc-400 hover:text-white"
+          className="md:hidden p-2 text-white/75 hover:text-white"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
         >
@@ -84,29 +79,28 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-[#06060f]/95 backdrop-blur-xl border-b border-white/5 px-4 pb-4 space-y-1">
+        <div
+          className="md:hidden border-b border-white/5 px-4 pb-4 space-y-1"
+          style={{ background: 'rgba(8,8,8,0.9)', backdropFilter: 'blur(20px)' }}
+        >
           {[
-            { label: 'How it works', href: '/#how-it-works' },
-            { label: 'Features', href: '/#features' },
-            { label: 'Pricing', href: '/#pricing' },
-            { label: 'FAQ', href: '/#faq' },
+            { label: 'How it works', href: '/how-it-works' },
+            { label: 'Features', href: '/features' },
+            { label: 'Pricing', href: '/pricing' },
+            { label: 'FAQ', href: '/faq' },
             { label: 'Download', href: '/download' },
           ].map((link) => (
             <a
               key={link.label}
               href={link.href}
               onClick={() => setMenuOpen(false)}
-              className="block px-4 py-3 text-sm text-zinc-300 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+              className="block px-4 py-3 text-sm text-white/60 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
             >
               {link.label}
             </a>
           ))}
-          <a
-            href="/#pricing"
-            className="block btn-shimmer text-white text-sm font-semibold px-4 py-3 rounded-xl text-center mt-2"
-          >
+          <a href="/#pricing" className="block btn-shimmer text-sm font-semibold px-4 py-3 rounded-xl text-center mt-2">
             Get started free
           </a>
         </div>
@@ -114,3 +108,4 @@ export default function Navbar() {
     </header>
   );
 }
+

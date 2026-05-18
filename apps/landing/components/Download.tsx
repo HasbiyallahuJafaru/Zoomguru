@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 
@@ -32,10 +32,10 @@ export default function Download() {
           Ready when you are
         </h2>
         <p className="text-zinc-400 text-lg mb-2">
-          Version {VERSION} · Requires macOS 12+ or Windows 10+
+          Version {VERSION} Â· Requires macOS 12+ or Windows 10+
         </p>
         <p className="text-zinc-600 text-sm mb-10">
-          Free plan included · No account required to download
+          Free plan included Â· No account required to download
         </p>
 
         {/* OS-detected primary CTA */}
@@ -120,11 +120,11 @@ export default function Download() {
         {/* System info */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-zinc-600 text-xs">
           <span>macOS 12+ (Apple Silicon &amp; Intel)</span>
-          <span className="hidden sm:inline">·</span>
+          <span className="hidden sm:inline">Â·</span>
           <span>Windows 10 / 11 (64-bit)</span>
-          <span className="hidden sm:inline">·</span>
+          <span className="hidden sm:inline">Â·</span>
           <span>~80 MB download</span>
-          <span className="hidden sm:inline">·</span>
+          <span className="hidden sm:inline">Â·</span>
           <span>Version {VERSION}</span>
         </div>
 
@@ -157,3 +157,4 @@ export default function Download() {
     </section>
   );
 }
+
