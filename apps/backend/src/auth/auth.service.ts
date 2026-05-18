@@ -95,6 +95,27 @@ export class AuthService {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
+    // Expire any monthly licenses that have passed their end date
+    await sql`
+      UPDATE licenses SET status = 'expired'
+      WHERE user_id = ${user.id}
+      AND status = 'active'
+      AND expires_at IS NOT NULL
+      AND expires_at < NOW()
+    `;
+
+    // Downgrade user if no active licenses remain
+    const [activeLicense] = await sql`
+      SELECT id FROM licenses
+      WHERE user_id = ${user.id} AND status = 'active'
+      LIMIT 1
+    `;
+
+    if (!activeLicense && user.is_pro) {
+      await sql`UPDATE users SET is_pro = false, plan = 'free' WHERE id = ${user.id}`;
+      user.is_pro = false;
+    }
+
     // Auto-bind device to license if license exists without fingerprint
     if (user.is_pro) {
       await sql`

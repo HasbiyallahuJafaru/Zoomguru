@@ -37,11 +37,6 @@ export class PaystackService {
       callback_url: 'https://zoomguru.com/payment/success',
     };
 
-    // Monthly plan — attach Paystack plan code for subscription management
-    if (isMonthly) {
-      body.plan = process.env.PAYSTACK_NGN_MONTHLY_PLAN;
-    }
-
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
       method: 'POST',
       headers: {
@@ -110,10 +105,6 @@ export class PaystackService {
 
     if (event === 'charge.success' || event === 'subscription.create') {
       await this.activateLicense(data);
-    }
-
-    if (event === 'subscription.disable' || event === 'subscription.not_renew') {
-      await this.deactivateLicense(data);
     }
 
     if (event === 'invoice.payment_failed') {
@@ -206,30 +197,4 @@ export class PaystackService {
     `;
   }
 
-  private async deactivateLicense(data: any) {
-    const sql = getDB();
-    const reference = data.subscription_code || data.reference;
-
-    await sql`
-      UPDATE licenses SET status = 'cancelled'
-      WHERE paystack_reference = ${reference}
-    `;
-
-    const [active] = await sql`
-      SELECT l2.id FROM licenses l1
-      JOIN licenses l2 ON l2.user_id = l1.user_id
-      WHERE l1.paystack_reference = ${reference}
-      AND l2.status = 'active'
-      LIMIT 1
-    `;
-
-    if (!active) {
-      await sql`
-        UPDATE users SET is_pro = false
-        WHERE id = (
-          SELECT user_id FROM licenses WHERE paystack_reference = ${reference} LIMIT 1
-        )
-      `;
-    }
-  }
 }
