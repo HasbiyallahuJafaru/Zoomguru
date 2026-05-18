@@ -27,6 +27,8 @@ export class CvService {
       throw new BadRequestException('Unsupported file type. Please upload PDF, DOCX, or TXT.');
     }
 
+    rawText = this.sanitizeCVText(rawText);
+
     if (!rawText || rawText.trim().length < 50) {
       throw new BadRequestException('Could not extract text from CV. Please check the file.');
     }
@@ -149,6 +151,26 @@ ${rawText.slice(0, 6000)}`;
       // Fallback: return basic profile with raw text as summary
       return this.buildFallbackProfile(rawText);
     }
+  }
+
+  private sanitizeCVText(raw: string): string {
+    return raw
+      // Remove HTML/XML tags
+      .replace(/<[^>]*>/g, ' ')
+      // Remove null bytes
+      .replace(/\0/g, '')
+      // Remove non-printable characters (keep newlines, tabs)
+      .replace(/[^\x09\x0A\x0D\x20-\x7E -￿]/g, ' ')
+      // Remove prompt injection patterns
+      .replace(/ignore (previous|above|all) instructions?/gi, '')
+      .replace(/you are now/gi, '')
+      .replace(/system:/gi, '')
+      .replace(/assistant:/gi, '')
+      .replace(/human:/gi, '')
+      // Collapse excessive whitespace
+      .replace(/\s{4,}/g, '\n\n')
+      // Trim
+      .trim();
   }
 
   private validateAndFillDefaults(parsed: any): CVProfile {

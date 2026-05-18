@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react';
 import { Login } from './auth/Login';
 import { PreflightCheck } from './setup/PreflightCheck';
 import { Overlay } from './overlay/Overlay';
+import { Onboarding } from './onboarding/Onboarding';
 
 type AppState = 'loading' | 'login' | 'setup' | 'overlay';
 
 export default function App() {
   const [state, setState] = useState<AppState>('loading');
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => localStorage.getItem('zg_onboarded') !== '1'
+  );
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -20,6 +24,10 @@ export default function App() {
       setState('overlay');
     }
   }, []);
+
+  if (showOnboarding) {
+    return <Onboarding onComplete={() => setShowOnboarding(false)} />;
+  }
 
   if (state === 'loading') {
     return (

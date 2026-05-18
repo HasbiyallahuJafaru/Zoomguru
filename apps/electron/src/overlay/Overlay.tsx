@@ -16,6 +16,12 @@ export function Overlay() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [lastTranscript, setLastTranscript] = useState('');
   const [lastImage, setLastImage] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [opacity, setOpacity] = useState<number>(() => {
+    const saved = localStorage.getItem('zg_opacity');
+    return saved ? parseFloat(saved) : 0.88;
+  });
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -24,6 +30,15 @@ export function Overlay() {
     window.zoomguru.onTrigger('screenshot', handleScreenshot);
     window.zoomguru.onTrigger('regenerate', handleRegenerate);
     window.zoomguru.onTrigger('clear', handleClear);
+
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
   }, []);
 
   async function handleListen() {
@@ -31,6 +46,21 @@ export function Overlay() {
 
     setIsListening(true);
     try {
+      const stream = await navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .catch(() => null);
+
+      if (!stream) {
+        setAnswer(
+          '⚠ Microphone access denied.\n\n' +
+          'To fix: System Settings → Privacy → Microphone → Enable ZoomGuru'
+        );
+        setIsListening(false);
+        return;
+      }
+
+      stream.getTracks().forEach(t => t.stop());
+
       const transcript = await window.zoomguru.startListening();
       setIsListening(false);
       if (transcript && transcript.trim()) {
@@ -38,8 +68,9 @@ export function Overlay() {
         setLastImage('');
         streamAnswer(transcript, null);
       }
-    } catch (e) {
+    } catch {
       setIsListening(false);
+      setAnswer('⚠ Could not access microphone. Please check permissions.');
     }
   }
 
@@ -63,6 +94,22 @@ export function Overlay() {
     } else if (lastTranscript) {
       streamAnswer(lastTranscript, null);
     }
+  }
+
+  function copyAnswer() {
+    if (!answer) return;
+    const clean = answer
+      .replace(/[#*`_~]/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    navigator.clipboard.writeText(clean);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleOpacityChange(val: number) {
+    setOpacity(val);
+    localStorage.setItem('zg_opacity', val.toString());
   }
 
   function handleClear() {
@@ -184,7 +231,7 @@ export function Overlay() {
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'rgba(10, 10, 15, 0.88)',
+        background: `rgba(10, 10, 15, ${opacity})`,
         backdropFilter: 'blur(12px)',
         borderRadius: '16px',
         border: '1px solid rgba(255,255,255,0.08)',
@@ -223,6 +270,9 @@ export function Overlay() {
             {!isListening && !isStreaming && (
               <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>Ready</span>
             )}
+            {!isOnline && (
+              <span style={{ color: '#ef4444', fontSize: 10 }}>⚠ No connection</span>
+            )}
 
             {/* Upgrade button */}
             <button
@@ -249,6 +299,24 @@ export function Overlay() {
         {/* Streaming Answer */}
         <AnswerStream answer={answer} isStreaming={isStreaming} />
 
+        {/* Copy button — only shown when there's an answer */}
+        {answer && !isStreaming && (
+          <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
+            <button onClick={copyAnswer} style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 6,
+              color: copied ? '#22c55e' : 'rgba(255,255,255,0.6)',
+              fontSize: 11,
+              padding: '4px 10px',
+              cursor: 'pointer',
+              marginTop: 8,
+            }}>
+              {copied ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+        )}
+
         {/* Footer */}
         <div style={{
           padding: '8px 16px',
@@ -264,6 +332,16 @@ export function Overlay() {
           <span>⌘⇧H Hide</span>
           <span>⌘⇧R Retry</span>
           <span>⌘⇧C Clear</span>
+          <input
+            type="range"
+            min={0.5}
+            max={0.97}
+            step={0.05}
+            value={opacity}
+            onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
+            style={{ width: 60, cursor: 'pointer', accentColor: '#3b82f6', marginLeft: 'auto' }}
+            title="Overlay opacity"
+          />
         </div>
       </div>
 

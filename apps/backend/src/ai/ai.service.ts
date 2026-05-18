@@ -47,23 +47,40 @@ export class AiService {
     ];
 
     // 6. Call DeepSeek with streaming
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages,
-        ],
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 1500,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let response: Response;
+    try {
+      response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages,
+          ],
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 1500,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        reply.write(`data: ${JSON.stringify({ error: 'AI response timed out. Please try again.', done: true })}\n\n`);
+        reply.end();
+        return;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errText = await response.text();
@@ -101,20 +118,8 @@ export class AiService {
     reply.write(`data: ${JSON.stringify({ chunk: '', done: true, fullAnswer })}\n\n`);
     reply.end();
 
-    // 9. Save to session history + increment usage (non-blocking)
-    await Promise.all([
-      sql`
-        UPDATE interview_sessions
-        SET
-          messages = messages || ${JSON.stringify([
-            { role: 'user', content: transcript, timestamp: new Date().toISOString() },
-            { role: 'assistant', content: fullAnswer, timestamp: new Date().toISOString() }
-          ])}::jsonb,
-          total_questions = total_questions + 1
-        WHERE id = ${sessionId} AND user_id = ${userId}
-      `,
-      this.incrementUsage(userId),
-    ]);
+    // 9. Increment usage — messages are held in Zustand, written on session end
+    await this.incrementUsage(userId);
   }
 
   async streamScreenshot(params: {
@@ -142,28 +147,45 @@ export class AiService {
     }
 
     // Step 1: Qwen VL — understand the screenshot
-    const visionResponse = await fetch(
-      'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.QWEN_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'qwen-vl-max',
-          input: {
-            messages: [{
-              role: 'user',
-              content: [
-                { image: `data:image/png;base64,${image}` },
-                { text: 'Describe exactly what is on this screen. If there is code, extract it completely. If there is a math problem, write it out. If there is a system design question, describe it. Be precise and complete.' }
-              ]
-            }]
-          }
-        }),
+    const visionController = new AbortController();
+    const visionTimeoutId = setTimeout(() => visionController.abort(), 30000);
+
+    let visionResponse: Response;
+    try {
+      visionResponse = await fetch(
+        'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.QWEN_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'qwen-vl-max',
+            input: {
+              messages: [{
+                role: 'user',
+                content: [
+                  { image: `data:image/png;base64,${image}` },
+                  { text: 'Describe exactly what is on this screen. If there is code, extract it completely. If there is a math problem, write it out. If there is a system design question, describe it. Be precise and complete.' }
+                ]
+              }]
+            }
+          }),
+          signal: visionController.signal,
+        }
+      );
+    } catch (err: any) {
+      clearTimeout(visionTimeoutId);
+      if (err.name === 'AbortError') {
+        reply.write(`data: ${JSON.stringify({ error: 'AI response timed out. Please try again.', done: true })}\n\n`);
+        reply.end();
+        return;
       }
-    );
+      throw err;
+    } finally {
+      clearTimeout(visionTimeoutId);
+    }
 
     let screenContent = '';
     if (visionResponse.ok) {
@@ -187,22 +209,39 @@ export class AiService {
     );
 
     // Step 3: DeepSeek solves it with streaming
-    const aiResponse = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: fullContext }
-        ],
-        stream: true,
-        max_tokens: 2000,
-      }),
-    });
+    const aiController = new AbortController();
+    const aiTimeoutId = setTimeout(() => aiController.abort(), 30000);
+
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: fullContext }
+          ],
+          stream: true,
+          max_tokens: 2000,
+        }),
+        signal: aiController.signal,
+      });
+    } catch (err: any) {
+      clearTimeout(aiTimeoutId);
+      if (err.name === 'AbortError') {
+        reply.write(`data: ${JSON.stringify({ error: 'AI response timed out. Please try again.', done: true })}\n\n`);
+        reply.end();
+        return;
+      }
+      throw err;
+    } finally {
+      clearTimeout(aiTimeoutId);
+    }
 
     // Send screen analysis summary first
     const preview = screenContent.length > 100
@@ -239,20 +278,8 @@ export class AiService {
     reply.write(`data: ${JSON.stringify({ chunk: '', done: true, fullAnswer })}\n\n`);
     reply.end();
 
-    // Save and increment
-    await Promise.all([
-      sql`
-        UPDATE interview_sessions
-        SET
-          messages = messages || ${JSON.stringify([
-            { role: 'user', content: `[Screenshot] ${screenContent.slice(0, 500)}`, timestamp: new Date().toISOString() },
-            { role: 'assistant', content: fullAnswer, timestamp: new Date().toISOString() }
-          ])}::jsonb,
-          total_questions = total_questions + 1
-        WHERE id = ${sessionId} AND user_id = ${userId}
-      `,
-      this.incrementUsage(userId),
-    ]);
+    // Increment usage — messages are held in Zustand, written on session end
+    await this.incrementUsage(userId);
   }
 
   async checkUsageLimit(userId: string): Promise<void> {

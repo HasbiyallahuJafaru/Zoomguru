@@ -1,5 +1,15 @@
 module.exports = {
   appId: 'com.zoomguru.app',
+  publish: [
+    {
+      provider: 'github',
+      owner: 'hasbiyallahujafaru',
+      repo: 'zoomguru',
+      private: false,
+    }
+  ],
+  asar: true,
+  asarUnpack: ["**/node_modules/**/*.node"],
   productName: 'ZoomGuru',
   directories: { output: 'release' },
   files: ['dist/**/*', 'dist-electron/**/*'],

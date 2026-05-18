@@ -1,4 +1,5 @@
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { nanoid } from 'nanoid';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
@@ -8,8 +9,30 @@ import { getDB } from '../database/db';
 export class AuthService {
   constructor(private jwtService: JwtService) {}
 
-  async register(email: string, password: string, name: string) {
+  async register(email: string, password: string, name: string, deviceId: string, refCode?: string) {
     const sql = getDB();
+
+    // Block multiple free accounts on same device
+    if (deviceId) {
+      const [deviceExists] = await sql`
+        SELECT id, is_pro FROM (
+          SELECT u.id, u.is_pro FROM users u
+          INNER JOIN licenses l ON l.user_id = u.id
+          WHERE l.device_fingerprint = ${deviceId}
+          UNION
+          SELECT u.id, u.is_pro FROM users u
+          WHERE u.device_fingerprint_trial = ${deviceId}
+        ) combined
+        LIMIT 1
+      `;
+
+      if (deviceExists && !deviceExists.is_pro) {
+        throw new ConflictException(
+          'A free trial has already been used on this device. ' +
+          'Please upgrade to create a new account.'
+        );
+      }
+    }
 
     // Check existing
     const [existing] = await sql`
@@ -18,12 +41,13 @@ export class AuthService {
     if (existing) throw new ConflictException('Email already registered');
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const referralCode = nanoid(8).toUpperCase();
 
     // Create user
     const [user] = await sql`
-      INSERT INTO users (email, password_hash, name)
-      VALUES (${email.toLowerCase()}, ${passwordHash}, ${name})
-      RETURNING id, email, name, is_pro
+      INSERT INTO users (email, password_hash, name, device_fingerprint_trial, referral_code)
+      VALUES (${email.toLowerCase()}, ${passwordHash}, ${name}, ${deviceId || null}, ${referralCode})
+      RETURNING id, email, name, is_pro, referral_code
     `;
 
     // Init usage row
@@ -32,6 +56,27 @@ export class AuthService {
       VALUES (${user.id})
       ON CONFLICT DO NOTHING
     `;
+
+    // Init referral balance
+    await sql`
+      INSERT INTO referral_balances (user_id, currency)
+      VALUES (${user.id}, 'NGN')
+      ON CONFLICT DO NOTHING
+    `;
+
+    // Record referral relationship if referred by someone
+    if (refCode) {
+      const [referrer] = await sql`
+        SELECT id FROM users WHERE referral_code = ${refCode} LIMIT 1
+      `;
+      if (referrer && referrer.id !== user.id) {
+        await sql`
+          INSERT INTO referrals (referrer_id, referred_id, currency)
+          VALUES (${referrer.id}, ${user.id}, 'NGN')
+          ON CONFLICT (referred_id) DO NOTHING
+        `;
+      }
+    }
 
     return this.generateTokens(user);
   }

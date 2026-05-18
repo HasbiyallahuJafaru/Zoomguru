@@ -93,6 +93,24 @@ export class PaystackService {
       throw new BadRequestException('Invalid webhook signature');
     }
 
+    // Idempotency check — block replayed webhooks
+    const sql = getDB();
+    const reference = body?.data?.reference;
+
+    if (reference) {
+      const [existing] = await sql`
+        SELECT id, status FROM payments
+        WHERE paystack_reference = ${reference}
+        AND status = 'success'
+        LIMIT 1
+      `;
+
+      if (existing) {
+        // Already processed — return 200 silently (Paystack expects 200)
+        return { received: true, duplicate: true };
+      }
+    }
+
     const event = body.event;
     const data = body.data;
 
@@ -160,7 +178,46 @@ export class PaystackService {
       WHERE paystack_reference = ${reference}
     `;
 
+    // Process referral commission if applicable
+    await this.processReferralCommission(userId, amount, currency);
+
     console.log(`License activated for user ${userId}, plan: ${plan}`);
+  }
+
+  private async processReferralCommission(
+    referredUserId: string,
+    amount: number,
+    currency: string,
+  ): Promise<void> {
+    const sql = getDB();
+
+    const [referral] = await sql`
+      SELECT id, referrer_id FROM referrals
+      WHERE referred_id = ${referredUserId}
+      AND status = 'pending'
+      LIMIT 1
+    `;
+
+    if (!referral) return;
+
+    const commission = parseFloat((amount * 0.25).toFixed(2));
+
+    await sql`
+      UPDATE referrals
+      SET commission_amount = ${commission},
+          currency = ${currency},
+          status = 'earned'
+      WHERE id = ${referral.id}
+    `;
+
+    await sql`
+      INSERT INTO referral_balances (user_id, total_earned, pending_balance, currency)
+      VALUES (${referral.referrer_id}, ${commission}, ${commission}, ${currency})
+      ON CONFLICT (user_id) DO UPDATE SET
+        total_earned = referral_balances.total_earned + ${commission},
+        pending_balance = referral_balances.pending_balance + ${commission},
+        updated_at = NOW()
+    `;
   }
 
   private async deactivateLicense(data: any) {

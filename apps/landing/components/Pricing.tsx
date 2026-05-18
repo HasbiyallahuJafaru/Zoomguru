@@ -99,13 +99,15 @@ export default function Pricing() {
     setEmailError('');
     const plan = plans[planKey];
     const amount = currency === 'NGN' ? plan.paystackAmountNGN : plan.paystackAmountUSD;
+    let refCode: string | null = null;
+    try { refCode = localStorage.getItem('zg_ref'); } catch { /* ignore */ }
     window.PaystackPop.newTransaction({
       key: PAYSTACK_PUBLIC_KEY,
       email,
       amount,
       currency,
       ref: generateRef(),
-      metadata: { plan: plan.plan, currency },
+      metadata: { plan: plan.plan, currency, ref_code: refCode || undefined },
       onSuccess(tx) {
         window.location.href = `/download?ref=${tx.reference}&plan=${plan.plan}`;
       },

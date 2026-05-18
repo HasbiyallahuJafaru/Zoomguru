@@ -1,4 +1,5 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, globalShortcut, ipcMain, shell, Tray, Menu } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import Store from 'electron-store';
 import { initCapture } from './capture';
@@ -6,6 +7,8 @@ import { initSpeech } from './speech';
 import { getDeviceFingerprint } from './fingerprint';
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
 
 // Encrypted local store — key derived from device fingerprint
 const fingerprint = getDeviceFingerprint();
@@ -62,6 +65,27 @@ function createWindow() {
     },
   });
 
+  // Block DevTools in production
+  if (process.env.NODE_ENV !== 'development') {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      // Block F12
+      if (input.key === 'F12') event.preventDefault();
+      // Block Ctrl+Shift+I / Cmd+Option+I
+      if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i') {
+        event.preventDefault();
+      }
+      // Block Ctrl+Shift+J / Cmd+Option+J
+      if ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'j') {
+        event.preventDefault();
+      }
+    });
+
+    // Disable right-click context menu
+    mainWindow.webContents.on('context-menu', (e) => {
+      e.preventDefault();
+    });
+  }
+
   // ─── APPLY SCREEN SHARE EXCLUSION BEFORE SHOWING ────────────────────────
   // Called here (not in ready-to-show) so exclusion is active before render.
   applyScreenShareExclusion(mainWindow);
@@ -70,8 +94,21 @@ function createWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  // ─── POSITION: right side of screen ──────────────────────────────────────
-  mainWindow.setPosition(width - 440, Math.floor(height / 2) - 300);
+  // ─── POSITION: restore saved or default to right side of screen ─────────
+  const savedPos = store.get('overlayPosition') as { x: number; y: number } | undefined;
+
+  if (savedPos &&
+      savedPos.x >= 0 && savedPos.x < width - 100 &&
+      savedPos.y >= 0 && savedPos.y < height - 100) {
+    mainWindow.setPosition(savedPos.x, savedPos.y);
+  } else {
+    mainWindow.setPosition(width - 440, Math.floor(height / 2) - 300);
+  }
+
+  mainWindow.on('moved', () => {
+    const [x, y] = mainWindow!.getPosition();
+    store.set('overlayPosition', { x, y });
+  });
 
   // ─── LOAD APP ────────────────────────────────────────────────────────────
   if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
@@ -83,6 +120,82 @@ function createWindow() {
   // ─── SHOW AFTER RENDER (exclusion already applied above) ─────────────────
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+  });
+
+  // ─── INTERCEPT CLOSE — hide to tray instead of quitting ──────────────────
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
+  });
+}
+
+// ─── SYSTEM TRAY ───────────────────────────────────────────────────────────
+
+function createTray() {
+  const iconPath = path.join(__dirname, '../assets/tray-icon.png');
+  tray = new Tray(iconPath);
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show ZoomGuru',
+      click: () => mainWindow?.show(),
+    },
+    {
+      label: 'Hide ZoomGuru',
+      click: () => mainWindow?.hide(),
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setToolTip('ZoomGuru — Interview Copilot');
+  tray.setContextMenu(contextMenu);
+
+  // Single click toggles overlay
+  tray.on('click', () => {
+    if (mainWindow?.isVisible()) {
+      mainWindow.hide();
+    } else {
+      mainWindow?.show();
+    }
+  });
+}
+
+// ─── AUTO UPDATER ──────────────────────────────────────────────────────────
+
+function setupAutoUpdater() {
+  autoUpdater.checkForUpdatesAndNotify();
+
+  autoUpdater.on('update-downloaded', () => {
+    if (!mainWindow) return;
+
+    mainWindow.webContents.send('update:ready');
+
+    const { dialog } = require('electron');
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new version of ZoomGuru has been downloaded.',
+      detail: 'Restart the app to apply the update.',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+    }).then(({ response }: { response: number }) => {
+      if (response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+  });
+
+  autoUpdater.on('error', (err: Error) => {
+    console.error('Auto-updater error:', err.message);
   });
 }
 
@@ -150,6 +263,8 @@ function registerHotkeys() {
 
 app.whenReady().then(() => {
   createWindow();
+  createTray();
+  setupAutoUpdater();
   registerHotkeys();
   registerIpcHandlers();
   initCapture(mainWindow!);

@@ -3,6 +3,7 @@ import { FastifyReply } from 'fastify';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DeviceGuard } from '../guards/device.guard';
 import { AiService } from './ai.service';
+import { sseManager } from './sse-manager';
 
 @Controller('ai')
 @UseGuards(JwtAuthGuard, DeviceGuard)
@@ -21,6 +22,7 @@ export class AiController {
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     });
+    sseManager.add(req.user.userId, reply.raw);
 
     try {
       await this.aiService.streamAnswer({
@@ -34,6 +36,8 @@ export class AiController {
         reply.raw.write(`data: ${JSON.stringify({ error: err.message, done: true })}\n\n`);
         reply.raw.end();
       }
+    } finally {
+      sseManager.remove(req.user.userId);
     }
   }
 
@@ -49,6 +53,7 @@ export class AiController {
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     });
+    sseManager.add(req.user.userId, reply.raw);
 
     try {
       await this.aiService.streamScreenshot({
@@ -63,6 +68,8 @@ export class AiController {
         reply.raw.write(`data: ${JSON.stringify({ error: err.message, done: true })}\n\n`);
         reply.raw.end();
       }
+    } finally {
+      sseManager.remove(req.user.userId);
     }
   }
 

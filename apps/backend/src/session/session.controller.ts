@@ -1,4 +1,4 @@
-import { Controller, Get, Delete, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Req, Request } from '@nestjs/common';
 import { SessionService } from './session.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -6,6 +6,23 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 export class SessionController {
   constructor(private readonly sessionService: SessionService) {}
+
+  @Post('end')
+  async endSession(
+    @Request() req: any,
+    @Body() body: {
+      sessionId: string;
+      messages: Array<{ role: string; content: string }>;
+      durationSeconds: number;
+      totalQuestions: number;
+    }
+  ) {
+    await this.sessionService.endSession({
+      userId: req.user.userId,
+      ...body,
+    });
+    return { success: true };
+  }
 
   @Get('history')
   async getHistory(@Req() req: any) {
