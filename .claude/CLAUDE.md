@@ -54,9 +54,10 @@ zoomguru/
 - **electron-builder** — packaging .exe (Windows) + .dmg (macOS)
 
 ### Landing Page
-- **Next.js 14** — App Router
+- **Next.js 16** — App Router
+- **React 19**
 - **Tailwind CSS** — styling
-- **Netlify** — hosting + deploy
+- **Vercel** — hosting + deploy
 
 ### Backend
 - **NestJS** with **Fastify adapter** — fast, scalable API
@@ -76,8 +77,10 @@ zoomguru/
 - **Porcupine** — local wake word detection ("Hey ZoomGuru")
 
 ### Payments
-- **Paystack** — handles NGN + USD billing
+- **Paystack** — NGN only (₦)
+- Inline JS on landing page + hosted page via Electron
 - Webhook hits backend, activates license in DB
+- No Paystack plan codes — expiry tracked in our DB
 
 ### Security
 - No external monitoring tools
@@ -89,11 +92,11 @@ zoomguru/
 
 ## Pricing Model
 
-| Plan | NGN | USD |
-|------|-----|-----|
-| Free | — | — |
-| Monthly | ₦15,000/month | $12/month |
-| Lifetime | ₦100,000 one-time | $79 one-time |
+| Plan | NGN | Notes |
+|------|-----|-------|
+| Free | — | 3 sessions, 10 responses each |
+| Monthly | ₦15,000 | One-time charge, expires in 30 days |
+| Lifetime | ₦100,000 | One-time charge, never expires |
 
 **Free tier limits:**
 - 3 interview sessions total
