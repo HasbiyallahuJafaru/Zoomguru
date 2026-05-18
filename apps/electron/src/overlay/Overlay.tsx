@@ -247,9 +247,9 @@ export function Overlay() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          WebkitAppRegion: 'drag' as any,
+          WebkitAppRegion: 'drag',
           flexShrink: 0,
-        }}>
+        } as React.CSSProperties & { WebkitAppRegion: string }}>
           <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: 0.3 }}>
             ZoomGuru
           </span>
@@ -285,8 +285,8 @@ export function Overlay() {
                 color: '#eab308',
                 fontSize: 10,
                 cursor: 'pointer',
-                WebkitAppRegion: 'no-drag' as any,
-              }}
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties & { WebkitAppRegion: string }}
             >
               Pro
             </button>

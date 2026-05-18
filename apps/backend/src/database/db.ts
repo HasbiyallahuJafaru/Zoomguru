@@ -22,12 +22,14 @@ export function getPool(): Pool {
 // existing code using sql`` tagged templates still works
 let _sql: ReturnType<typeof neon> | null = null;
 
-export function getDB(): ReturnType<typeof neon> {
+type SqlTag = (strings: TemplateStringsArray, ...values: any[]) => Promise<any[]>;
+
+export function getDB(): SqlTag {
   if (!_sql) {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL environment variable not set');
     }
     _sql = neon(process.env.DATABASE_URL);
   }
-  return _sql;
+  return _sql as unknown as SqlTag;
 }
