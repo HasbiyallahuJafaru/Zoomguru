@@ -21,49 +21,44 @@ declare global {
   }
 }
 
-const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_xxxxxxxxxxxx';
+const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '';
 
 const plans = {
   monthly: {
     name: 'Monthly Pro',
-    ngn: 15000,
-    usd: 12,
+    price: 15000,
     period: '/month',
     badge: null,
     features: [
       'Unlimited interview sessions',
       'Unlimited AI responses',
-      'Screenshot + vision mode',
-      'Wake word: "Hey ZoomGuru"',
+      'Screenshot and vision mode',
+      'Wake word: Hey ZoomGuru',
       'Session transcript export',
-      'Deep reasoning (coding / design)',
+      'Deep reasoning for coding and design',
       'CV-personalized answers',
-      'Mac + Windows',
+      'Mac and Windows',
     ],
     cta: 'Start Monthly Pro',
-    paystackAmountNGN: 1500000,
-    paystackAmountUSD: 1200,
+    paystackAmount: 1500000,
     plan: 'monthly',
   },
   lifetime: {
     name: 'Lifetime Pro',
-    ngn: 100000,
-    usd: 79,
+    price: 100000,
     period: ' one-time',
     badge: 'Best Value',
     features: [
       'Everything in Monthly',
-      'One-time payment — no recurring',
+      'One-time payment, no recurring charges',
       'Device-locked license',
       'All future updates, forever',
       'Priority support',
       'Early access to new features',
-      'Lifetime access',
-      'Mac + Windows',
+      'Mac and Windows',
     ],
     cta: 'Get Lifetime Access',
-    paystackAmountNGN: 10000000,
-    paystackAmountUSD: 7900,
+    paystackAmount: 10000000,
     plan: 'lifetime',
   },
 };
@@ -72,7 +67,7 @@ const freeFeatures = [
   '3 interview sessions',
   '10 AI responses per session',
   'No credit card required',
-  'Mac + Windows',
+  'Mac and Windows',
 ];
 
 function CheckIcon() {
@@ -84,7 +79,6 @@ function CheckIcon() {
 }
 
 export default function Pricing() {
-  const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
 
@@ -99,16 +93,15 @@ export default function Pricing() {
     }
     setEmailError('');
     const plan = plans[planKey];
-    const amount = currency === 'NGN' ? plan.paystackAmountNGN : plan.paystackAmountUSD;
     let refCode: string | null = null;
     try { refCode = localStorage.getItem('zg_ref'); } catch { /* ignore */ }
     window.PaystackPop.newTransaction({
       key: PAYSTACK_PUBLIC_KEY,
       email,
-      amount,
-      currency,
+      amount: plan.paystackAmount,
+      currency: 'NGN',
       ref: generateRef(),
-      metadata: { plan: plan.plan, currency, ref_code: refCode || undefined },
+      metadata: { plan: plan.plan, ref_code: refCode || undefined },
       onSuccess(tx) { window.location.href = `/download?ref=${tx.reference}&plan=${plan.plan}`; },
       onCancel() {},
     });
@@ -131,23 +124,6 @@ export default function Pricing() {
           </p>
         </div>
 
-        {/* Currency toggle */}
-        <div className="flex justify-center mb-10">
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            {(['NGN', 'USD'] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => setCurrency(c)}
-                className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                  currency === c ? 'bg-white text-black shadow' : 'text-white/75 hover:text-white'
-                }`}
-              >
-                {c === 'NGN' ? 'NGN (₦)' : 'USD ($)'}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Email input */}
         <div className="max-w-sm mx-auto mb-10">
           <div className="relative">
@@ -166,7 +142,7 @@ export default function Pricing() {
             />
           </div>
           {emailError && <p className="text-red-400 text-xs mt-2 pl-1">{emailError}</p>}
-          <p className="text-white/50 text-xs mt-2 text-center">Enter your email — license is delivered here</p>
+          <p className="text-white/50 text-xs mt-2 text-center">Enter your email to continue to checkout</p>
         </div>
 
         {/* Plan cards */}
@@ -184,7 +160,7 @@ export default function Pricing() {
                     <h3 className="text-white font-black text-xl mb-1 tracking-tight">{plan.name}</h3>
                     <div className="flex items-end gap-1">
                       <span className="text-4xl font-black text-white tracking-tight">
-                        {currency === 'NGN' ? `₦${plan.ngn.toLocaleString()}` : `$${plan.usd}`}
+                        &#8358;{plan.price.toLocaleString()}
                       </span>
                       <span className="text-white/55 text-sm mb-1 font-light">{plan.period}</span>
                     </div>
@@ -219,7 +195,7 @@ export default function Pricing() {
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               {freeFeatures.map((f, i) => (
                 <span key={i} className="text-white/55 text-xs flex items-center gap-1.5 font-light">
-                  <span className="text-white/30">·</span> {f}
+                  <span className="w-1 h-1 rounded-full bg-white/30 flex-shrink-0" /> {f}
                 </span>
               ))}
             </div>
@@ -233,13 +209,16 @@ export default function Pricing() {
         {/* Trust badges */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-white/40 text-xs">
           {[
-            { icon: '🔒', text: 'Secured by Paystack' },
-            { icon: '🔐', text: 'Device-locked license' },
-            { icon: '✉️', text: 'License sent to email' },
-            { icon: '💳', text: 'Card · Bank transfer · USSD' },
+            { label: 'Secured by Paystack' },
+            { label: 'Device-locked license' },
+            { label: 'License sent to email' },
+            { label: 'Card, bank transfer, and USSD' },
           ].map((b, i) => (
-            <span key={i} className="flex items-center gap-1.5 hover:text-white/65 transition-colors">
-              <span>{b.icon}</span> {b.text}
+            <span key={i} className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+              </svg>
+              {b.label}
             </span>
           ))}
         </div>

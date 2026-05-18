@@ -17,21 +17,18 @@ export class PaystackService {
     userId: string;
     email: string;
     plan: 'monthly' | 'lifetime';
-    currency: 'NGN' | 'USD';
   }) {
-    const { userId, email, plan, currency } = params;
+    const { userId, email, plan } = params;
 
     const isMonthly = plan === 'monthly';
 
-    // Paystack uses kobo for NGN, cents for USD
-    const amount = currency === 'NGN'
-      ? (isMonthly ? 1500000 : 10000000)
-      : (isMonthly ? 1200 : 7900);
+    // Paystack uses kobo (1 NGN = 100 kobo)
+    const amount = isMonthly ? 1500000 : 10000000;
 
     const body: any = {
       email,
       amount,
-      currency,
+      currency: 'NGN',
       metadata: {
         user_id: userId,
         plan,
@@ -40,11 +37,9 @@ export class PaystackService {
       callback_url: 'https://zoomguru.com/payment/success',
     };
 
-    // Monthly plans — attach Paystack plan code for subscriptions
+    // Monthly plan — attach Paystack plan code for subscription management
     if (isMonthly) {
-      body.plan = currency === 'NGN'
-        ? process.env.PAYSTACK_NGN_MONTHLY_PLAN
-        : process.env.PAYSTACK_USD_MONTHLY_PLAN;
+      body.plan = process.env.PAYSTACK_NGN_MONTHLY_PLAN;
     }
 
     const response = await fetch('https://api.paystack.co/transaction/initialize', {
@@ -69,7 +64,7 @@ export class PaystackService {
         ${userId},
         ${data.data.reference},
         ${amount / 100},
-        ${currency},
+        'NGN',
         ${plan},
         'pending'
       )
@@ -83,7 +78,7 @@ export class PaystackService {
   }
 
   async handleWebhook(signature: string, body: any) {
-    // 1. Verify Paystack HMAC SHA512 signature
+    // Verify Paystack HMAC SHA512 signature
     const hash = crypto
       .createHmac('sha512', this.webhookSecret)
       .update(JSON.stringify(body))
@@ -99,14 +94,13 @@ export class PaystackService {
 
     if (reference) {
       const [existing] = await sql`
-        SELECT id, status FROM payments
+        SELECT id FROM payments
         WHERE paystack_reference = ${reference}
         AND status = 'success'
         LIMIT 1
       `;
 
       if (existing) {
-        // Already processed — return 200 silently (Paystack expects 200)
         return { received: true, duplicate: true };
       }
     }
@@ -114,7 +108,6 @@ export class PaystackService {
     const event = body.event;
     const data = body.data;
 
-    // 2. Route events
     if (event === 'charge.success' || event === 'subscription.create') {
       await this.activateLicense(data);
     }
@@ -124,7 +117,6 @@ export class PaystackService {
     }
 
     if (event === 'invoice.payment_failed') {
-      // Log but don't deactivate immediately — Paystack will retry
       console.warn(`Payment failed for reference: ${data.reference}`);
     }
 
@@ -137,7 +129,6 @@ export class PaystackService {
     const userId = data.metadata?.user_id;
     const reference = data.reference;
     const plan = data.metadata?.plan || 'monthly';
-    const currency = data.currency;
     const amount = (data.amount || 0) / 100;
 
     if (!userId) {
@@ -145,14 +136,12 @@ export class PaystackService {
       return;
     }
 
-    // Activate user as Pro
     await sql`
       UPDATE users
-      SET is_pro = true, plan = ${plan}, updated_at = NOW()
+      SET is_pro = true, plan = ${plan}, currency = 'NGN', updated_at = NOW()
       WHERE id = ${userId}
     `;
 
-    // Insert license record (device_fingerprint will be bound on first login)
     await sql`
       INSERT INTO licenses (
         user_id, plan, currency, amount, paystack_reference,
@@ -161,7 +150,7 @@ export class PaystackService {
       VALUES (
         ${userId},
         ${plan},
-        ${currency},
+        'NGN',
         ${amount},
         ${reference},
         'active',
@@ -171,15 +160,13 @@ export class PaystackService {
       ON CONFLICT (paystack_reference) DO NOTHING
     `;
 
-    // Update payment record
     await sql`
       UPDATE payments
       SET status = 'success', paystack_event = 'charge.success', updated_at = NOW()
       WHERE paystack_reference = ${reference}
     `;
 
-    // Process referral commission if applicable
-    await this.processReferralCommission(userId, amount, currency);
+    await this.processReferralCommission(userId, amount);
 
     console.log(`License activated for user ${userId}, plan: ${plan}`);
   }
@@ -187,7 +174,6 @@ export class PaystackService {
   private async processReferralCommission(
     referredUserId: string,
     amount: number,
-    currency: string,
   ): Promise<void> {
     const sql = getDB();
 
@@ -205,14 +191,14 @@ export class PaystackService {
     await sql`
       UPDATE referrals
       SET commission_amount = ${commission},
-          currency = ${currency},
+          currency = 'NGN',
           status = 'earned'
       WHERE id = ${referral.id}
     `;
 
     await sql`
       INSERT INTO referral_balances (user_id, total_earned, pending_balance, currency)
-      VALUES (${referral.referrer_id}, ${commission}, ${commission}, ${currency})
+      VALUES (${referral.referrer_id}, ${commission}, ${commission}, 'NGN')
       ON CONFLICT (user_id) DO UPDATE SET
         total_earned = referral_balances.total_earned + ${commission},
         pending_balance = referral_balances.pending_balance + ${commission},
@@ -225,12 +211,10 @@ export class PaystackService {
     const reference = data.subscription_code || data.reference;
 
     await sql`
-      UPDATE licenses
-      SET status = 'cancelled'
+      UPDATE licenses SET status = 'cancelled'
       WHERE paystack_reference = ${reference}
     `;
 
-    // Check if user still has another active license
     const [active] = await sql`
       SELECT l2.id FROM licenses l1
       JOIN licenses l2 ON l2.user_id = l1.user_id
@@ -241,8 +225,7 @@ export class PaystackService {
 
     if (!active) {
       await sql`
-        UPDATE users
-        SET is_pro = false
+        UPDATE users SET is_pro = false
         WHERE id = (
           SELECT user_id FROM licenses WHERE paystack_reference = ${reference} LIMIT 1
         )

@@ -10,13 +10,12 @@ export class PaystackController {
   @UseGuards(JwtAuthGuard)
   async initialize(
     @Req() req: any,
-    @Body() body: { plan: 'monthly' | 'lifetime'; currency: 'NGN' | 'USD' }
+    @Body() body: { plan: 'monthly' | 'lifetime' }
   ) {
     return this.paystackService.initializeTransaction({
       userId: req.user.userId,
       email: req.user.email,
       plan: body.plan,
-      currency: body.currency,
     });
   }
 
@@ -31,33 +30,17 @@ export class PaystackController {
   @Get('plans')
   getPlans() {
     return {
-      ngn: {
-        monthly: {
-          amount: 15000,
-          currency: 'NGN',
-          label: '15,000/month',
-          description: 'Full access, billed monthly',
-        },
-        lifetime: {
-          amount: 100000,
-          currency: 'NGN',
-          label: '100,000 one-time',
-          description: 'Full access, pay once forever',
-        },
+      monthly: {
+        amount: 15000,
+        currency: 'NGN',
+        label: '₦15,000/month',
+        description: 'Full access, billed monthly',
       },
-      usd: {
-        monthly: {
-          amount: 12,
-          currency: 'USD',
-          label: '$12/month',
-          description: 'Full access, billed monthly',
-        },
-        lifetime: {
-          amount: 79,
-          currency: 'USD',
-          label: '$79 one-time',
-          description: 'Full access, pay once forever',
-        },
+      lifetime: {
+        amount: 100000,
+        currency: 'NGN',
+        label: '₦100,000 one-time',
+        description: 'Full access, pay once forever',
       },
     };
   }
