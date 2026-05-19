@@ -2,8 +2,13 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('zoomguru', {
   // Triggers from main process → renderer (hotkeys)
-  onTrigger: (event: string, callback: () => void) => {
-    ipcRenderer.on(`trigger:${event}`, callback);
+  onTrigger: (event: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(`trigger:${event}`, (_e, ...args) => callback(...args));
+  },
+
+  // Generic named-channel listener (e.g. protection:status, update:ready)
+  onEvent: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, (_e, ...args) => callback(...args));
   },
 
   // Screenshot capture via desktopCapturer

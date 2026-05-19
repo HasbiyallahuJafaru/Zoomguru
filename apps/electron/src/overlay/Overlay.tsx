@@ -6,6 +6,7 @@ import { PaywallModal } from './PaywallModal';
 const API_URL = import.meta.env.VITE_API_URL;
 
 type Mode = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
+type ProtectionStatus = 'checking' | 'protected' | 'exposed';
 
 export function Overlay() {
   const [answer, setAnswer] = useState('');
@@ -18,6 +19,7 @@ export function Overlay() {
   const [lastImage, setLastImage] = useState('');
   const [copied, setCopied] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [protection, setProtection] = useState<ProtectionStatus>('checking');
   const [opacity, setOpacity] = useState<number>(() => {
     const saved = localStorage.getItem('zg_opacity');
     return saved ? parseFloat(saved) : 0.88;
@@ -30,6 +32,14 @@ export function Overlay() {
     window.zoomguru.onTrigger('screenshot', handleScreenshot);
     window.zoomguru.onTrigger('regenerate', handleRegenerate);
     window.zoomguru.onTrigger('clear', handleClear);
+
+    window.zoomguru.onEvent('protection:status', (data: {
+      protected: boolean;
+      reason: string;
+      platform: string;
+    }) => {
+      setProtection(data.protected ? 'protected' : 'exposed');
+    });
 
     const goOnline = () => setIsOnline(true);
     const goOffline = () => setIsOnline(false);
@@ -272,6 +282,63 @@ export function Overlay() {
             )}
             {!isOnline && (
               <span style={{ color: '#ef4444', fontSize: 10 }}>⚠ No connection</span>
+            )}
+
+            {protection === 'checking' && (
+              <span style={{
+                fontFamily: 'var(--mono, monospace)',
+                fontSize: 9,
+                color: 'rgba(255,255,255,0.25)',
+                letterSpacing: '0.05em',
+              }}>
+                checking...
+              </span>
+            )}
+
+            {protection === 'protected' && (
+              <span style={{
+                fontFamily: 'var(--mono, monospace)',
+                fontSize: 9,
+                color: '#10b981',
+                letterSpacing: '0.05em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+              }}>
+                <span style={{
+                  width: 5, height: 5,
+                  borderRadius: '50%',
+                  background: '#10b981',
+                  display: 'inline-block',
+                  boxShadow: '0 0 4px #10b981',
+                }} />
+                Hidden
+              </span>
+            )}
+
+            {protection === 'exposed' && (
+              <span
+                style={{
+                  fontFamily: 'var(--mono, monospace)',
+                  fontSize: 9,
+                  color: '#ef4444',
+                  letterSpacing: '0.05em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  cursor: 'pointer',
+                }}
+                title="Overlay may be visible to screen share. Restart the app and try again."
+              >
+                <span style={{
+                  width: 5, height: 5,
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  display: 'inline-block',
+                  animation: 'pulse 1.5s infinite',
+                }} />
+                ⚠ Visible
+              </span>
             )}
 
             {/* Upgrade button */}

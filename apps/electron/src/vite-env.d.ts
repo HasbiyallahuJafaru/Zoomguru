@@ -13,5 +13,6 @@ interface Window {
       delete: (key: string) => Promise<void>;
     };
     openExternal: (url: string) => Promise<void>;
+    onEvent: (channel: string, callback: (...args: any[]) => void) => void;
   };
 }

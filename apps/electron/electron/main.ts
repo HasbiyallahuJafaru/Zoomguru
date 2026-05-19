@@ -199,6 +199,85 @@ function setupAutoUpdater() {
   });
 }
 
+// ─── PROTECTION SELF-TEST ─────────────────────────────────────────────────
+
+async function runProtectionSelfTest(): Promise<void> {
+  if (!mainWindow) return;
+
+  // Wait for window to render and protection to apply
+  await new Promise(r => setTimeout(r, 1500));
+
+  try {
+    const { desktopCapturer, screen } = require('electron');
+
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.size;
+
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 400, height: 225 },
+    });
+
+    if (!sources || sources.length === 0) {
+      mainWindow.webContents.send('protection:status', {
+        protected: true,
+        reason: 'capture_unavailable',
+        platform: process.platform,
+      });
+      return;
+    }
+
+    const [winX, winY] = mainWindow.getPosition();
+    const [winW, winH] = mainWindow.getSize();
+
+    const scaleX = 400 / width;
+    const scaleY = 225 / height;
+    const centerX = Math.floor((winX + winW / 2) * scaleX);
+    const centerY = Math.floor((winY + winH / 2) * scaleY);
+
+    const clampedX = Math.max(0, Math.min(399, centerX));
+    const clampedY = Math.max(0, Math.min(224, centerY)); // fix: was clampedY (self-ref)
+
+    const bitmap = sources[0].thumbnail.getBitmap();
+
+    const idx = (clampedY * 400 + clampedX) * 4;
+    const r = bitmap[idx]     ?? 0;
+    const g = bitmap[idx + 1] ?? 0;
+    const b = bitmap[idx + 2] ?? 0;
+
+    const isOurUIColor = (r >= 5 && r <= 25) && (g >= 5 && g <= 25) && (b >= 10 && b <= 30);
+    const isBlack = r === 0 && g === 0 && b === 0;
+    const isProtected = isBlack || !isOurUIColor;
+
+    mainWindow.webContents.send('protection:status', {
+      protected: isProtected,
+      reason: isBlack ? 'wda_black' : isProtected ? 'color_mismatch' : 'exposed',
+      platform: process.platform,
+      debug: { r, g, b, centerX: clampedX, centerY: clampedY },
+    });
+
+    if (!isProtected) {
+      console.warn(
+        `⚠️ ZoomGuru overlay may be visible to screen capture. ` +
+        `Pixel at (${clampedX},${clampedY}): rgb(${r},${g},${b})`
+      );
+    } else {
+      console.log(
+        `✅ Screen protection active [${process.platform}]. ` +
+        `Capture pixel: rgb(${r},${g},${b})`
+      );
+    }
+
+  } catch (err) {
+    console.error('Protection self-test error:', err);
+    mainWindow.webContents.send('protection:status', {
+      protected: true,
+      reason: 'test_error',
+      platform: process.platform,
+    });
+  }
+}
+
 // ─── IPC HANDLERS ──────────────────────────────────────────────────────────
 
 function registerIpcHandlers() {
@@ -269,6 +348,11 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   initCapture(mainWindow!);
   initSpeech(mainWindow!);
+
+  // Run protection test after window is fully ready
+  mainWindow.once('ready-to-show', () => {
+    runProtectionSelfTest();
+  });
 
   app.on('activate', () => {
     // macOS — re-create window if dock icon is clicked and no windows are open
