@@ -70,9 +70,8 @@ zoomguru/
 - **Tables auto-created on backend boot**
 
 ### AI Layer
-- **DeepSeek V3** (`deepseek-chat`) — behavioral, conversational, technical definitions
+- **DeepSeek V3** (`deepseek-chat`) — behavioral, conversational, technical definitions, screenshot vision
 - **DeepSeek R1** (`deepseek-reasoner`) — coding, system design, math, reasoning
-- **Qwen VL** — screenshot vision analysis (image understanding)
 - **Whisper (local, tiny model)** — speech-to-text transcription via ONNX in Electron
 - **Porcupine** — local wake word detection ("Hey ZoomGuru")
 

@@ -4,13 +4,12 @@
 
 | Model | Provider | Use Case | Runs |
 |-------|----------|----------|------|
-| `deepseek-chat` (V3) | DeepSeek | Behavioral, conversational, technical definitions | Backend (API) |
+| `deepseek-chat` (V3) | DeepSeek | Behavioral, conversational, technical definitions, screenshot vision | Backend (API) |
 | `deepseek-reasoner` (R1) | DeepSeek | Coding, system design, math, complex reasoning | Backend (API) |
-| `qwen-vl-max` | Alibaba DashScope | Screenshot vision — reads screen content | Backend (API) |
 | Whisper tiny (ONNX) | OpenAI (local) | Speech-to-text transcription in Electron | Electron (local) |
 | Porcupine | Picovoice (local) | Wake word "Hey ZoomGuru" | Electron (local) |
 
-**All AI API calls go through the backend. Electron never calls DeepSeek or Qwen directly.**
+**All AI API calls go through the backend. Electron never calls DeepSeek directly.**
 
 > **Deprecation notice:** `deepseek-chat` and `deepseek-reasoner` are deprecated on **July 24, 2026**.
 > Migrate to `deepseek-v4-flash` (chat) and `deepseek-v4-pro` (reasoner) before that date.
@@ -21,7 +20,6 @@
 
 ```env
 DEEPSEEK_API_KEY=sk-xxxx    # platform.deepseek.com
-QWEN_API_KEY=sk-xxxx        # dashscope.console.aliyun.com
 ```
 
 ---
@@ -29,8 +27,7 @@ QWEN_API_KEY=sk-xxxx        # dashscope.console.aliyun.com
 ## API Endpoints
 
 ```
-DeepSeek V3 + R1:  POST https://api.deepseek.com/chat/completions
-Qwen VL:           POST https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
+DeepSeek V3 + R1 + Vision:  POST https://api.deepseek.com/chat/completions
 ```
 
 ---
@@ -105,7 +102,7 @@ File: `apps/backend/src/ai/ai.service.ts` — `streamScreenshot()`
 Electron sends base64 screenshot → POST /ai/screenshot (SSE)
         ↓
 1. Check usage limits
-2. POST image to Qwen VL → extracts screen content as text
+2. POST image to DeepSeek V3 (vision) → extracts screen content as text
    (code, math problems, diagrams, LeetCode windows, etc.)
 3. Combine extracted content + optional voice context
 4. Route to correct model via question router

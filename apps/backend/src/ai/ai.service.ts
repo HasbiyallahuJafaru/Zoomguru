@@ -146,35 +146,31 @@ export class AiService {
       return;
     }
 
-    // Step 1: Qwen VL — understand the screenshot
+    // Step 1: DeepSeek vision — understand the screenshot
     const visionController = new AbortController();
     const visionTimeoutId = setTimeout(() => visionController.abort(), 30000);
 
     let visionResponse: Response;
     try {
-      visionResponse = await fetch(
-        'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.QWEN_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: 'qwen-vl-max',
-            input: {
-              messages: [{
-                role: 'user',
-                content: [
-                  { image: `data:image/png;base64,${image}` },
-                  { text: 'Describe exactly what is on this screen. If there is code, extract it completely. If there is a math problem, write it out. If there is a system design question, describe it. Be precise and complete.' }
-                ]
-              }]
-            }
-          }),
-          signal: visionController.signal,
-        }
-      );
+      visionResponse = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:image/png;base64,${image}` } },
+              { type: 'text', text: 'Describe exactly what is on this screen. If there is code, extract it completely. If there is a math problem, write it out. If there is a system design question, describe it. Be precise and complete.' }
+            ]
+          }],
+          max_tokens: 1000,
+        }),
+        signal: visionController.signal,
+      });
     } catch (err: any) {
       clearTimeout(visionTimeoutId);
       if (err.name === 'AbortError') {
@@ -190,7 +186,7 @@ export class AiService {
     let screenContent = '';
     if (visionResponse.ok) {
       const visionData = await visionResponse.json();
-      screenContent = visionData.output?.choices?.[0]?.message?.content?.[0]?.text || '';
+      screenContent = visionData.choices?.[0]?.message?.content || '';
     } else {
       screenContent = voiceContext || 'Unable to analyze screenshot';
     }
