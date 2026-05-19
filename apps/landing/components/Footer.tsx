@@ -9,8 +9,9 @@ const navLinks = [
 
 const legalLinks = [
   { label: 'Download', href: '/download' },
-  { label: 'Privacy', href: '/privacy' },
+  { label: 'Privacy Policy', href: '/privacy' },
   { label: 'Terms', href: '/terms' },
+  { label: 'Refund Policy', href: '/refund-policy' },
 ];
 
 export default function Footer() {
