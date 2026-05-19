@@ -10,7 +10,6 @@ async function bootstrap() {
     'JWT_SECRET',
     'JWT_REFRESH_SECRET',
     'DEEPSEEK_API_KEY',
-    'QWEN_API_KEY',
     'PAYSTACK_SECRET_KEY',
     'PAYSTACK_WEBHOOK_SECRET',
     'ADMIN_SECRET_KEY',

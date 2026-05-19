@@ -84,8 +84,11 @@ export async function initDB(): Promise<void> {
         CREATE TABLE IF NOT EXISTS interview_sessions (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          cv_profile JSONB,
+          job_description TEXT,
           interview_type TEXT DEFAULT 'general',
           answer_length TEXT DEFAULT 'standard',
+          messages JSONB DEFAULT '[]'::jsonb,
           summary TEXT,
           total_questions INTEGER DEFAULT 0,
           duration_seconds INTEGER,
