@@ -120,7 +120,58 @@ export async function initDB(): Promise<void> {
         )
       `;
 
-      // Indexes for performance
+      // ── Column migrations (safe ADD COLUMN IF NOT EXISTS for live DB) ──────
+      // These run every boot but are no-ops if the column already exists.
+      // Required because CREATE TABLE IF NOT EXISTS skips recreation on existing DBs.
+      const userCols: [string, string][] = [
+        ['username',                 'TEXT'],
+        ['google_id',                'TEXT'],
+        ['avatar_url',               'TEXT'],
+        ['role',                     "TEXT DEFAULT 'user'"],
+        ['last_login_at',            'TIMESTAMPTZ'],
+        ['login_count',              'INTEGER DEFAULT 0'],
+        ['device_fingerprint_trial', 'TEXT'],
+        ['referral_code',            'TEXT'],
+        ['currency',                 "TEXT DEFAULT 'NGN'"],
+        ['updated_at',               'TIMESTAMPTZ DEFAULT NOW()'],
+      ];
+      for (const [col, def] of userCols) {
+        await sql.unsafe(
+          `ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col} ${def}`
+        );
+      }
+
+      // Add UNIQUE constraints only if the column has no unique index yet
+      // (safe: CREATE UNIQUE INDEX IF NOT EXISTS handles duplicates gracefully)
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_uq ON users(username) WHERE username IS NOT NULL`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id_uq ON users(google_id) WHERE google_id IS NOT NULL`;
+      await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code_uq ON users(referral_code) WHERE referral_code IS NOT NULL`;
+
+      // licenses — add missing columns
+      const licenseCols: [string, string][] = [
+        ['currency',             'TEXT'],
+        ['amount',               'NUMERIC DEFAULT 0'],
+        ['paystack_reference',   'TEXT'],
+      ];
+      for (const [col, def] of licenseCols) {
+        await sql.unsafe(
+          `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS ${col} ${def}`
+        );
+      }
+
+      // payments — add missing columns
+      const paymentCols: [string, string][] = [
+        ['paystack_event', 'TEXT'],
+        ['metadata',       'JSONB'],
+        ['updated_at',     'TIMESTAMPTZ DEFAULT NOW()'],
+      ];
+      for (const [col, def] of paymentCols) {
+        await sql.unsafe(
+          `ALTER TABLE payments ADD COLUMN IF NOT EXISTS ${col} ${def}`
+        );
+      }
+
+      // ── Indexes for performance ──────────────────────────────────────────
       await sql`CREATE INDEX IF NOT EXISTS idx_licenses_user ON licenses(user_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_licenses_fingerprint ON licenses(device_fingerprint)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_sessions_user ON interview_sessions(user_id)`;
@@ -228,6 +279,7 @@ export async function initDB(): Promise<void> {
       await sql`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_nextauth_sessions_token ON nextauth_sessions(session_token)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_nextauth_accounts_user ON nextauth_accounts(user_id)`;
 
