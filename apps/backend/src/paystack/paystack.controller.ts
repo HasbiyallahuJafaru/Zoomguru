@@ -19,6 +19,15 @@ export class PaystackController {
     });
   }
 
+  @Post('verify-transaction')
+  @UseGuards(JwtAuthGuard)
+  async verifyTransaction(
+    @Req() req: any,
+    @Body() body: { reference: string }
+  ) {
+    return this.paystackService.verifyAndActivate(body.reference, req.user.userId);
+  }
+
   @Post('webhook')
   async webhook(
     @Headers('x-paystack-signature') signature: string,

@@ -6,7 +6,7 @@ import Script from 'next/script';
 
 declare global {
   interface Window {
-    PaystackPop: {
+    PaystackPop: new () => {
       newTransaction: (config: {
         key: string; email: string; amount: number; currency: string;
         ref: string; metadata?: Record<string, unknown>;
@@ -72,21 +72,28 @@ export default function SubscriptionPage() {
       ? NGN_RATES[plan] * 100
       : USD_RATES[plan] * 100;
 
-    window.PaystackPop.newTransaction({
+    const popup = new window.PaystackPop();
+    popup.newTransaction({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
       email: user.email,
       amount,
       currency,
       ref: `ZG-${plan.toUpperCase()}-${Date.now()}`,
       metadata: { plan, userId: user.id, currency },
-      onSuccess: async (t) => {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/paystack/webhook-verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference: t.reference }),
-        });
-        setPaying(null);
-        await fetchSub();
+      onSuccess: async (t: { reference: string }) => {
+        try {
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/paystack/verify-transaction`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${user.accessToken}`,
+            },
+            body: JSON.stringify({ reference: t.reference }),
+          });
+        } finally {
+          setPaying(null);
+          await fetchSub();
+        }
       },
       onCancel: () => setPaying(null),
     });

@@ -72,6 +72,27 @@ export class PaystackService {
     };
   }
 
+  async verifyAndActivate(reference: string, userId: string) {
+    const response = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${this.secretKey}` } }
+    );
+    const data = await response.json();
+
+    if (!data.status || data.data?.status !== 'success') {
+      throw new BadRequestException(data.message || 'Payment verification failed');
+    }
+
+    // Inject the authenticated userId — don't trust metadata from the browser
+    const txData = {
+      ...data.data,
+      metadata: { ...data.data.metadata, user_id: userId },
+    };
+
+    await this.activateLicense(txData);
+    return { success: true };
+  }
+
   async handleWebhook(signature: string, body: any) {
     // Verify Paystack HMAC SHA512 signature
     const hash = crypto
