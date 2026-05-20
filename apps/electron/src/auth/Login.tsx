@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Register } from './Register';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL: string =
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:3000';
+if (!import.meta.env.VITE_API_URL) {
+  console.warn(
+    '[ZoomGuru] VITE_API_URL not set in .env — ' +
+    'falling back to http://localhost:3000'
+  );
+}
 
 interface Props {
   onLogin: (user?: any) => void;
@@ -89,7 +97,7 @@ export function Login({ onLogin }: Props) {
       <div className="auth-card">
         {/* Close / quit button — window has no frame so this is the only way out */}
         <button
-          onClick={() => window.close()}
+          onClick={() => window.zoomguru.hideWindow()}
           title="Close"
           style={{
             position: 'absolute', top: 12, right: 12,

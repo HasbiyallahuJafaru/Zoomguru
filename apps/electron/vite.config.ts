@@ -20,13 +20,23 @@ export default defineConfig(({ mode }) => {
         {
           entry: 'electron/main.ts',
           vite: {
-            build: { outDir: 'dist-electron' },
+            build: {
+              outDir: 'dist-electron',
+              rollupOptions: {
+                external: ['electron', 'electron-updater', 'electron-store'],
+              },
+            },
           },
         },
         {
           entry: 'electron/preload.ts',
           vite: {
-            build: { outDir: 'dist-electron' },
+            build: {
+              outDir: 'dist-electron',
+              rollupOptions: {
+                external: ['electron'],
+              },
+            },
           },
           onstart(options) {
             options.reload();

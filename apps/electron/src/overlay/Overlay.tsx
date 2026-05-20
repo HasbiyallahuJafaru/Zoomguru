@@ -1,9 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { AnswerStream } from './AnswerStream';
 import { ModeBar } from './ModeBar';
 import { PaywallModal } from './PaywallModal';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL: string =
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:3000';
+if (!import.meta.env.VITE_API_URL) {
+  console.warn(
+    '[ZoomGuru] VITE_API_URL not set in .env — ' +
+    'falling back to http://localhost:3000'
+  );
+}
 
 type Mode = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
 type ProtectionStatus = 'checking' | 'protected' | 'exposed';
@@ -22,10 +30,8 @@ export function Overlay() {
   const [protection, setProtection] = useState<ProtectionStatus>('checking');
   const [opacity, setOpacity] = useState<number>(() => {
     const saved = localStorage.getItem('zg_opacity');
-    return saved ? parseFloat(saved) : 0.88;
+    return saved ? parseFloat(saved) : 0.20;
   });
-  const eventSourceRef = useRef<EventSource | null>(null);
-
   useEffect(() => {
     // Register hotkey triggers from Electron main process
     window.zoomguru.onTrigger('listen', handleListen);
@@ -144,112 +150,173 @@ export function Overlay() {
   }
 
   function handleClear() {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
     setAnswer('');
     setIsStreaming(false);
     setLastTranscript('');
     setLastImage('');
   }
 
-  function streamAnswer(transcript: string, _image: null) {
+  async function streamAnswer(transcript: string, _image: null) {
     setAnswer('');
     setIsStreaming(true);
-
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
 
     const token = localStorage.getItem('access_token');
     const sessionId = localStorage.getItem('session_id');
 
-    const params = new URLSearchParams({
-      transcript,
-      sessionId: sessionId || '',
-      token: token || '',
-      mode,
-    });
+    try {
+      const response = await fetch(`${API_URL}/ai/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+          'X-Device-ID': await window.zoomguru.getDeviceId(),
+        },
+        body: JSON.stringify({
+          transcript,
+          sessionId: sessionId || '',
+          mode,
+        }),
+      });
 
-    const es = new EventSource(`${API_URL}/ai/stream?${params.toString()}`);
-
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.done) {
-          es.close();
-          setIsStreaming(false);
-          eventSourceRef.current = null;
-        } else if (data.error === 'paywall') {
-          es.close();
-          setIsStreaming(false);
-          eventSourceRef.current = null;
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        if (response.status === 403 &&
+            (err as any)?.message?.includes('limit')) {
           setShowPaywall(true);
-        } else if (data.chunk) {
-          setAnswer(prev => prev + data.chunk);
+        } else {
+          setAnswer('⚠ Request failed. Please try again.');
         }
-      } catch {
-        // ignore parse errors
+        setIsStreaming(false);
+        return;
       }
-    };
 
-    es.onerror = () => {
-      es.close();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        setIsStreaming(false);
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw || raw === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(raw);
+            if (data.done) {
+              setIsStreaming(false);
+              return;
+            }
+            if (data.error === 'paywall') {
+              setShowPaywall(true);
+              setIsStreaming(false);
+              return;
+            }
+            if (data.chunk) {
+              setAnswer(prev => prev + data.chunk);
+            }
+          } catch {
+            // ignore malformed chunk
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Stream error:', err);
+      setAnswer('⚠ Connection lost. Check your internet and try again.');
+    } finally {
       setIsStreaming(false);
-      eventSourceRef.current = null;
-    };
-
-    eventSourceRef.current = es;
+    }
   }
 
-  function streamScreenshot(imageBase64: string) {
+  async function streamScreenshot(imageBase64: string) {
     setAnswer('');
     setIsStreaming(true);
-
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
 
     const token = localStorage.getItem('access_token');
     const sessionId = localStorage.getItem('session_id');
 
-    // Screenshot goes via POST with SSE response
-    const params = new URLSearchParams({
-      sessionId: sessionId || '',
-      token: token || '',
-      mode,
-      image: imageBase64,
-    });
+    try {
+      const response = await fetch(`${API_URL}/ai/screenshot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+          'X-Device-ID': await window.zoomguru.getDeviceId(),
+        },
+        body: JSON.stringify({
+          image: imageBase64,
+          sessionId: sessionId || '',
+          mode,
+        }),
+      });
 
-    const es = new EventSource(`${API_URL}/ai/stream/screenshot?${params.toString()}`);
-
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.done) {
-          es.close();
-          setIsStreaming(false);
-          eventSourceRef.current = null;
-        } else if (data.error === 'paywall') {
-          es.close();
-          setIsStreaming(false);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        if (response.status === 403 &&
+            (err as any)?.message?.includes('limit')) {
           setShowPaywall(true);
-        } else if (data.chunk) {
-          setAnswer(prev => prev + data.chunk);
+        } else {
+          setAnswer('⚠ Screenshot request failed. Please try again.');
         }
-      } catch {
-        // ignore
+        setIsStreaming(false);
+        return;
       }
-    };
 
-    es.onerror = () => {
-      es.close();
+      const reader = response.body?.getReader();
+      if (!reader) { setIsStreaming(false); return; }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw || raw === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(raw);
+            if (data.done) {
+              setIsStreaming(false);
+              return;
+            }
+            if (data.error === 'paywall') {
+              setShowPaywall(true);
+              setIsStreaming(false);
+              return;
+            }
+            if (data.chunk) {
+              setAnswer(prev => prev + data.chunk);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Screenshot stream error:', err);
+      setAnswer('⚠ Connection lost. Check your internet and try again.');
+    } finally {
       setIsStreaming(false);
-      eventSourceRef.current = null;
-    };
-
-    eventSourceRef.current = es;
+    }
   }
 
   if (!visible) return null;
@@ -262,8 +329,9 @@ export function Overlay() {
         left: 0,
         right: 0,
         bottom: 0,
-        background: `rgba(10, 10, 15, ${opacity})`,
-        backdropFilter: 'blur(12px)',
+        background: `rgba(8, 8, 14, ${opacity})`,
+        backdropFilter: opacity > 0.5 ? 'blur(12px)' : 'blur(4px)',
+        WebkitBackdropFilter: opacity > 0.5 ? 'blur(12px)' : 'blur(4px)',
         borderRadius: '16px',
         border: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
@@ -385,7 +453,7 @@ export function Overlay() {
 
             {/* Hide to tray */}
             <button
-              onClick={() => window.close()}
+              onClick={() => window.zoomguru.hideWindow()}
               title="Hide to tray (Ctrl+Shift+H)"
               style={{
                 padding: '3px 8px',
@@ -462,8 +530,8 @@ export function Overlay() {
           <span>⌘⇧C Clear</span>
           <input
             type="range"
-            min={0.5}
-            max={0.97}
+            min={0.1}
+            max={0.95}
             step={0.05}
             value={opacity}
             onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}

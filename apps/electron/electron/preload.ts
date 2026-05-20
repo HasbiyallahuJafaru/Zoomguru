@@ -6,11 +6,16 @@ const API_URL: string = (import.meta as any).env?.VITE_API_URL ?? 'https://zoomg
 contextBridge.exposeInMainWorld('zoomguru', {
   // Triggers from main process → renderer (hotkeys)
   onTrigger: (event: string, callback: (...args: any[]) => void) => {
-    ipcRenderer.on(`trigger:${event}`, (_e, ...args) => callback(...args));
+    const channel = `trigger:${event}`;
+    // Remove ALL existing listeners on this channel before adding new one
+    ipcRenderer.removeAllListeners(channel);
+    ipcRenderer.on(channel, (_e, ...args) => callback(...args));
   },
 
   // Generic named-channel listener (e.g. protection:status, update:ready)
   onEvent: (channel: string, callback: (...args: any[]) => void) => {
+    // Remove existing listener before adding — prevents duplicates
+    ipcRenderer.removeAllListeners(channel);
     ipcRenderer.on(channel, (_e, ...args) => callback(...args));
   },
 
@@ -44,4 +49,7 @@ contextBridge.exposeInMainWorld('zoomguru', {
   // Uses IPC → main process shell.openExternal (shell is not available in preload)
   openGoogleAuth: (): Promise<void> =>
     ipcRenderer.invoke('shell:openExternal', API_URL + '/auth/google/electron'),
+
+  hideWindow: (): Promise<void> =>
+    ipcRenderer.invoke('window:hide'),
 });

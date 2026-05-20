@@ -1,0 +1,3 @@
+apps\electron\release\win-unpacked\LICENSE.electron.txt
+apps\electron\assets\icon.png
+apps\electron\assets\tray-icon.png

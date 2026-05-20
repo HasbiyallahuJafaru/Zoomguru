@@ -28,11 +28,20 @@ const store = new Store({
 });
 
 function applyScreenShareExclusion(win: BrowserWindow) {
-  // setContentProtection works on BOTH macOS and Windows (Electron built-in).
-  // On Windows it calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) internally.
-  // On macOS it uses NSWindow.sharingType = NSWindowSharingNone.
-  // Must be called BEFORE show() for reliable exclusion.
-  win.setContentProtection(true);
+  if (process.platform === 'darwin') {
+    // macOS — setContentProtection uses NSWindow.sharingType = .none
+    // Works perfectly with transparent windows
+    win.setContentProtection(true);
+  } else if (process.platform === 'win32') {
+    // Windows — setContentProtection calls SetWindowDisplayAffinity
+    // Must be called AFTER the window handle exists (after show)
+    // For reliable exclusion on Win32 we call it here AND after show
+    win.setContentProtection(true);
+    win.once('show', () => {
+      // Re-apply after first show — Win32 DWM requires this
+      win.setContentProtection(true);
+    });
+  }
 }
 
 function createWindow() {
@@ -44,7 +53,10 @@ function createWindow() {
     width: 420,
     height: 600,
     frame: false,
-    transparent: true,
+    transparent: process.platform === 'darwin',
+    backgroundColor: process.platform === 'win32'
+      ? '#00000001'
+      : '#00000000',
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: true,
@@ -116,6 +128,10 @@ function createWindow() {
   // ─── SHOW AFTER RENDER (exclusion already applied above) ─────────────────
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+    // Run protection test AFTER window is shown and protection applied
+    setTimeout(() => {
+      runProtectionSelfTest();
+    }, 1500);
   });
 
   // ─── INTERCEPT CLOSE — hide to tray instead of quitting ──────────────────
@@ -299,6 +315,10 @@ function registerIpcHandlers() {
   ipcMain.handle('device:fingerprint', () => {
     return fingerprint;
   });
+
+  ipcMain.handle('window:hide', () => {
+    mainWindow?.hide();
+  });
 }
 
 // ─── GLOBAL HOTKEYS ────────────────────────────────────────────────────────
@@ -359,11 +379,6 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   initCapture(mainWindow!);
   initSpeech(mainWindow!);
-
-  // Run protection test after window is fully ready
-  mainWindow.once('ready-to-show', () => {
-    runProtectionSelfTest();
-  });
 
   // Handle deep link for Google OAuth on macOS
   app.on('open-url', (event, url) => {
