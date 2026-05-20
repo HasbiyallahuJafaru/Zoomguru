@@ -32,12 +32,25 @@ async function bootstrap() {
   // Multipart for CV uploads
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
 
+  const ALLOWED_ORIGINS = [
+    'https://zoomguru.com',
+    'app://.',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ];
+
   app.enableCors({
-    origin: [
-      'https://zoomguru.com',
-      'app://.',           // Electron production
-      'http://localhost:5173' // Electron dev
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // server-to-server / curl
+      if (
+        ALLOWED_ORIGINS.includes(origin) ||
+        /\.vercel\.app$/.test(origin)        // all vercel preview + production URLs
+      ) {
+        return callback(null, true);
+      }
+      callback(new Error('CORS: origin not allowed'));
+    },
     credentials: true,
   });
 

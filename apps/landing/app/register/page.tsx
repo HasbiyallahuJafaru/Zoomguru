@@ -1,10 +1,10 @@
 'use client';
 import { signIn } from 'next-auth/react';
-import { useState, useRef } from 'react';
+import { useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const refCode = searchParams.get('ref') || '';
@@ -394,3 +394,11 @@ const inputStyle: React.CSSProperties = {
   transition: 'border-color 0.2s',
   fontFamily: 'inherit',
 };
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  );
+}
