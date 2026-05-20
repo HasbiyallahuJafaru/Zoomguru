@@ -32,4 +32,14 @@ contextBridge.exposeInMainWorld('zoomguru', {
   // Open URL in system browser
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('shell:openExternal', url),
+
+  // Google OAuth — open system browser then receive callback token
+  onGoogleAuth: (callback: (data: { token: string }) => void) => {
+    ipcRenderer.on('auth:google-callback', (_e, data) => callback(data));
+  },
+
+  openGoogleAuth: () => {
+    const apiUrl = process.env.VITE_API_URL || 'https://zoomguru.onrender.com';
+    shell.openExternal(apiUrl + '/auth/google/electron');
+  },
 });

@@ -22,6 +22,12 @@ export async function initDB(): Promise<void> {
           currency TEXT DEFAULT 'NGN',
           device_fingerprint_trial TEXT,
           referral_code TEXT UNIQUE,
+          username TEXT UNIQUE,
+          google_id TEXT UNIQUE,
+          avatar_url TEXT,
+          role TEXT DEFAULT 'user',
+          last_login_at TIMESTAMPTZ,
+          login_count INTEGER DEFAULT 0,
           created_at TIMESTAMPTZ DEFAULT NOW(),
           updated_at TIMESTAMPTZ DEFAULT NOW()
         )
@@ -182,6 +188,48 @@ export async function initDB(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_error_logs_created
         ON error_logs(created_at DESC)
       `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS nextauth_sessions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          session_token TEXT UNIQUE NOT NULL,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          expires TIMESTAMPTZ NOT NULL
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS nextauth_accounts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          type TEXT NOT NULL,
+          provider TEXT NOT NULL,
+          provider_account_id TEXT NOT NULL,
+          refresh_token TEXT,
+          access_token TEXT,
+          expires_at INTEGER,
+          token_type TEXT,
+          scope TEXT,
+          id_token TEXT,
+          session_state TEXT,
+          UNIQUE(provider, provider_account_id)
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS nextauth_verification_tokens (
+          identifier TEXT NOT NULL,
+          token TEXT UNIQUE NOT NULL,
+          expires TIMESTAMPTZ NOT NULL,
+          PRIMARY KEY(identifier, token)
+        )
+      `;
+
+      await sql`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_nextauth_sessions_token ON nextauth_sessions(session_token)`;
+      await sql`CREATE INDEX IF NOT EXISTS idx_nextauth_accounts_user ON nextauth_accounts(user_id)`;
 
       console.log('ZoomGuru DB initialized');
       return;

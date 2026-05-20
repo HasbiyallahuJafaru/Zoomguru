@@ -9,6 +9,8 @@ interface Props {
 
 export function Register({ onRegistered, onBack }: Props) {
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,7 +27,7 @@ export function Register({ onRegistered, onBack }: Props) {
       const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, deviceId }),
+        body: JSON.stringify({ name, username, email, password, deviceId }),
       });
 
       const data = await res.json();
@@ -69,6 +71,38 @@ export function Register({ onRegistered, onBack }: Props) {
               required
               autoComplete="name"
             />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Username</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="letters, numbers, underscore"
+              value={username}
+              onChange={e => {
+                setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+                setUsernameAvailable(null);
+              }}
+              onBlur={async () => {
+                if (username.length >= 3) {
+                  const res = await fetch(
+                    `${API_URL}/auth/check-username?username=${username}`
+                  );
+                  const data = await res.json();
+                  setUsernameAvailable(data.available);
+                }
+              }}
+              required
+              minLength={3}
+              autoComplete="username"
+            />
+            {usernameAvailable === true && (
+              <span style={{ color: '#10b981', fontSize: 11 }}>✓ Available</span>
+            )}
+            {usernameAvailable === false && (
+              <span style={{ color: '#ef4444', fontSize: 11 }}>✗ Already taken</span>
+            )}
           </div>
 
           <div className="form-group">

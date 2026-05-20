@@ -1,6 +1,17 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, shell, Tray, Menu } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
+
+// ─── CUSTOM PROTOCOL — must run before app is ready ───────────────────────
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(
+      'zoomguru', process.execPath, [path.resolve(process.argv[1])]
+    );
+  }
+} else {
+  app.setAsDefaultProtocolClient('zoomguru');
+}
 import Store from 'electron-store';
 import { initCapture } from './capture';
 import { initSpeech } from './speech';
@@ -338,6 +349,21 @@ function registerHotkeys() {
   });
 }
 
+// ─── DEEP LINK HANDLER ────────────────────────────────────────────────────
+
+function handleDeepLink(url: string): void {
+  if (!url.startsWith('zoomguru://auth')) return;
+
+  const urlObj = new URL(url);
+  const token = urlObj.searchParams.get('token');
+
+  if (!token || !mainWindow) return;
+
+  mainWindow.webContents.send('auth:google-callback', { token });
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 // ─── APP LIFECYCLE ─────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
@@ -353,6 +379,18 @@ app.whenReady().then(() => {
   mainWindow.once('ready-to-show', () => {
     runProtectionSelfTest();
   });
+
+  // Handle deep link for Google OAuth on macOS
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    handleDeepLink(url);
+  });
+
+  // Handle deep link on Windows (passed as argv)
+  if (process.platform === 'win32') {
+    const deepLinkUrl = process.argv.find(arg => arg.startsWith('zoomguru://'));
+    if (deepLinkUrl) handleDeepLink(deepLinkUrl);
+  }
 
   app.on('activate', () => {
     // macOS — re-create window if dock icon is clicked and no windows are open
