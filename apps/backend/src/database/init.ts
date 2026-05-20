@@ -123,53 +123,32 @@ export async function initDB(): Promise<void> {
       // ── Column migrations (safe ADD COLUMN IF NOT EXISTS for live DB) ──────
       // These run every boot but are no-ops if the column already exists.
       // Required because CREATE TABLE IF NOT EXISTS skips recreation on existing DBs.
-      const userCols: [string, string][] = [
-        ['username',                 'TEXT'],
-        ['google_id',                'TEXT'],
-        ['avatar_url',               'TEXT'],
-        ['role',                     "TEXT DEFAULT 'user'"],
-        ['last_login_at',            'TIMESTAMPTZ'],
-        ['login_count',              'INTEGER DEFAULT 0'],
-        ['device_fingerprint_trial', 'TEXT'],
-        ['referral_code',            'TEXT'],
-        ['currency',                 "TEXT DEFAULT 'NGN'"],
-        ['updated_at',               'TIMESTAMPTZ DEFAULT NOW()'],
-      ];
-      for (const [col, def] of userCols) {
-        await sql.unsafe(
-          `ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col} ${def}`
-        );
-      }
+      // Neon tagged-template driver has no .unsafe() — each statement is its own call.
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_count INTEGER DEFAULT 0`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS device_fingerprint_trial TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'NGN'`;
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
 
-      // Add UNIQUE constraints only if the column has no unique index yet
-      // (safe: CREATE UNIQUE INDEX IF NOT EXISTS handles duplicates gracefully)
+      // Add partial unique indexes (safe to re-run: IF NOT EXISTS)
       await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_uq ON users(username) WHERE username IS NOT NULL`;
       await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id_uq ON users(google_id) WHERE google_id IS NOT NULL`;
       await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code_uq ON users(referral_code) WHERE referral_code IS NOT NULL`;
 
       // licenses — add missing columns
-      const licenseCols: [string, string][] = [
-        ['currency',             'TEXT'],
-        ['amount',               'NUMERIC DEFAULT 0'],
-        ['paystack_reference',   'TEXT'],
-      ];
-      for (const [col, def] of licenseCols) {
-        await sql.unsafe(
-          `ALTER TABLE licenses ADD COLUMN IF NOT EXISTS ${col} ${def}`
-        );
-      }
+      await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS currency TEXT`;
+      await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0`;
+      await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS paystack_reference TEXT`;
 
       // payments — add missing columns
-      const paymentCols: [string, string][] = [
-        ['paystack_event', 'TEXT'],
-        ['metadata',       'JSONB'],
-        ['updated_at',     'TIMESTAMPTZ DEFAULT NOW()'],
-      ];
-      for (const [col, def] of paymentCols) {
-        await sql.unsafe(
-          `ALTER TABLE payments ADD COLUMN IF NOT EXISTS ${col} ${def}`
-        );
-      }
+      await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS paystack_event TEXT`;
+      await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS metadata JSONB`;
+      await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
 
       // ── Indexes for performance ──────────────────────────────────────────
       await sql`CREATE INDEX IF NOT EXISTS idx_licenses_user ON licenses(user_id)`;
