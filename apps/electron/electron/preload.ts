@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Vite bakes this value in at build time from .env / .env.production
+const API_URL: string = (import.meta as any).env?.VITE_API_URL ?? 'https://zoomguru.onrender.com';
+
 contextBridge.exposeInMainWorld('zoomguru', {
   // Triggers from main process → renderer (hotkeys)
   onTrigger: (event: string, callback: (...args: any[]) => void) => {
@@ -33,13 +36,12 @@ contextBridge.exposeInMainWorld('zoomguru', {
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('shell:openExternal', url),
 
-  // Google OAuth — open system browser then receive callback token
+  // Google OAuth — opens system browser, receives token back via deep link
   onGoogleAuth: (callback: (data: { token: string }) => void) => {
     ipcRenderer.on('auth:google-callback', (_e, data) => callback(data));
   },
 
-  openGoogleAuth: () => {
-    const apiUrl = process.env.VITE_API_URL || 'https://zoomguru.onrender.com';
-    shell.openExternal(apiUrl + '/auth/google/electron');
-  },
+  // Uses IPC → main process shell.openExternal (shell is not available in preload)
+  openGoogleAuth: (): Promise<void> =>
+    ipcRenderer.invoke('shell:openExternal', API_URL + '/auth/google/electron'),
 });

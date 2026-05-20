@@ -54,34 +54,55 @@ export function Overlay() {
   async function handleListen() {
     if (isStreaming || isListening) return;
 
+    // Check mic permission first
+    const stream = await navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .catch(() => null);
+
+    if (!stream) {
+      setAnswer(
+        '⚠ Microphone access denied.\n\n' +
+        'Fix: System Settings → Privacy → Microphone → Enable ZoomGuru'
+      );
+      return;
+    }
+    stream.getTracks().forEach(t => t.stop());
+
+    // Use Web Speech API (available in Electron's Chromium)
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setAnswer('⚠ Speech recognition not available. Type your question instead.');
+      return;
+    }
+
     setIsListening(true);
-    try {
-      const stream = await navigator.mediaDevices
-        .getUserMedia({ audio: true })
-        .catch(() => null);
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
-      if (!stream) {
-        setAnswer(
-          '⚠ Microphone access denied.\n\n' +
-          'To fix: System Settings → Privacy → Microphone → Enable ZoomGuru'
-        );
-        setIsListening(false);
-        return;
-      }
-
-      stream.getTracks().forEach(t => t.stop());
-
-      const transcript = await window.zoomguru.startListening();
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
       setIsListening(false);
-      if (transcript && transcript.trim()) {
+      if (transcript.trim()) {
         setLastTranscript(transcript);
         setLastImage('');
         streamAnswer(transcript, null);
       }
-    } catch {
+    };
+
+    recognition.onerror = () => {
       setIsListening(false);
-      setAnswer('⚠ Could not access microphone. Please check permissions.');
-    }
+      setAnswer('⚠ Could not capture speech. Try again or type your question.');
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
   }
 
   async function handleScreenshot() {
@@ -340,6 +361,27 @@ export function Overlay() {
                 ⚠ Visible
               </span>
             )}
+
+            {/* New session */}
+            <button
+              onClick={() => {
+                localStorage.removeItem('session_id');
+                window.location.reload();
+              }}
+              title="Start a new interview session"
+              style={{
+                padding: '3px 8px',
+                borderRadius: 5,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(255,255,255,0.06)',
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: 10,
+                cursor: 'pointer',
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties & { WebkitAppRegion: string }}
+            >
+              New
+            </button>
 
             {/* Upgrade button */}
             <button
