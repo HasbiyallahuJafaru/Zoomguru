@@ -114,7 +114,7 @@ export default function SessionsPage() {
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {TYPE_FILTERS.map(t => (
             <button key={t} onClick={() => setTypeFilter(t)} style={{
-              padding: '6px 14px', borderRadius: '20px', border: 'none',
+              padding: '6px 14px', borderRadius: '20px',
               background: typeFilter === t ? 'rgba(79,110,247,0.2)' : 'rgba(255,255,255,0.06)',
               color: typeFilter === t ? '#4f6ef7' : 'rgba(255,255,255,0.45)',
               fontSize: '13px', fontWeight: typeFilter === t ? 600 : 400,
