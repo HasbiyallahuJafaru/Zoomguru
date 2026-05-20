@@ -3,6 +3,7 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 import ReferralCapture from '@/components/ReferralCapture';
 import GalaxyBackground from '@/components/GalaxyBackground';
+import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
   title: 'ZoomGuru — Invisible AI Interview Copilot',
@@ -33,11 +34,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="scroll-smooth">
       <body className="relative">
-        {/* Galaxy — fixed behind everything */}
-        <GalaxyBackground />
-        <ReferralCapture />
-        <Navbar />
-        <main className="relative z-10">{children}</main>
+        <Providers>
+          {/* Galaxy — fixed behind everything */}
+          <GalaxyBackground />
+          <ReferralCapture />
+          <Navbar />
+          <main className="relative z-10">{children}</main>
+        </Providers>
       </body>
     </html>
   );
