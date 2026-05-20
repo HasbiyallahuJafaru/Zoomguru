@@ -62,6 +62,10 @@ export default function SubscriptionPage() {
 
   function openPaystack(plan: 'monthly' | 'lifetime') {
     if (!user?.email || paying) return;
+    if (!window.PaystackPop) {
+      alert('Payment is still loading, please try again in a moment.');
+      return;
+    }
     setPaying(plan);
 
     const amount = currency === 'NGN'
@@ -113,7 +117,7 @@ export default function SubscriptionPage() {
 
   return (
     <>
-      <Script src="https://js.paystack.co/v2/inline.js" strategy="lazyOnload" />
+      <Script src="https://js.paystack.co/v2/inline.js" strategy="afterInteractive" />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '780px' }}>
         <PageTitle />
