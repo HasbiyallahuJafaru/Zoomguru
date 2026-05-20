@@ -1,3 +1,12 @@
+import * as Sentry from '@sentry/node';
+
+Sentry.init({
+  dsn: process.env.GLITCHTIP_DSN || 'https://41222b9dc9e94a93b69db9367b692e76@app.glitchtip.com/23688',
+  environment: process.env.NODE_ENV || 'production',
+  release: '1.0.0',
+  tracesSampleRate: 0.01,
+});
+
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
@@ -60,6 +69,7 @@ async function bootstrap() {
 
   // Global unhandled error catcher
   process.on('uncaughtException', async (err) => {
+    Sentry.captureException(err);
     try {
       const { AdminService } = await import('./admin/admin.service');
       const adminService = app.get(AdminService);

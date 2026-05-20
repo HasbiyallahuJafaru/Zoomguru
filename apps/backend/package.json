@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "start:dev": "nest start --watch",
-    "build": "nest build",
-    "start": "node dist/main",
+    "build": "node -e \"require('fs').rmSync('tsconfig.tsbuildinfo',{force:true})\" && nest build",
+    "start": "node --use-system-ca dist/main",
     "test": "npx jest --runInBand",
     "test:coverage": "npx jest --runInBand --coverage"
   },
@@ -39,6 +39,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-fastify": "^11.1.21",
     "@nestjs/schematics": "^11.1.0",
+    "@sentry/node": "^10.53.1",
     "bcryptjs": "^2.4.3",
     "mammoth": "^1.7.2",
     "nanoid": "^3.3.12",

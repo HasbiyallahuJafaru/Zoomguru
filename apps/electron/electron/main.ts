@@ -28,26 +28,11 @@ const store = new Store({
 });
 
 function applyScreenShareExclusion(win: BrowserWindow) {
-  if (process.platform === 'darwin') {
-    // macOS — Electron built-in. Applies to ALL capture: Zoom, Meet, OBS, QuickTime,
-    // and browser getDisplayMedia(). Window renders on user display, black in any capture.
-    win.setContentProtection(true);
-
-  } else if (process.platform === 'win32') {
-    // Windows — SetWindowDisplayAffinity(HWND, WDA_EXCLUDEFROMCAPTURE = 0x11)
-    // This is an OS API call — operates below the application layer.
-    // Excluded from: Zoom, Teams, Meet, OBS, Chrome getDisplayMedia(), DxGi capture,
-    // BitBlt, PrintWindow, and every screen recording method on Windows 10 2004+.
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { setWindowDisplayAffinity } = require('electron-wda');
-      // Must be called BEFORE the window is shown for reliable exclusion.
-      // electron-wda wraps the native Win32 call using the window's HWND.
-      setWindowDisplayAffinity(win, 'WDA_EXCLUDEFROMCAPTURE');
-    } catch (e) {
-      console.warn('[ZoomGuru] electron-wda unavailable — screen share protection inactive:', e);
-    }
-  }
+  // setContentProtection works on BOTH macOS and Windows (Electron built-in).
+  // On Windows it calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE) internally.
+  // On macOS it uses NSWindow.sharingType = NSWindowSharingNone.
+  // Must be called BEFORE show() for reliable exclusion.
+  win.setContentProtection(true);
 }
 
 function createWindow() {
