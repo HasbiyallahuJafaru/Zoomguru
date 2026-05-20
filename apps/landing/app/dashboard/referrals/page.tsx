@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
@@ -61,12 +61,12 @@ export default function ReferralsPage() {
   }
 
   function shareTwitter() {
-    const text = encodeURIComponent(`I use ZoomGuru to nail my interviews â€” AI that's invisible to screen share. Try it: ${referralLink}`);
+    const text = encodeURIComponent(`I use ZoomGuru to nail my interviews — AI that's invisible to screen share. Try it: ${referralLink}`);
     window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
   }
 
   function shareWhatsApp() {
-    const text = encodeURIComponent(`Check out ZoomGuru â€” invisible AI interview copilot: ${referralLink}`);
+    const text = encodeURIComponent(`Check out ZoomGuru — invisible AI interview copilot: ${referralLink}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   }
 
@@ -135,15 +135,15 @@ export default function ReferralsPage() {
         <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px', marginTop: '4px' }}>Earn 25% of every subscription you refer</p>
       </div>
 
-      {/* â”€â”€ Section 1: Stats â”€â”€ */}
+      {/* ── Section 1: Stats ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
-        <StatCard label="Total referred"    value={String(data?.totalReferred || 0)} icon="â—‡" />
-        <StatCard label="Converted to paid" value={String(data?.converted || 0)} icon="âœ“" accent="#10b981" />
-        <StatCard label="Total earned"      value={`â‚¦${(data?.totalEarned || 0).toLocaleString()}`} icon="â—Ž" accent="#4f6ef7" />
-        <StatCard label="Pending payout"    value={`â‚¦${(data?.pendingBalance || 0).toLocaleString()}`} icon="â—ˆ" accent="#f59e0b" />
+        <StatCard label="Total referred"    value={String(data?.totalReferred || 0)} icon="◇" />
+        <StatCard label="Converted to paid" value={String(data?.converted || 0)} icon="✓" accent="#10b981" />
+        <StatCard label="Total earned"      value={`₦${(data?.totalEarned || 0).toLocaleString()}`} icon="◎" accent="#4f6ef7" />
+        <StatCard label="Pending payout"    value={`₦${(data?.pendingBalance || 0).toLocaleString()}`} icon="◈" accent="#f59e0b" />
       </div>
 
-      {/* â”€â”€ Section 2: Referral link â”€â”€ */}
+      {/* ── Section 2: Referral link ── */}
       <div style={{
         borderRadius: '16px', padding: '28px 32px',
         background: 'rgba(79,110,247,0.07)',
@@ -167,7 +167,7 @@ export default function ReferralsPage() {
             cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
             transition: 'background 0.2s',
           }}>
-            {copied === 'link' ? 'âœ“ Copied!' : 'Copy Link'}
+            {copied === 'link' ? '✓ Copied!' : 'Copy Link'}
           </button>
         </div>
         <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>
@@ -180,7 +180,7 @@ export default function ReferralsPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Section 3: Earnings table â”€â”€ */}
+      {/* ── Section 3: Earnings table ── */}
       <div>
         <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8', marginBottom: '14px' }}>Earnings Breakdown</h2>
         {!data?.referrals?.length ? (
@@ -204,7 +204,7 @@ export default function ReferralsPage() {
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>{fmtDate(r.created_at)}</span>
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{maskEmail(r.referred_email)}</span>
                 <span style={{ fontSize: '13px', color: '#e8e8e8', textTransform: 'capitalize' }}>{r.plan}</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#10b981' }}>â‚¦{r.commission_amount.toLocaleString()}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#10b981' }}>₦{r.commission_amount.toLocaleString()}</span>
                 <span style={statusStyle(r.status)}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
               </div>
             ))}
@@ -212,17 +212,17 @@ export default function ReferralsPage() {
         )}
       </div>
 
-      {/* â”€â”€ Section 4: Payout â”€â”€ */}
+      {/* ── Section 4: Payout ── */}
       <div>
         <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8', marginBottom: '14px' }}>Request Payout</h2>
         <div className="glass" style={{ borderRadius: '16px', padding: '24px 28px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px' }}>Available balance</p>
-              <p style={{ fontSize: '28px', fontWeight: 700, color: '#10b981' }}>â‚¦{(data?.pendingBalance || 0).toLocaleString()}</p>
+              <p style={{ fontSize: '28px', fontWeight: 700, color: '#10b981' }}>₦{(data?.pendingBalance || 0).toLocaleString()}</p>
             </div>
             <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', textAlign: 'right' }}>
-              Min. payout: <span style={{ color: '#e8e8e8', fontWeight: 500 }}>â‚¦{MIN_PAYOUT.toLocaleString()}</span>
+              Min. payout: <span style={{ color: '#e8e8e8', fontWeight: 500 }}>₦{MIN_PAYOUT.toLocaleString()}</span>
             </div>
           </div>
 
@@ -234,7 +234,7 @@ export default function ReferralsPage() {
               </div>
               <Field label="Account Name" value={payoutForm.accountName} onChange={v => setPayoutForm(f => ({ ...f, accountName: v }))} placeholder="Full name on account" />
               <Field
-                label={`Amount (max â‚¦${(data?.pendingBalance || 0).toLocaleString()})`}
+                label={`Amount (max ₦${(data?.pendingBalance || 0).toLocaleString()})`}
                 value={payoutForm.amount}
                 onChange={v => setPayoutForm(f => ({ ...f, amount: v }))}
                 placeholder={String(data?.pendingBalance || '')}
@@ -254,12 +254,12 @@ export default function ReferralsPage() {
                 cursor: payoutLoading ? 'not-allowed' : 'pointer', opacity: payoutLoading ? 0.7 : 1,
                 fontFamily: 'inherit',
               }}>
-                {payoutLoading ? 'Submittingâ€¦' : 'Request Payout'}
+                {payoutLoading ? 'Submitting…' : 'Request Payout'}
               </button>
             </form>
           ) : (
             <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.45)', fontSize: '14px' }}>
-              Minimum payout is â‚¦{MIN_PAYOUT.toLocaleString()}. Keep referring to unlock your balance!
+              Minimum payout is ₦{MIN_PAYOUT.toLocaleString()}. Keep referring to unlock your balance!
             </div>
           )}
         </div>
@@ -276,7 +276,7 @@ export default function ReferralsPage() {
                   borderBottom: i < data.payoutHistory.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
                 }}>
                   <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>{fmtDate(p.requested_at)}</span>
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#e8e8e8' }}>â‚¦{p.amount.toLocaleString()}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#e8e8e8' }}>₦{p.amount.toLocaleString()}</span>
                   <span style={statusStyle(p.status)}>{p.status.charAt(0).toUpperCase() + p.status.slice(1)}</span>
                   <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
                     {p.processed_at ? `Processed ${fmtDate(p.processed_at)}` : 'Pending'}
@@ -332,4 +332,3 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: {
     </div>
   );
 }
-

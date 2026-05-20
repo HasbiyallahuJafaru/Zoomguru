@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
@@ -77,7 +77,7 @@ export default function PaymentsPage() {
   }
 
   function formatAmount(amount: number, currency: string) {
-    if (currency === 'NGN') return `â‚¦${amount.toLocaleString()}`;
+    if (currency === 'NGN') return `₦${amount.toLocaleString()}`;
     return `$${amount.toLocaleString()}`;
   }
 
@@ -92,7 +92,7 @@ export default function PaymentsPage() {
         {data && (
           <div style={{ display: 'flex', gap: '24px', marginTop: '8px', flexWrap: 'wrap' }}>
             <Stat label="Total transactions" value={String(data.total)} />
-            {data.totalSpentNgn > 0 && <Stat label="Total spent (NGN)" value={`â‚¦${data.totalSpentNgn.toLocaleString()}`} />}
+            {data.totalSpentNgn > 0 && <Stat label="Total spent (NGN)" value={`₦${data.totalSpentNgn.toLocaleString()}`} />}
             {data.totalSpentUsd > 0 && <Stat label="Total spent (USD)" value={`$${data.totalSpentUsd.toLocaleString()}`} />}
           </div>
         )}
@@ -102,7 +102,7 @@ export default function PaymentsPage() {
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="text"
-          placeholder="Search by referenceâ€¦"
+          placeholder="Search by reference…"
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{
@@ -176,7 +176,7 @@ export default function PaymentsPage() {
                   textAlign: 'left',
                 }}
               >
-                {copied === p.paystack_reference ? 'Copied!' : `${p.paystack_reference.slice(0, 16)}â€¦`}
+                {copied === p.paystack_reference ? 'Copied!' : `${p.paystack_reference.slice(0, 16)}…`}
               </button>
               <span style={statusStyle(p.status)}>
                 {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
@@ -189,11 +189,11 @@ export default function PaymentsPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-          <PageBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} label="â† Prev" />
+          <PageBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} label="← Prev" />
           <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
             Page {page} of {totalPages}
           </span>
-          <PageBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} label="Next â†’" />
+          <PageBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} label="Next →" />
         </div>
       )}
     </div>
@@ -246,7 +246,7 @@ function PageBtn({ onClick, disabled, label }: { onClick: () => void; disabled: 
 function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   return (
     <div className="glass" style={{ borderRadius: '12px', padding: '48px 32px', textAlign: 'center' }}>
-      <p style={{ fontSize: '32px', marginBottom: '12px' }}>â—Ž</p>
+      <p style={{ fontSize: '32px', marginBottom: '12px' }}>◎</p>
       <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>
         {hasFilters ? 'No payments match your filters' : 'No payments yet'}
       </p>
@@ -256,4 +256,3 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
     </div>
   );
 }
-

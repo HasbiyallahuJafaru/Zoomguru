@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
@@ -50,7 +50,7 @@ export default function DashboardPage() {
   }
 
   function formatDuration(secs: number | null) {
-    if (!secs) return 'â€”';
+    if (!secs) return '—';
     const m = Math.floor(secs / 60);
     return m < 1 ? '<1 min' : `${m} min`;
   }
@@ -95,42 +95,42 @@ export default function DashboardPage() {
 
       <PageHeader name={user?.name || user?.username} />
 
-      {/* â”€â”€ Row 1: stat cards â”€â”€ */}
+      {/* ── Row 1: stat cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         <StatCard
           label="Current Plan"
           value={planLabel(data?.plan || 'free', !!data?.isPro)}
-          sub={data?.expiresAt ? `Renews ${formatDate(data.expiresAt)}` : data?.isPro ? 'Never expires' : '3 sessions Â· 10 Q each'}
+          sub={data?.expiresAt ? `Renews ${formatDate(data.expiresAt)}` : data?.isPro ? 'Never expires' : '3 sessions · 10 Q each'}
           accent={planColor(!!data?.isPro)}
-          icon="â—ˆ"
+          icon="◈"
         />
         <StatCard
           label="Sessions"
           value={String(data?.totalSessions ?? 0)}
           sub="Total interviews started"
-          icon="â–£"
+          icon="▣"
         />
         <StatCard
           label="Questions"
           value={String(data?.totalQuestions ?? 0)}
           sub="Total AI answers received"
-          icon="â—Ž"
+          icon="◎"
         />
         <StatCard
           label="Referral Earnings"
-          value={`â‚¦${(data?.referralPendingBalance ?? 0).toLocaleString()}`}
+          value={`₦${(data?.referralPendingBalance ?? 0).toLocaleString()}`}
           sub="Pending payout"
           accent="#10b981"
-          icon="â—‡"
+          icon="◇"
         />
       </div>
 
-      {/* â”€â”€ Row 2: recent sessions â”€â”€ */}
+      {/* ── Row 2: recent sessions ── */}
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8' }}>Recent Sessions</h2>
           <Link href="/dashboard/sessions" style={{ fontSize: '13px', color: '#4f6ef7', textDecoration: 'none' }}>
-            View all â†’
+            View all →
           </Link>
         </div>
 
@@ -152,7 +152,7 @@ export default function DashboardPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <span style={{ fontSize: '18px' }}>â–£</span>
+                  <span style={{ fontSize: '18px' }}>▣</span>
                 </div>
                 <div style={{ flex: 1, minWidth: '120px' }}>
                   <p style={{ fontSize: '14px', fontWeight: 500, color: '#e8e8e8', textTransform: 'capitalize' }}>
@@ -175,26 +175,26 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* â”€â”€ Row 3: quick actions â”€â”€ */}
+      {/* ── Row 3: quick actions ── */}
       <section>
         <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8', marginBottom: '16px' }}>Quick Actions</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
           {data?.isPro ? (
             <Link href="/download" style={{ textDecoration: 'none' }}>
-              <ActionButton label="Download App" icon="â†“" primary />
+              <ActionButton label="Download App" icon="↓" primary />
             </Link>
           ) : (
             <Link href="/dashboard/subscription" style={{ textDecoration: 'none' }}>
-              <ActionButton label="Upgrade to Pro" icon="âœ¦" primary />
+              <ActionButton label="Upgrade to Pro" icon="✦" primary />
             </Link>
           )}
 
           <button onClick={copyReferral} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <ActionButton label={copied ? 'Copied!' : 'Copy Referral Link'} icon="â—‡" />
+            <ActionButton label={copied ? 'Copied!' : 'Copy Referral Link'} icon="◇" />
           </button>
 
           <Link href="/dashboard/subscription" style={{ textDecoration: 'none' }}>
-            <ActionButton label="View Subscription" icon="â—ˆ" />
+            <ActionButton label="View Subscription" icon="◈" />
           </Link>
         </div>
       </section>
@@ -207,7 +207,7 @@ function PageHeader({ name }: { name?: string }) {
   return (
     <div>
       <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
-        Welcome back{name ? `, ${name.split(' ')[0]}` : ''} ðŸ‘‹
+        Welcome back{name ? `, ${name.split(' ')[0]}` : ''} 👋
       </h1>
       <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px', marginTop: '4px' }}>
         Here&apos;s your ZoomGuru overview
@@ -256,4 +256,3 @@ function ActionButton({ label, icon, primary }: { label: string; icon: string; p
     </div>
   );
 }
-

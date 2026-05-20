@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
@@ -76,7 +76,7 @@ export default function SessionsPage() {
   useEffect(() => { setPage(1); }, [typeFilter, sort]);
 
   function fmt(secs: number | null) {
-    if (!secs) return 'â€”';
+    if (!secs) return '—';
     const m = Math.round(secs / 60);
     return m < 1 ? '<1 min' : `${m} min`;
   }
@@ -104,7 +104,7 @@ export default function SessionsPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
           <MiniStat label="Total sessions"  value={String(data.totalSessions)} />
           <MiniStat label="Avg duration"    value={fmt(data.avgDurationSeconds)} />
-          <MiniStat label="Avg questions"   value={data.avgQuestions ? String(Math.round(data.avgQuestions)) : 'â€”'} />
+          <MiniStat label="Avg questions"   value={data.avgQuestions ? String(Math.round(data.avgQuestions)) : '—'} />
           <MiniStat label="This page"       value={`${data.sessions.length} shown`} />
         </div>
       )}
@@ -210,9 +210,9 @@ export default function SessionsPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-          <PageBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} label="â† Prev" />
+          <PageBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} label="← Prev" />
           <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Page {page} of {totalPages}</span>
-          <PageBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} label="Next â†’" />
+          <PageBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} label="Next →" />
         </div>
       )}
     </div>
@@ -250,7 +250,7 @@ function PageBtn({ onClick, disabled, label }: { onClick: () => void; disabled: 
 function EmptyState({ hasFilter }: { hasFilter: boolean }) {
   return (
     <div className="glass" style={{ borderRadius: '12px', padding: '56px 32px', textAlign: 'center' }}>
-      <p style={{ fontSize: '36px', marginBottom: '14px' }}>â–£</p>
+      <p style={{ fontSize: '36px', marginBottom: '14px' }}>▣</p>
       <p style={{ fontSize: '16px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
         {hasFilter ? 'No sessions match this filter' : 'No sessions yet'}
       </p>
@@ -269,4 +269,3 @@ function EmptyState({ hasFilter }: { hasFilter: boolean }) {
     </div>
   );
 }
-

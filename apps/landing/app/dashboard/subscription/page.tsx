@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
@@ -118,7 +118,7 @@ export default function SubscriptionPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '780px' }}>
         <PageTitle />
 
-        {/* â”€â”€ Section 1: Current plan â”€â”€ */}
+        {/* ── Section 1: Current plan ── */}
         <div className="glass" style={{ borderRadius: '16px', padding: '28px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
             <div>
@@ -141,14 +141,14 @@ export default function SubscriptionPage() {
             {sub?.isPro && (
               <div style={{ textAlign: 'right' }}>
                 {sub.plan === 'lifetime' ? (
-                  <p style={{ fontSize: '14px', color: '#10b981' }}>âœ“ Never expires</p>
+                  <p style={{ fontSize: '14px', color: '#10b981' }}>✓ Never expires</p>
                 ) : sub.expiresAt ? (
                   <>
                     <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px' }}>Next billing</p>
                     <p style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8' }}>
                       {new Date(sub.expiresAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </p>
-                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>â‚¦15,000 / month</p>
+                    <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>₦15,000 / month</p>
                   </>
                 ) : null}
               </div>
@@ -166,14 +166,14 @@ export default function SubscriptionPage() {
               <div>
                 <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px' }}>Device fingerprint</p>
                 <p style={{ fontFamily: 'monospace', fontSize: '14px', color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: '6px', display: 'inline-block' }}>
-                  {sub?.deviceFingerprint ? `â€¦${sub.deviceFingerprint.slice(-8)}` : 'Not bound yet'}
+                  {sub?.deviceFingerprint ? `…${sub.deviceFingerprint.slice(-8)}` : 'Not bound yet'}
                 </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* â”€â”€ Section 2: Upgrade (not lifetime) â”€â”€ */}
+        {/* ── Section 2: Upgrade (not lifetime) ── */}
         {!isLifetime && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -199,7 +199,7 @@ export default function SubscriptionPage() {
               {!sub?.isPro && (
                 <PlanCard
                   name="Monthly Pro"
-                  price={currency === 'NGN' ? `â‚¦${NGN_RATES.monthly.toLocaleString()}` : `$${USD_RATES.monthly}`}
+                  price={currency === 'NGN' ? `₦${NGN_RATES.monthly.toLocaleString()}` : `$${USD_RATES.monthly}`}
                   period="/month"
                   cta="Upgrade Monthly"
                   loading={paying === 'monthly'}
@@ -209,7 +209,7 @@ export default function SubscriptionPage() {
               {/* Lifetime */}
               <PlanCard
                 name="Lifetime Pro"
-                price={currency === 'NGN' ? `â‚¦${NGN_RATES.lifetime.toLocaleString()}` : `$${USD_RATES.lifetime}`}
+                price={currency === 'NGN' ? `₦${NGN_RATES.lifetime.toLocaleString()}` : `$${USD_RATES.lifetime}`}
                 period=" one-time"
                 cta="Get Lifetime Access"
                 badge="Best Value"
@@ -221,7 +221,7 @@ export default function SubscriptionPage() {
           </div>
         )}
 
-        {/* â”€â”€ Section 3: Feature comparison â”€â”€ */}
+        {/* ── Section 3: Feature comparison ── */}
         <div>
           <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8', marginBottom: '16px' }}>Plan Comparison</h2>
           <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden' }}>
@@ -240,10 +240,10 @@ export default function SubscriptionPage() {
               }}>
                 <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}>{f.label}</span>
                 <span style={{ textAlign: 'center', fontSize: '13px', color: f.free === false ? '#ef4444' : '#10b981' }}>
-                  {f.free === false ? 'âœ—' : f.free === true ? 'âœ“' : f.free}
+                  {f.free === false ? '✗' : f.free === true ? '✓' : f.free}
                 </span>
                 <span style={{ textAlign: 'center', fontSize: '13px', color: '#10b981' }}>
-                  {f.pro === true ? 'âœ“' : f.pro}
+                  {f.pro === true ? '✓' : f.pro}
                 </span>
               </div>
             ))}
@@ -316,7 +316,7 @@ function PlanCard({ name, price, period, cta, badge, primary, loading, onPay }: 
           fontFamily: 'inherit', transition: 'opacity 0.15s',
         }}
       >
-        {loading ? 'Processingâ€¦' : cta}
+        {loading ? 'Processing…' : cta}
       </button>
     </div>
   );
@@ -326,4 +326,3 @@ const thStyle: React.CSSProperties = {
   fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.35)',
   textTransform: 'uppercase', letterSpacing: '0.5px',
 };
-

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 export const dynamic = 'force-dynamic';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -6,12 +6,12 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 
 const NAV = [
-  { label: 'Overview',     href: '/dashboard',              icon: 'âŠ¡' },
-  { label: 'Subscription', href: '/dashboard/subscription', icon: 'â—ˆ' },
-  { label: 'Payments',     href: '/dashboard/payments',     icon: 'â—Ž' },
-  { label: 'Sessions',     href: '/dashboard/sessions',     icon: 'â–£' },
-  { label: 'Referrals',    href: '/dashboard/referrals',    icon: 'â—‡' },
-  { label: 'Settings',     href: '/dashboard/settings',     icon: 'â—‰' },
+  { label: 'Overview',     href: '/dashboard',              icon: '⊡' },
+  { label: 'Subscription', href: '/dashboard/subscription', icon: '◈' },
+  { label: 'Payments',     href: '/dashboard/payments',     icon: '◎' },
+  { label: 'Sessions',     href: '/dashboard/sessions',     icon: '▣' },
+  { label: 'Referrals',    href: '/dashboard/referrals',    icon: '◇' },
+  { label: 'Settings',     href: '/dashboard/settings',     icon: '◉' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (status === 'loading') {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loadingâ€¦</div>
+        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading…</div>
       </div>
     );
   }
@@ -38,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
 
-      {/* â”€â”€ Sidebar (desktop) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Sidebar (desktop) ───────────────────────── */}
       <aside style={{
         width: '240px',
         flexShrink: 0,
@@ -81,7 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {user.name || user.username}
               </p>
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '1px' }}>
-                {user.isPro ? 'âœ¦ Pro' : 'Free plan'}
+                {user.isPro ? '✦ Pro' : 'Free plan'}
               </p>
             </div>
           </div>
@@ -132,13 +132,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            <span style={{ fontSize: '16px' }}>âŽ‹</span>
+            <span style={{ fontSize: '16px' }}>⎋</span>
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* â”€â”€ Main content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Main content ────────────────────────────── */}
       <main style={{
         flex: 1,
         marginLeft: '240px',
@@ -148,7 +148,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      {/* â”€â”€ Bottom nav (mobile) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Bottom nav (mobile) ─────────────────────── */}
       <nav className="dashboard-bottom-nav" style={{
         display: 'none',
         position: 'fixed', bottom: 0, left: 0, right: 0,
@@ -186,4 +186,3 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 }
-

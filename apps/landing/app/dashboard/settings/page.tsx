@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
@@ -112,7 +112,7 @@ export default function SettingsPage() {
         <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px', marginTop: '4px' }}>Manage your profile and account</p>
       </div>
 
-      {/* â”€â”€ Section 1: Profile â”€â”€ */}
+      {/* ── Section 1: Profile ── */}
       <Section title="Profile">
         <form onSubmit={saveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Avatar */}
@@ -163,9 +163,9 @@ export default function SettingsPage() {
                 onBlur={e => { if (usernameStatus === 'idle') e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
               />
               <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '13px' }}>
-                {usernameStatus === 'checking' && <span style={{ color: 'rgba(255,255,255,0.3)' }}>â€¦</span>}
-                {usernameStatus === 'available' && <span style={{ color: '#10b981' }}>âœ“</span>}
-                {usernameStatus === 'taken' && <span style={{ color: '#ef4444' }}>âœ—</span>}
+                {usernameStatus === 'checking' && <span style={{ color: 'rgba(255,255,255,0.3)' }}>…</span>}
+                {usernameStatus === 'available' && <span style={{ color: '#10b981' }}>✓</span>}
+                {usernameStatus === 'taken' && <span style={{ color: '#ef4444' }}>✗</span>}
               </span>
             </div>
           </div>
@@ -177,30 +177,30 @@ export default function SettingsPage() {
         </form>
       </Section>
 
-      {/* â”€â”€ Section 2: Security â”€â”€ */}
+      {/* ── Section 2: Security ── */}
       <Section title="Security">
         {isGoogle ? (
           <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.45)', fontSize: '14px' }}>
-            You signed in with Google â€” no password to manage.
+            You signed in with Google — no password to manage.
           </div>
         ) : (
           <form onSubmit={changePassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <SettingField label="Current Password" value={passwords.current} onChange={v => setPasswords(f => ({ ...f, current: v }))} type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
+            <SettingField label="Current Password" value={passwords.current} onChange={v => setPasswords(f => ({ ...f, current: v }))} type="password" placeholder="••••••••" />
             <SettingField label="New Password" value={passwords.next} onChange={v => setPasswords(f => ({ ...f, next: v }))} type="password" placeholder="Min. 8 characters" />
-            <SettingField label="Confirm New Password" value={passwords.confirm} onChange={v => setPasswords(f => ({ ...f, confirm: v }))} type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
+            <SettingField label="Confirm New Password" value={passwords.confirm} onChange={v => setPasswords(f => ({ ...f, confirm: v }))} type="password" placeholder="••••••••" />
             <Msg text={pwMsg} />
             <SubmitBtn label="Change Password" loading={pwLoading} />
           </form>
         )}
       </Section>
 
-      {/* â”€â”€ Section 3: Device â”€â”€ */}
+      {/* ── Section 3: Device ── */}
       <Section title="Device License">
         {device?.deviceFingerprint ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <InfoRow label="Device fingerprint">
               <code style={{ fontFamily: 'monospace', fontSize: '13px', color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.05)', padding: '3px 10px', borderRadius: '6px' }}>
-                â€¦{device.deviceFingerprint.slice(-8)}
+                …{device.deviceFingerprint.slice(-8)}
               </code>
             </InfoRow>
             <InfoRow label="Plan">
@@ -225,7 +225,7 @@ export default function SettingsPage() {
         )}
       </Section>
 
-      {/* â”€â”€ Section 4: Danger Zone â”€â”€ */}
+      {/* ── Section 4: Danger Zone ── */}
       <Section title="Danger Zone" danger>
         <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginBottom: '16px' }}>
           This permanently deletes all your data and cancels your subscription. This cannot be undone.
@@ -277,7 +277,7 @@ export default function SettingsPage() {
                   cursor: deleteConfirm === 'DELETE' ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit', opacity: deleteLoading ? 0.7 : 1,
                 }}
-              >{deleteLoading ? 'Deletingâ€¦' : 'Delete Forever'}</button>
+              >{deleteLoading ? 'Deleting…' : 'Delete Forever'}</button>
             </div>
           </div>
         </div>
@@ -353,7 +353,7 @@ function SubmitBtn({ label, loading }: { label: string; loading: boolean }) {
       fontSize: '14px', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
       opacity: loading ? 0.7 : 1, fontFamily: 'inherit', alignSelf: 'flex-start',
     }}>
-      {loading ? 'Savingâ€¦' : label}
+      {loading ? 'Saving…' : label}
     </button>
   );
 }
@@ -370,4 +370,3 @@ const inputStyle: React.CSSProperties = {
   color: '#e8e8e8', fontSize: '14px', outline: 'none',
   fontFamily: 'inherit', transition: 'border-color 0.2s',
 };
-
