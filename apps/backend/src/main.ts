@@ -49,7 +49,7 @@ async function bootstrap() {
       ) {
         return callback(null, true);
       }
-      callback(new Error('CORS: origin not allowed'));
+      callback(new Error('CORS: origin not allowed'), false);
     },
     credentials: true,
   });
