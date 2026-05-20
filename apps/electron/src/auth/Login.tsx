@@ -87,6 +87,17 @@ export function Login({ onLogin }: Props) {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        {/* Close / quit button — window has no frame so this is the only way out */}
+        <button
+          onClick={() => window.close()}
+          title="Close"
+          style={{
+            position: 'absolute', top: 12, right: 12,
+            background: 'none', border: 'none',
+            color: 'rgba(255,255,255,0.3)', fontSize: 16,
+            cursor: 'pointer', padding: '2px 6px',
+          }}
+        >✕</button>
         <h1 className="auth-title">ZoomGuru</h1>
         <p className="auth-subtitle">Your invisible interview edge</p>
 

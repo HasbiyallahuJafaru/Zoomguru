@@ -383,6 +383,25 @@ export function Overlay() {
               New
             </button>
 
+            {/* Hide to tray */}
+            <button
+              onClick={() => window.close()}
+              title="Hide to tray (Ctrl+Shift+H)"
+              style={{
+                padding: '3px 8px',
+                borderRadius: 5,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.04)',
+                color: 'rgba(255,255,255,0.4)',
+                fontSize: 12,
+                lineHeight: 1,
+                cursor: 'pointer',
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties & { WebkitAppRegion: string }}
+            >
+              ✕
+            </button>
+
             {/* Upgrade button */}
             <button
               onClick={() => setShowPaywall(true)}

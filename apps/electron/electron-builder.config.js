@@ -1,6 +1,7 @@
 module.exports = {
   appId: 'com.zoomguru.app',
   productName: 'ZoomGuru',
+  electronVersion: '42.1.0',
   asar: true,
   asarUnpack: ['**/node_modules/**/*.node'],
   directories: { output: 'release' },
@@ -24,9 +25,11 @@ module.exports = {
     icon: 'assets/tray-icon.png',
   },
   win: {
-    target: [{ target: 'nsis', arch: ['x64'] }],
-    // electron-builder accepts PNG ≥256×256 for Windows
-    icon: 'assets/tray-icon.png',
+    target: [
+      { target: 'portable', arch: ['x64'] },
+      { target: 'zip', arch: ['x64'] },
+    ],
+    icon: 'assets/icon.png',
   },
   nsis: {
     oneClick: false,
