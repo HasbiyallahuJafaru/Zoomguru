@@ -30,7 +30,7 @@
     }
   },
   "dependencies": {
-    "@fastify/multipart": "^8.3.0",
+    "@fastify/multipart": "^9.0.3",
     "@neondatabase/serverless": "^0.9.3",
     "@nestjs/common": "^11.1.21",
     "@nestjs/config": "^4.0.4",
