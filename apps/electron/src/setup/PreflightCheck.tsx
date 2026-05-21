@@ -28,14 +28,15 @@ export function PreflightCheck({ onComplete }: Props) {
 
     try {
       const token = localStorage.getItem('access_token');
+      const deviceId = await window.zoomguru.getDeviceId();
       const res = await fetch(`${API_URL}/ai/session/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'X-Device-ID': deviceId,
         },
         body: JSON.stringify({
-          cvProfile,
           jobDescription,
           interviewType,
           answerLength,

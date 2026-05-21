@@ -34,6 +34,7 @@ export class SessionService {
         summary,
         total_questions,
         duration_seconds,
+        messages,
         started_at,
         ended_at
       FROM interview_sessions
@@ -94,6 +95,7 @@ export class SessionService {
     await sql`
       UPDATE interview_sessions
       SET
+        messages = ${JSON.stringify(params.messages)}::jsonb,
         summary = ${summary},
         total_questions = ${params.totalQuestions},
         duration_seconds = ${params.durationSeconds},
@@ -138,6 +140,14 @@ export class SessionService {
       session.summary || 'No summary available.',
       '',
     ];
+
+    const messages: Array<{ role: string; content: string }> = session.messages || [];
+    if (messages.length > 0) {
+      lines.push('--- Full Transcript ---', '');
+      for (const msg of messages) {
+        lines.push(`${msg.role === 'user' ? 'Q' : 'A'}: ${msg.content}`, '');
+      }
+    }
 
     return lines.join('\n');
   }

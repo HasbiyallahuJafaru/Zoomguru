@@ -72,20 +72,20 @@ export function buildCVContext(cv: CVProfile): string {
 Name: ${cv.name}
 Current Role: ${cv.currentRole}
 Years of Experience: ${cv.yearsExperience}
-Skills: ${cv.skills.join(', ')}
+Skills: ${(cv.skills || []).join(', ')}
 
 Work History:
-${cv.companies.map(c =>
-  `- ${c.role} at ${c.name} (${c.duration})\n  ${c.achievements.join('\n  ')}`
+${(cv.companies || []).map(c =>
+  `- ${c.role} at ${c.name} (${c.duration})\n  ${(c.achievements || []).join('\n  ')}`
 ).join('\n')}
 
 Projects:
-${cv.projects.map(p =>
-  `- ${p.name}: ${p.description} (Stack: ${p.stack.join(', ')}) — ${p.impact}`
+${(cv.projects || []).map(p =>
+  `- ${p.name}: ${p.description} (Stack: ${(p.stack || []).join(', ')}) — ${p.impact}`
 ).join('\n')}
 
 Education:
-${cv.education.map(e => `- ${e.degree} from ${e.institution} (${e.year})`).join('\n')}
+${(cv.education || []).map(e => `- ${e.degree} from ${e.institution} (${e.year})`).join('\n')}
 
-Certifications: ${cv.certifications.join(', ')}`;
+Certifications: ${(cv.certifications || []).join(', ')}`;
 }

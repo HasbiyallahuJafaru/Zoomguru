@@ -34,7 +34,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user?.accessToken) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/dashboard-summary`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/dashboard-summary`, {
       headers: { Authorization: `Bearer ${user.accessToken}` },
     })
       .then(r => r.json())

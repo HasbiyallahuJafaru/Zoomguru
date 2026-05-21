@@ -93,11 +93,12 @@ export class PaystackService {
     return { success: true };
   }
 
-  async handleWebhook(signature: string, body: any) {
-    // Verify Paystack HMAC SHA512 signature
+  async handleWebhook(signature: string, body: any, rawBody?: Buffer) {
+    // Verify Paystack HMAC SHA512 signature against raw bytes (Paystack signs raw request body)
+    const payload = rawBody ?? Buffer.from(JSON.stringify(body));
     const hash = crypto
-      .createHmac('sha512', this.webhookSecret)
-      .update(JSON.stringify(body))
+      .createHmac('sha512', this.secretKey)
+      .update(payload)
       .digest('hex');
 
     if (hash !== signature) {
@@ -167,7 +168,7 @@ export class PaystackService {
         ${reference},
         'active',
         ${plan === 'monthly' ? sql`NOW() + INTERVAL '30 days'` : null},
-        ''
+        null
       )
       ON CONFLICT (paystack_reference) DO NOTHING
     `;

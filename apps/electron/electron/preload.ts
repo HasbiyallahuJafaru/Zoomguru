@@ -43,7 +43,11 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
   // Google OAuth — opens system browser, receives token back via deep link
   onGoogleAuth: (callback: (data: { token: string }) => void) => {
+    ipcRenderer.removeAllListeners('auth:google-callback');
     ipcRenderer.on('auth:google-callback', (_e, data) => callback(data));
+  },
+  offGoogleAuth: () => {
+    ipcRenderer.removeAllListeners('auth:google-callback');
   },
 
   // Uses IPC → main process shell.openExternal (shell is not available in preload)

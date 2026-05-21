@@ -8,7 +8,7 @@ export class DeviceGuard implements CanActivate {
     const deviceId = request.headers['x-device-id'];
     const userId = request.user?.userId;
 
-    if (!deviceId || !userId) throw new ForbiddenException('Device not identified');
+    if (!userId) throw new ForbiddenException('Not authenticated');
 
     const sql = getDB();
     const [license] = await sql`
@@ -18,8 +18,11 @@ export class DeviceGuard implements CanActivate {
       LIMIT 1
     `;
 
-    // New user — no license yet (free tier)
+    // Free tier — no license, device binding not required
     if (!license) return true;
+
+    // Pro user — device ID header is mandatory
+    if (!deviceId) throw new ForbiddenException('Device not identified');
 
     // Pro user — fingerprint must match (allow empty fingerprint on first bind)
     if (license.device_fingerprint && license.device_fingerprint !== deviceId) {

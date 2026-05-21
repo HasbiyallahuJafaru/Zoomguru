@@ -71,14 +71,14 @@ export class AuthService {
     await sql`
       INSERT INTO user_usage (user_id)
       VALUES (${user.id})
-      ON CONFLICT DO NOTHING
+      ON CONFLICT (user_id) DO NOTHING
     `;
 
     // Init referral balance
     await sql`
       INSERT INTO referral_balances (user_id, currency)
       VALUES (${user.id}, 'NGN')
-      ON CONFLICT DO NOTHING
+      ON CONFLICT (user_id) DO NOTHING
     `;
 
     // Record referral relationship if referred by someone
@@ -224,7 +224,6 @@ export class AuthService {
     const [counts] = await sql`
       SELECT
         COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE user_id = ${userId}) AS total_sessions,
         AVG(duration_seconds) AS avg_duration,
         AVG(total_questions) AS avg_questions
       FROM interview_sessions
@@ -232,10 +231,11 @@ export class AuthService {
       AND (${opts.type} = 'all' OR interview_type = ${opts.type})
     `;
 
+    const total = parseInt(counts.total);
     return {
       sessions,
-      total: parseInt(counts.total),
-      totalSessions: parseInt(counts.total_sessions),
+      total,
+      totalSessions: total,
       avgDurationSeconds: parseFloat(counts.avg_duration || '0'),
       avgQuestions: parseFloat(counts.avg_questions || '0'),
     };
@@ -334,7 +334,7 @@ export class AuthService {
     return {
       plan: user?.plan || 'free',
       isPro: user?.is_pro || false,
-      status: license?.status || 'active',
+      status: license?.status || 'none',
       expiresAt: license?.expires_at || null,
       deviceFingerprint: license?.device_fingerprint || null,
       sessionsUsed: usage?.sessions_used || 0,
@@ -499,8 +499,8 @@ export class AuthService {
       `;
       user = newUser;
 
-      await sql`INSERT INTO user_usage (user_id) VALUES (${user.id}) ON CONFLICT DO NOTHING`;
-      await sql`INSERT INTO referral_balances (user_id, currency) VALUES (${user.id}, 'NGN') ON CONFLICT DO NOTHING`;
+      await sql`INSERT INTO user_usage (user_id) VALUES (${user.id}) ON CONFLICT (user_id) DO NOTHING`;
+      await sql`INSERT INTO referral_balances (user_id, currency) VALUES (${user.id}, 'NGN') ON CONFLICT (user_id) DO NOTHING`;
     } else if (!user.google_id) {
       await sql`
         UPDATE users SET google_id = ${googleUser.sub}, avatar_url = ${googleUser.picture}
@@ -537,6 +537,41 @@ export class AuthService {
     `;
 
     if (!user) throw new UnauthorizedException('User not found');
+
+    return this.generateTokens(user);
+  }
+
+  async handleGoogleWebAuth(params: { googleId: string; email: string; name: string; avatar?: string }) {
+    const sql = getDB();
+    const { googleId, email, name, avatar } = params;
+
+    let [user] = await sql`
+      SELECT id, email, name, username, is_pro, role, avatar_url
+      FROM users
+      WHERE google_id = ${googleId} OR email = ${email}
+      LIMIT 1
+    `;
+
+    if (!user) {
+      const { nanoid } = await import('nanoid');
+      const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+      const referralCode = nanoid(8).toUpperCase();
+
+      const [newUser] = await sql`
+        INSERT INTO users (email, name, username, google_id, avatar_url, referral_code, password_hash)
+        VALUES (${email}, ${name}, ${baseUsername + '_' + Math.floor(Math.random() * 9999)},
+                ${googleId}, ${avatar || null}, ${referralCode}, '')
+        ON CONFLICT (email) DO UPDATE SET
+          google_id = ${googleId},
+          avatar_url = ${avatar || null}
+        RETURNING id, email, name, username, is_pro, role, avatar_url
+      `;
+      user = newUser;
+      await sql`INSERT INTO user_usage (user_id) VALUES (${user.id}) ON CONFLICT (user_id) DO NOTHING`;
+      await sql`INSERT INTO referral_balances (user_id, currency) VALUES (${user.id}, 'NGN') ON CONFLICT (user_id) DO NOTHING`;
+    } else if (!user.google_id) {
+      await sql`UPDATE users SET google_id = ${googleId}, avatar_url = ${avatar || null} WHERE id = ${user.id}`;
+    }
 
     return this.generateTokens(user);
   }

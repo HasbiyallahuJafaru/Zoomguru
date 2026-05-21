@@ -51,7 +51,7 @@ export default function SubscriptionPage() {
   const fetchSub = useCallback(async () => {
     if (!user?.accessToken) return;
     setLoading(true);
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/subscription`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/subscription`, {
       headers: { Authorization: `Bearer ${user.accessToken}` },
     });
     if (res.ok) setSub(await res.json());

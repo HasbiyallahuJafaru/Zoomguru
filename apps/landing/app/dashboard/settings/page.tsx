@@ -37,7 +37,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!user?.accessToken) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/device`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/device`, {
       headers: { Authorization: `Bearer ${user.accessToken}` },
     }).then(r => r.ok ? r.json() : null).then(d => d && setDevice(d));
   }, [user?.accessToken]);
@@ -56,7 +56,7 @@ export default function SettingsPage() {
     if (usernameStatus === 'taken') { setProfileMsg('Username is already taken.'); return; }
     setProfileLoading(true);
     setProfileMsg('');
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/profile`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/profile`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
       body: JSON.stringify({ name: profile.name, username: profile.username }),
@@ -78,7 +78,7 @@ export default function SettingsPage() {
     if (!user?.accessToken) return;
     setPwLoading(true);
     setPwMsg('');
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/password`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/password`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
       body: JSON.stringify({ currentPassword: passwords.current, newPassword: passwords.next }),
@@ -96,7 +96,7 @@ export default function SettingsPage() {
   async function deleteAccount() {
     if (!user?.accessToken || deleteConfirm !== 'DELETE') return;
     setDeleteLoading(true);
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/user/account`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/account`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.accessToken}` },
     });

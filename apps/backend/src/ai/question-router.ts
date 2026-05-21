@@ -8,7 +8,7 @@ export type QuestionType =
 
 export type ModelChoice = 'deepseek-chat' | 'deepseek-reasoner';
 
-interface RouteResult {
+export interface RouteResult {
   model: ModelChoice;
   format: string;
   systemPromptKey: string;

@@ -45,7 +45,7 @@ export default function PaymentsPage() {
       ...(filterPlan && { plan: filterPlan }),
     });
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/user/payments?${params}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/auth/user/payments?${params}`,
       { headers: { Authorization: `Bearer ${user.accessToken}` } }
     );
     if (res.ok) setData(await res.json());

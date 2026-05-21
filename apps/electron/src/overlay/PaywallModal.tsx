@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -42,6 +42,9 @@ export function PaywallModal({ onClose }: Props) {
   const [loading, setLoading] = useState<Plan | null>(null);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState('');
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 
   async function handleUpgrade(plan: Plan) {
     setLoading(plan);
@@ -49,11 +52,13 @@ export function PaywallModal({ onClose }: Props) {
 
     try {
       const token = localStorage.getItem('access_token');
+      const deviceId = await window.zoomguru.getDeviceId();
       const res = await fetch(`${API_URL}/paystack/initialize`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'X-Device-ID': deviceId,
         },
         body: JSON.stringify({ plan, currency }),
       });
@@ -80,14 +85,13 @@ export function PaywallModal({ onClose }: Props) {
 
   function pollLicenseActivation() {
     let attempts = 0;
-    const interval = setInterval(async () => {
+    intervalRef.current = setInterval(async () => {
       attempts++;
       const verified = await checkLicense();
 
       if (verified) {
-        clearInterval(interval);
+        if (intervalRef.current) clearInterval(intervalRef.current);
         setPolling(false);
-        // Update user in localStorage
         const userStr = localStorage.getItem('user');
         if (userStr) {
           const user = JSON.parse(userStr);
@@ -96,7 +100,7 @@ export function PaywallModal({ onClose }: Props) {
         }
         onClose();
       } else if (attempts >= 20) {
-        clearInterval(interval);
+        if (intervalRef.current) clearInterval(intervalRef.current);
         setPolling(false);
       }
     }, 3000);

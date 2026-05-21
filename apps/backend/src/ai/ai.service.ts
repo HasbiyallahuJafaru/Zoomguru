@@ -1,8 +1,26 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { ServerResponse } from 'http';
-import { routeQuestion } from './question-router';
+import { routeQuestion, RouteResult } from './question-router';
 import { buildSystemPrompt } from './prompts';
 import { getDB } from '../database/db';
+
+const EXPLICIT_MODES = new Set(['behavioral', 'technical', 'coding', 'systemdesign']);
+
+function resolveRoute(transcript: string, mode?: string): RouteResult {
+  if (mode && EXPLICIT_MODES.has(mode)) {
+    switch (mode) {
+      case 'behavioral':
+        return { model: 'deepseek-chat', format: 'star', systemPromptKey: 'behavioral' };
+      case 'coding':
+        return { model: 'deepseek-reasoner', format: 'code', systemPromptKey: 'coding' };
+      case 'systemdesign':
+        return { model: 'deepseek-reasoner', format: 'structured', systemPromptKey: 'systemdesign' };
+      case 'technical':
+        return { model: 'deepseek-chat', format: 'concise', systemPromptKey: 'technical' };
+    }
+  }
+  return routeQuestion(transcript);
+}
 
 @Injectable()
 export class AiService {
@@ -11,9 +29,10 @@ export class AiService {
     userId: string;
     sessionId: string;
     transcript: string;
+    mode?: string;
     reply: ServerResponse;
   }) {
-    const { userId, sessionId, transcript, reply } = params;
+    const { userId, sessionId, transcript, mode, reply } = params;
     const sql = getDB();
 
     // 1. Check usage limits
@@ -28,10 +47,15 @@ export class AiService {
 
     if (!session) throw new ForbiddenException('Session not found');
 
-    // 3. Route question
-    const { model, systemPromptKey } = routeQuestion(transcript);
+    // 3. Route question — use explicit mode if provided, otherwise auto-detect
+    const { model, systemPromptKey } = resolveRoute(transcript, mode);
 
-    // 4. Build system prompt with CV
+    // 4. Build system prompt with CV (cv_profile is nullable — guard before calling)
+    if (!session.cv_profile) {
+      reply.write(`data: ${JSON.stringify({ error: 'No CV uploaded. Please upload your CV before using ZoomGuru.', done: true })}\n\n`);
+      reply.end();
+      return;
+    }
     const systemPrompt = buildSystemPrompt(
       systemPromptKey,
       session.cv_profile,
@@ -86,7 +110,7 @@ export class AiService {
       const errText = await response.text();
       reply.write(`data: ${JSON.stringify({ error: 'AI service error', done: true })}\n\n`);
       reply.end();
-      throw new Error(`DeepSeek API error: ${errText}`);
+      return;
     }
 
     // 7. Stream chunks to Electron
@@ -98,7 +122,7 @@ export class AiService {
       const lines = text.split('\n').filter(l => l.startsWith('data: '));
 
       for (const line of lines) {
-        const data = line.replace('data: ', '');
+        const data = line.slice(6);
         if (data === '[DONE]') continue;
 
         try {
@@ -127,13 +151,23 @@ export class AiService {
     sessionId: string;
     image: string;
     voiceContext?: string;
+    mode?: string;
     reply: ServerResponse;
   }) {
-    const { userId, sessionId, image, voiceContext, reply } = params;
+    const { userId, sessionId, image, voiceContext, mode, reply } = params;
 
     await this.checkUsageLimit(userId);
 
     const sql = getDB();
+
+    // Screenshot mode is pro-only
+    const [userRow] = await sql`SELECT is_pro FROM users WHERE id = ${userId}`;
+    if (!userRow?.is_pro) {
+      reply.write(`data: ${JSON.stringify({ error: 'Screenshot mode requires a Pro plan. Upgrade to continue.', done: true })}\n\n`);
+      reply.end();
+      return;
+    }
+
     const [session] = await sql`
       SELECT cv_profile, job_description, answer_length
       FROM interview_sessions
@@ -142,6 +176,13 @@ export class AiService {
 
     if (!session) {
       reply.write(`data: ${JSON.stringify({ error: 'Session not found', done: true })}\n\n`);
+      reply.end();
+      return;
+    }
+
+    // Guard before any API calls — no point spending vision credits if CV is missing
+    if (!session.cv_profile) {
+      reply.write(`data: ${JSON.stringify({ error: 'No CV uploaded. Please upload your CV before using ZoomGuru.', done: true })}\n\n`);
       reply.end();
       return;
     }
@@ -191,12 +232,15 @@ export class AiService {
       screenContent = voiceContext || 'Unable to analyze screenshot';
     }
 
-    // Step 2: Determine question type from screen content
+    // Step 2: Route using explicit mode if provided, otherwise auto-detect from screen content
     const fullContext = voiceContext
       ? `Screen content: ${screenContent}\n\nVoice question: ${voiceContext}`
       : `Screen content: ${screenContent}`;
 
-    const { model, systemPromptKey } = routeQuestion(screenContent + (voiceContext || ''));
+    const { model, systemPromptKey } = resolveRoute(
+      screenContent + (voiceContext || ''),
+      mode
+    );
     const systemPrompt = buildSystemPrompt(
       systemPromptKey,
       session.cv_profile,
@@ -255,7 +299,7 @@ export class AiService {
         const lines = text.split('\n').filter(l => l.startsWith('data: '));
 
         for (const line of lines) {
-          const data = line.replace('data: ', '');
+          const data = line.slice(6);
           if (data === '[DONE]') continue;
           try {
             const parsed = JSON.parse(data);
@@ -269,6 +313,10 @@ export class AiService {
           }
         }
       }
+    } else {
+      reply.write(`data: ${JSON.stringify({ error: 'AI service error. Please try again.', done: true })}\n\n`);
+      reply.end();
+      return;
     }
 
     reply.write(`data: ${JSON.stringify({ chunk: '', done: true, fullAnswer })}\n\n`);
@@ -291,16 +339,17 @@ export class AiService {
     if (usage.is_pro) return;
 
     if ((usage.responses_used || 0) >= 10) {
-      throw new ForbiddenException('Free tier limit reached. Upgrade to continue.');
+      throw new ForbiddenException('Free tier limit reached: 10 responses used this session. Upgrade to continue.');
     }
   }
 
   async incrementUsage(userId: string): Promise<void> {
     const sql = getDB();
     await sql`
-      UPDATE user_usage
-      SET responses_used = responses_used + 1
-      WHERE user_id = ${userId}
+      INSERT INTO user_usage (user_id, responses_used)
+      VALUES (${userId}, 1)
+      ON CONFLICT (user_id) DO UPDATE
+      SET responses_used = user_usage.responses_used + 1
     `;
   }
 }

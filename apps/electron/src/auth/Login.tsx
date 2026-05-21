@@ -43,6 +43,7 @@ export function Login({ onLogin }: Props) {
         onLogin(data.user);
       }
     });
+    return () => { window.zoomguru.offGoogleAuth?.(); };
   }, []);
 
   if (showRegister) {
@@ -64,8 +65,8 @@ export function Login({ onLogin }: Props) {
 
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, deviceId }),
+        headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();

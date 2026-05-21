@@ -31,9 +31,11 @@ export class PaystackController {
   @Post('webhook')
   async webhook(
     @Headers('x-paystack-signature') signature: string,
-    @Body() body: any
+    @Body() body: any,
+    @Req() req: any
   ) {
-    return this.paystackService.handleWebhook(signature, body);
+    const rawBody: Buffer | undefined = req.rawBody;
+    return this.paystackService.handleWebhook(signature, body, rawBody);
   }
 
   @Get('plans')

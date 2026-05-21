@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnswerStream } from './AnswerStream';
 import { ModeBar } from './ModeBar';
 import { PaywallModal } from './PaywallModal';
@@ -16,6 +16,47 @@ if (!import.meta.env.VITE_API_URL) {
 type Mode = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
 type ProtectionStatus = 'checking' | 'protected' | 'exposed';
 
+// Refresh the access token using the stored refresh token. Returns the new token or null on failure.
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return null;
+  try {
+    const deviceId = await window.zoomguru.getDeviceId();
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    localStorage.setItem('access_token', data.accessToken);
+    if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
+    return data.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch wrapper that auto-refreshes on 401 and reloads to login on second failure.
+async function apiFetch(url: string, options: RequestInit): Promise<Response> {
+  let res = await fetch(url, options);
+  if (res.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      const headers = new Headers(options.headers);
+      headers.set('Authorization', `Bearer ${newToken}`);
+      res = await fetch(url, { ...options, headers });
+    }
+    if (res.status === 401) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('session_id');
+      window.location.reload();
+    }
+  }
+  return res;
+}
+
 export function Overlay() {
   const [answer, setAnswer] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -28,16 +69,28 @@ export function Overlay() {
   const [copied, setCopied] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [protection, setProtection] = useState<ProtectionStatus>('checking');
+
+  // Session tracking for /session/end
+  const sessionStartRef = useRef<number>(Date.now());
+  const sessionMessagesRef = useRef<Array<{ role: string; content: string }>>([]);
+  const sessionQuestionsRef = useRef<number>(0);
   const [opacity, setOpacity] = useState<number>(() => {
     const saved = localStorage.getItem('zg_opacity');
     return saved ? parseFloat(saved) : 0.20;
   });
+
+  // Refs that always point to the latest handler — prevents stale closures in IPC registrations
+  const handleListenRef = useRef<() => void>(() => {});
+  const handleScreenshotRef = useRef<() => void>(() => {});
+  const handleRegenerateRef = useRef<() => void>(() => {});
+  const handleClearRef = useRef<() => void>(() => {});
+
   useEffect(() => {
-    // Register hotkey triggers from Electron main process
-    window.zoomguru.onTrigger('listen', handleListen);
-    window.zoomguru.onTrigger('screenshot', handleScreenshot);
-    window.zoomguru.onTrigger('regenerate', handleRegenerate);
-    window.zoomguru.onTrigger('clear', handleClear);
+    // Register hotkey triggers from Electron main process (once, via stable ref dispatchers)
+    window.zoomguru.onTrigger('listen', () => handleListenRef.current());
+    window.zoomguru.onTrigger('screenshot', () => handleScreenshotRef.current());
+    window.zoomguru.onTrigger('regenerate', () => handleRegenerateRef.current());
+    window.zoomguru.onTrigger('clear', () => handleClearRef.current());
 
     window.zoomguru.onEvent('protection:status', (data: {
       protected: boolean;
@@ -156,6 +209,12 @@ export function Overlay() {
     setLastImage('');
   }
 
+  // Keep refs in sync with latest handlers on every render
+  handleListenRef.current = handleListen;
+  handleScreenshotRef.current = handleScreenshot;
+  handleRegenerateRef.current = handleRegenerate;
+  handleClearRef.current = handleClear;
+
   async function streamAnswer(transcript: string, _image: null) {
     setAnswer('');
     setIsStreaming(true);
@@ -164,7 +223,7 @@ export function Overlay() {
     const sessionId = localStorage.getItem('session_id');
 
     try {
-      const response = await fetch(`${API_URL}/ai/stream`, {
+      const response = await apiFetch(`${API_URL}/ai/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -192,6 +251,7 @@ export function Overlay() {
 
       const reader = response.body?.getReader();
       if (!reader) {
+        setAnswer('⚠ No response body received. Please try again.');
         setIsStreaming(false);
         return;
       }
@@ -215,11 +275,21 @@ export function Overlay() {
           try {
             const data = JSON.parse(raw);
             if (data.done) {
+              if (data.fullAnswer) {
+                sessionMessagesRef.current.push({ role: 'user', content: transcript });
+                sessionMessagesRef.current.push({ role: 'assistant', content: data.fullAnswer });
+                sessionQuestionsRef.current += 1;
+              }
               setIsStreaming(false);
               return;
             }
-            if (data.error === 'paywall') {
-              setShowPaywall(true);
+            if (data.error) {
+              const msg: string = data.error;
+              if (msg.includes('limit') || msg.includes('Upgrade') || msg.includes('Pro')) {
+                setShowPaywall(true);
+              } else {
+                setAnswer('⚠ ' + msg);
+              }
               setIsStreaming(false);
               return;
             }
@@ -247,7 +317,7 @@ export function Overlay() {
     const sessionId = localStorage.getItem('session_id');
 
     try {
-      const response = await fetch(`${API_URL}/ai/screenshot`, {
+      const response = await apiFetch(`${API_URL}/ai/screenshot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -274,7 +344,11 @@ export function Overlay() {
       }
 
       const reader = response.body?.getReader();
-      if (!reader) { setIsStreaming(false); return; }
+      if (!reader) {
+        setAnswer('⚠ No response body received. Please try again.');
+        setIsStreaming(false);
+        return;
+      }
 
       const decoder = new TextDecoder();
       let buffer = '';
@@ -298,8 +372,13 @@ export function Overlay() {
               setIsStreaming(false);
               return;
             }
-            if (data.error === 'paywall') {
-              setShowPaywall(true);
+            if (data.error) {
+              const msg: string = data.error;
+              if (msg.includes('limit') || msg.includes('Upgrade')) {
+                setShowPaywall(true);
+              } else {
+                setAnswer('⚠ ' + msg);
+              }
               setIsStreaming(false);
               return;
             }
@@ -432,7 +511,30 @@ export function Overlay() {
 
             {/* New session */}
             <button
-              onClick={() => {
+              onClick={async () => {
+                const sessionId = localStorage.getItem('session_id');
+                const token = localStorage.getItem('access_token');
+                if (sessionId && token) {
+                  try {
+                    const deviceId = await window.zoomguru.getDeviceId();
+                    await apiFetch(`${API_URL}/session/end`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-Device-ID': deviceId,
+                      },
+                      body: JSON.stringify({
+                        sessionId,
+                        messages: sessionMessagesRef.current,
+                        durationSeconds: Math.round((Date.now() - sessionStartRef.current) / 1000),
+                        totalQuestions: sessionQuestionsRef.current,
+                      }),
+                    });
+                  } catch {
+                    // Don't block new session if end fails
+                  }
+                }
                 localStorage.removeItem('session_id');
                 window.location.reload();
               }}
@@ -523,11 +625,16 @@ export function Overlay() {
           color: 'rgba(255,255,255,0.25)',
           flexShrink: 0,
         }}>
-          <span>⌘⇧A Listen</span>
-          <span>⌘⇧S Screen</span>
-          <span>⌘⇧H Hide</span>
-          <span>⌘⇧R Retry</span>
-          <span>⌘⇧C Clear</span>
+          {(() => {
+            const mod = navigator.platform.includes('Mac') ? '⌘⇧' : 'Ctrl+';
+            return (<>
+              <span>{mod}A Listen</span>
+              <span>{mod}S Screen</span>
+              <span>{mod}H Hide</span>
+              <span>{mod}R Retry</span>
+              <span>{mod}C Clear</span>
+            </>);
+          })()}
           <input
             type="range"
             min={0.1}

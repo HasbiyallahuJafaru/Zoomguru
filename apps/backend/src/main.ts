@@ -38,6 +38,18 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false })
   );
 
+  // Capture raw body before JSON parsing so Paystack webhook HMAC can verify against original bytes
+  const fastify = app.getHttpAdapter().getInstance() as any;
+  fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req: any, body: Buffer, done: any) => {
+    req.rawBody = body;
+    try {
+      done(null, JSON.parse(body.toString('utf8')));
+    } catch (e: any) {
+      e.statusCode = 400;
+      done(e);
+    }
+  });
+
   // Multipart for CV uploads
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
 

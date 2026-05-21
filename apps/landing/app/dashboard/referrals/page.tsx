@@ -28,7 +28,7 @@ interface ReferralData {
   }[];
 }
 
-const MIN_PAYOUT = 5000;
+const MIN_PAYOUT = 1000;
 
 export default function ReferralsPage() {
   const { data: session } = useSession();
@@ -45,10 +45,31 @@ export default function ReferralsPage() {
 
   const fetchData = useCallback(async () => {
     if (!user?.accessToken) return;
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/me`, {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/stats`, {
       headers: { Authorization: `Bearer ${user.accessToken}` },
     });
-    if (res.ok) setData(await res.json());
+    if (res.ok) {
+      const raw = await res.json();
+      // Normalize backend shape { referralCode, balance: {...}, referrals: [...] }
+      // into the flat shape this page expects
+      setData({
+        referralCode: raw.referralCode ?? '',
+        totalReferred: raw.referrals?.length ?? 0,
+        converted: raw.referrals?.filter((r: any) => r.status === 'earned' || r.status === 'paid').length ?? 0,
+        totalEarned: raw.balance?.total_earned ?? 0,
+        pendingBalance: raw.balance?.pending_balance ?? 0,
+        currency: raw.balance?.currency ?? 'NGN',
+        referrals: (raw.referrals ?? []).map((r: any, i: number) => ({
+          id: String(i),
+          referred_email: r.referred_email,
+          plan: r.currency ?? 'NGN',
+          commission_amount: r.commission_amount,
+          status: r.status,
+          created_at: r.created_at,
+        })),
+        payoutHistory: [],
+      });
+    }
     setLoading(false);
   }, [user?.accessToken]);
 

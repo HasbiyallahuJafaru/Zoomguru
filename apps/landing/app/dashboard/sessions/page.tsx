@@ -65,7 +65,7 @@ export default function SessionsPage() {
       type: typeFilter, sort,
     });
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/user/sessions?${params}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/auth/user/sessions?${params}`,
       { headers: { Authorization: `Bearer ${user.accessToken}` } }
     );
     if (res.ok) setData(await res.json());

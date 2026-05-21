@@ -117,6 +117,13 @@ export class AuthController {
     return this.authService.deleteAccount(req.user.userId);
   }
 
+  @Post('google/web')
+  async googleWebAuth(
+    @Body() body: { googleId: string; email: string; name: string; avatar?: string }
+  ) {
+    return this.authService.handleGoogleWebAuth(body);
+  }
+
   @Get('google/electron')
   async googleElectronInit(@Res() reply: FastifyReply) {
     const params = new URLSearchParams({
