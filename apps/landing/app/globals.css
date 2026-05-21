@@ -7,6 +7,8 @@
 html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
@@ -14,6 +16,7 @@ body {
   color: #111;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
+  max-width: 100vw;
 }
 
 ::-webkit-scrollbar { width: 4px; }
@@ -197,3 +200,4 @@ input, button, select, textarea {
   max-width: 100%;
 }
 img { max-width: 100%; height: auto; }
+section { max-width: 100vw; overflow-x: hidden; }

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Navbar from '@/components/Navbar';
+import NavbarWrapper from '@/components/NavbarWrapper';
 import ReferralCapture from '@/components/ReferralCapture';
 import GalaxyBackground from '@/components/GalaxyBackground';
 import { Providers } from '@/components/Providers';
@@ -48,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Galaxy — fixed behind everything */}
           <GalaxyBackground />
           <ReferralCapture />
-          <Navbar />
+          <NavbarWrapper />
           <main className="relative z-10">{children}</main>
         </Providers>
       </body>

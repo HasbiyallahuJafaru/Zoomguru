@@ -17,6 +17,39 @@ import { initCapture } from './capture';
 import { initSpeech } from './speech';
 import { getDeviceFingerprint } from './fingerprint';
 
+// ─── NATIVE WGC-EXCLUDE ADDON ─────────────────────────────────────────────
+// The addon is Windows-only; index.js provides a no-op fallback on macOS.
+const wgcExclude = (() => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('wgc-exclude') as {
+      excludeFromCapture: (hwnd: Buffer) => {
+        success: boolean;
+        method: string | null;
+        error?: string;
+      };
+      getWindowsVersion: () => { major: number; minor: number; build: number };
+    };
+  } catch {
+    return {
+      excludeFromCapture: () => ({ success: false, error: 'addon unavailable', method: null }),
+      getWindowsVersion: () => ({ major: 0, minor: 0, build: 0 }),
+    };
+  }
+})();
+
+// Log Windows version info once at startup so we know which protection tier is active.
+if (process.platform === 'win32') {
+  const ver = wgcExclude.getWindowsVersion();
+  const supportsExclude = ver.build >= 19041;  // Win10 2004+
+  const supportsWgcExclude = ver.build >= 22621; // Win11 22H2+
+  console.log(
+    `[ZoomGuru] Windows ${ver.major}.${ver.minor} build ${ver.build} — ` +
+    `WDA_EXCLUDEFROMCAPTURE: ${supportsExclude ? 'YES' : 'NO'} — ` +
+    `Full WGC exclusion (build>=22621): ${supportsWgcExclude ? 'YES' : 'NO'}`
+  );
+}
+
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
@@ -27,18 +60,55 @@ const store = new Store({
   encryptionKey: 'zoomguru-local-key-' + fingerprint.slice(0, 16),
 });
 
+// ─── applyWindowsNativeExclusion ────────────────────────────────────────────
+// Calls the native addon to apply SetWindowDisplayAffinity on the HWND.
+// Returns the method used ('WDA_EXCLUDEFROMCAPTURE', 'WDA_MONITOR', or null).
+// Safe to call repeatedly — DWM ignores redundant identical affinity calls.
+function applyWindowsNativeExclusion(win: BrowserWindow): string | null {
+  try {
+    const hwnd = win.getNativeWindowHandle(); // returns Buffer
+    const result = wgcExclude.excludeFromCapture(hwnd);
+    if (result.success) {
+      console.log(`[ZoomGuru] Screen capture exclusion applied via ${result.method}`);
+    } else {
+      console.warn(`[ZoomGuru] Native exclusion failed: ${result.error ?? 'unknown error'}`);
+    }
+    return result.method ?? null;
+  } catch (err) {
+    console.error('[ZoomGuru] applyWindowsNativeExclusion threw:', err);
+    return null;
+  }
+}
+
 function applyScreenShareExclusion(win: BrowserWindow) {
   if (process.platform === 'darwin') {
-    // macOS — setContentProtection uses NSWindow.sharingType = .none
-    // Works perfectly with transparent windows
+    // macOS: setContentProtection maps to NSWindow.sharingType = .none
+    // This prevents the window from appearing in screen sharing since macOS 10.13.
     win.setContentProtection(true);
+    // Re-apply on every show in case macOS resets it after hide/show cycles.
+    win.on('show', () => {
+      win.setContentProtection(true);
+    });
   } else if (process.platform === 'win32') {
-    // Windows — setContentProtection calls SetWindowDisplayAffinity
-    // Must be called AFTER the window handle exists (after show)
-    // For reliable exclusion on Win32 we call it here AND after show
+    // Windows: two-layer approach for maximum compatibility across Win10/11 variants.
+    //
+    // Layer 1 — Native addon (SetWindowDisplayAffinity):
+    //   WDA_EXCLUDEFROMCAPTURE (build >= 19041): excludes from DXGI + WGC + PrintWindow
+    //   WDA_MONITOR            (build <  19041): excludes from DXGI screen mirroring only
+    //
+    // Layer 2 — Electron setContentProtection:
+    //   Sets WDA_EXCLUDEFROMCAPTURE internally via Chromium's own call.
+    //   Belt-and-suspenders: whichever call DWM processes last wins, and both
+    //   set the same affinity on supported builds.
+    //
+    // We apply both pre-show AND on every 'show' event because hide/show cycles
+    // can reset display affinity on some Windows builds / GPU driver combos.
+
+    applyWindowsNativeExclusion(win);
     win.setContentProtection(true);
-    win.once('show', () => {
-      // Re-apply after first show — Win32 DWM requires this
+
+    win.on('show', () => {
+      applyWindowsNativeExclusion(win);
       win.setContentProtection(true);
     });
   }
@@ -94,9 +164,12 @@ function createWindow() {
     });
   }
 
-  // ─── APPLY SCREEN SHARE EXCLUSION BEFORE SHOWING ────────────────────────
-  // Called here (not in ready-to-show) so exclusion is active before render.
+  // ─── SCREEN SHARE EXCLUSION — permanent, cannot be disabled ─────────────
   applyScreenShareExclusion(mainWindow);
+  // Block any renderer-side attempt to disable content protection via IPC
+  mainWindow.webContents.on('ipc-message', (_event, channel) => {
+    if (channel === 'disable-protection') mainWindow?.setContentProtection(true);
+  });
 
   // ─── ALWAYS ON TOP — above all screen share capture UIs ──────────────────
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -125,10 +198,18 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // ─── SHOW AFTER RENDER (exclusion already applied above) ─────────────────
+  // ─── SHOW AFTER RENDER ───────────────────────────────────────────────────
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
-    // Run protection test AFTER window is shown and protection applied
+    // On Windows, re-apply after the first paint so DWM registers the affinity
+    // while the window is in its final visible state.
+    if (process.platform === 'win32' && mainWindow) {
+      setTimeout(() => {
+        if (!mainWindow) return;
+        applyWindowsNativeExclusion(mainWindow);
+        mainWindow.setContentProtection(true);
+      }, 200);
+    }
     setTimeout(() => {
       runProtectionSelfTest();
     }, 1500);

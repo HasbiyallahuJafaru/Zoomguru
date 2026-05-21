@@ -35,7 +35,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const user = session.user as any;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#fafaf8' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#fafaf8', overflow: 'hidden', maxWidth: '100vw' }}>
 
       {/* Sidebar */}
       <aside style={{
