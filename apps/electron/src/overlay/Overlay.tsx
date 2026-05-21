@@ -408,103 +408,60 @@ export function Overlay() {
         left: 0,
         right: 0,
         bottom: 0,
-        background: `rgba(80, 50, 20, ${opacity})`,
-        backdropFilter: opacity > 0.5 ? 'blur(12px)' : 'blur(4px)',
-        WebkitBackdropFilter: opacity > 0.5 ? 'blur(12px)' : 'blur(4px)',
-        borderRadius: '16px',
-        border: '1px solid rgba(255,255,255,0.08)',
+        background: '#fff',
+        borderRadius: '20px',
+        border: '1.5px solid #e5e5e5',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
         userSelect: 'none',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.12)',
+        opacity,
       }}>
-        {/* Header */}
+        {/* Header bar — matches hero demo card */}
         <div style={{
           padding: '12px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: '#f5f5f3',
+          borderBottom: '1px solid #e5e5e5',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           WebkitAppRegion: 'drag',
           flexShrink: 0,
         } as React.CSSProperties & { WebkitAppRegion: string }}>
-          <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: 0.3 }}>
-            ZoomGuru
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ color: '#fff', fontSize: 10, fontWeight: 900 }}>Z</span>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#333', letterSpacing: '-0.2px' }}>ZoomGuru</span>
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {isListening && (
-              <span style={{
-                color: '#22c55e',
-                fontSize: 11,
-                animation: 'pulse 1.5s infinite',
-              }}>
-                ● Listening...
-              </span>
+              <span style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>● Listening...</span>
             )}
             {isStreaming && (
-              <span style={{ color: '#3b82f6', fontSize: 11 }}>● Thinking...</span>
+              <span style={{ color: '#2563eb', fontSize: 11, fontWeight: 600 }}>● Thinking...</span>
             )}
             {!isListening && !isStreaming && (
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>Ready</span>
+              <span style={{ color: '#bbb', fontSize: 10 }}>Ready</span>
             )}
             {!isOnline && (
-              <span style={{ color: '#ef4444', fontSize: 10 }}>⚠ No connection</span>
+              <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 600 }}>⚠ Offline</span>
             )}
 
             {protection === 'checking' && (
-              <span style={{
-                fontFamily: 'var(--mono, monospace)',
-                fontSize: 9,
-                color: 'rgba(255,255,255,0.25)',
-                letterSpacing: '0.05em',
-              }}>
-                checking...
-              </span>
+              <span style={{ fontSize: 9, color: '#bbb', letterSpacing: '0.05em' }}>checking...</span>
             )}
-
             {protection === 'protected' && (
-              <span style={{
-                fontFamily: 'var(--mono, monospace)',
-                fontSize: 9,
-                color: '#10b981',
-                letterSpacing: '0.05em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 3,
-              }}>
-                <span style={{
-                  width: 5, height: 5,
-                  borderRadius: '50%',
-                  background: '#10b981',
-                  display: 'inline-block',
-                  boxShadow: '0 0 4px #10b981',
-                }} />
+              <span style={{ fontSize: 9, color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
                 Hidden
               </span>
             )}
-
             {protection === 'exposed' && (
-              <span
-                style={{
-                  fontFamily: 'var(--mono, monospace)',
-                  fontSize: 9,
-                  color: '#ef4444',
-                  letterSpacing: '0.05em',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  cursor: 'pointer',
-                }}
-                title="Overlay may be visible to screen share. Restart the app and try again."
-              >
-                <span style={{
-                  width: 5, height: 5,
-                  borderRadius: '50%',
-                  background: '#ef4444',
-                  display: 'inline-block',
-                  animation: 'pulse 1.5s infinite',
-                }} />
+              <span title="Overlay may be visible to screen share." style={{ fontSize: 9, color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#dc2626', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
                 ⚠ Visible
               </span>
             )}
@@ -542,9 +499,9 @@ export function Overlay() {
               style={{
                 padding: '3px 8px',
                 borderRadius: 5,
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(255,255,255,0.06)',
-                color: 'rgba(255,255,255,0.5)',
+                border: '1px solid #e5e5e5',
+                background: 'transparent',
+                color: '#666',
                 fontSize: 10,
                 cursor: 'pointer',
                 WebkitAppRegion: 'no-drag',
@@ -560,9 +517,9 @@ export function Overlay() {
               style={{
                 padding: '3px 8px',
                 borderRadius: 5,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'rgba(255,255,255,0.04)',
-                color: 'rgba(255,255,255,0.4)',
+                border: '1px solid #e5e5e5',
+                background: 'transparent',
+                color: '#999',
                 fontSize: 12,
                 lineHeight: 1,
                 cursor: 'pointer',
@@ -578,10 +535,11 @@ export function Overlay() {
               style={{
                 padding: '3px 8px',
                 borderRadius: 5,
-                border: '1px solid rgba(234,179,8,0.3)',
-                background: 'rgba(234,179,8,0.1)',
-                color: '#eab308',
+                border: '1.5px solid #111',
+                background: '#111',
+                color: '#fff',
                 fontSize: 10,
+                fontWeight: 700,
                 cursor: 'pointer',
                 WebkitAppRegion: 'no-drag',
               } as React.CSSProperties & { WebkitAppRegion: string }}
@@ -601,14 +559,14 @@ export function Overlay() {
         {answer && !isStreaming && (
           <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
             <button onClick={copyAnswer} style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'transparent',
+              border: '1px solid #e5e5e5',
               borderRadius: 6,
-              color: copied ? '#22c55e' : 'rgba(255,255,255,0.6)',
+              color: copied ? '#16a34a' : '#666',
               fontSize: 11,
+              fontWeight: copied ? 600 : 400,
               padding: '4px 10px',
               cursor: 'pointer',
-              marginTop: 8,
             }}>
               {copied ? '✓ Copied' : 'Copy'}
             </button>
@@ -618,11 +576,12 @@ export function Overlay() {
         {/* Footer */}
         <div style={{
           padding: '8px 16px',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
+          borderTop: '1px solid #e5e5e5',
+          background: '#fafaf8',
           display: 'flex',
           gap: 10,
           fontSize: 10,
-          color: 'rgba(255,255,255,0.25)',
+          color: '#bbb',
           flexShrink: 0,
         }}>
           {(() => {
@@ -642,7 +601,7 @@ export function Overlay() {
             step={0.05}
             value={opacity}
             onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-            style={{ width: 60, cursor: 'pointer', accentColor: '#3b82f6', marginLeft: 'auto' }}
+            style={{ width: 60, cursor: 'pointer', accentColor: '#111', marginLeft: 'auto' }}
             title="Overlay opacity"
           />
         </div>

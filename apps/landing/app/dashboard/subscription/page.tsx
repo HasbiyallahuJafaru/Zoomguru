@@ -5,7 +5,7 @@ import Script from 'next/script';
 
 declare global {
   interface Window {
-    PaystackPop: {
+    PaystackPop: new () => {
       newTransaction: (config: {
         key: string; email: string; amount: number; currency: string;
         ref: string; metadata?: Record<string, unknown>;
@@ -71,7 +71,8 @@ export default function SubscriptionPage() {
       ? NGN_RATES[plan] * 100
       : USD_RATES[plan] * 100;
 
-    window.PaystackPop.newTransaction({
+    const popup = new window.PaystackPop();
+    popup.newTransaction({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
       email: user.email,
       amount,

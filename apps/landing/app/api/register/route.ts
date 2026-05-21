@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
 export async function POST(req: NextRequest) {
   try {
     const { name, username, email, password, refCode } = await req.json();
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
+    const res = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, username, email, password, refCode }),
@@ -20,9 +22,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error('[register] fetch error:', err);
     return NextResponse.json(
-      { error: 'Something went wrong. Please try again.' },
+      { error: 'Could not reach the server. Please try again.' },
       { status: 500 }
     );
   }

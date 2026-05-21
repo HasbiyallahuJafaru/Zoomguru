@@ -72,7 +72,7 @@ export default function Hero() {
         </p>
 
         {/* CTAs */}
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 48 }}>
+        <div className="hero-cta" style={{ flexWrap: 'wrap', marginBottom: 48 }}>
           <a href="/pricing" style={{
             background: '#111', color: '#fff', fontWeight: 700, fontSize: 15,
             padding: '14px 32px', borderRadius: 14, textDecoration: 'none',
@@ -118,7 +118,7 @@ export default function Hero() {
         </div>
 
         {/* Stats */}
-        <div style={{ marginTop: 48, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, textAlign: 'center' }}>
+        <div className="grid-stats" style={{ marginTop: 48 }}>
           {[
             { value: '<500ms', label: 'First AI word' },
             { value: '100%', label: 'Screen share invisible' },

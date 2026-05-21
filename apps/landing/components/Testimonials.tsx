@@ -12,13 +12,13 @@ const testimonials = [
     avatar: 'PM',
   },
   {
-    quote: 'The LeetCode problem appeared on screen. I hit Ctrl+Shift+S. ZoomGuru identified it, explained the approach, and gave me working code in 8 seconds. Insane.',
+    quote: 'The LeetCode problem appeared on screen. I hit Ctrl+Shift+S. ZoomGuru identified it, explained the approach, and gave me working code in 8 seconds.',
     name: 'James K.',
     role: 'Frontend Engineer, London',
     avatar: 'JK',
   },
   {
-    quote: 'Three offers in 2 weeks. I was using ZoomGuru for every single interview. The invisibility feature works. Tested it myself by screen-sharing to a friend.',
+    quote: 'Three offers in 2 weeks. Using ZoomGuru for every single interview. The invisibility feature works — tested it myself by screen-sharing to a friend.',
     name: 'Chidi A.',
     role: 'Full-stack Dev, Abuja',
     avatar: 'CA',
@@ -27,49 +27,41 @@ const testimonials = [
 
 export default function Testimonials() {
   return (
-    <section className="py-28 px-4 relative overflow-hidden">
-      <div className="max-w-6xl mx-auto relative z-10">
+    <section style={{ padding: '96px 24px', borderTop: '1px solid #e5e5e5' }}>
+      <div style={{ maxWidth: 1152, margin: '0 auto' }}>
 
-        <div className="text-center mb-16">
-          <p className="text-white/65 text-xs font-bold uppercase tracking-[0.2em] mb-4">Success stories</p>
-          <h2 className="text-4xl sm:text-5xl font-black text-white mb-5 tracking-tight">
-            Real interviews.{' '}
-            <span className="text-white/60">Real offers.</span>
+        <div style={{ marginBottom: 56 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>What people say</p>
+          <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 900, color: '#111', letterSpacing: '-1.5px', lineHeight: 1.05 }}>
+            Real results,<br />
+            <span style={{ fontStyle: 'italic', fontWeight: 300 }}>real interviews.</span>
           </h2>
-          <p className="text-white/65 text-lg font-light">
-            From users who used ZoomGuru and landed the job.
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
           {testimonials.map((t, i) => (
-            <div
-              key={i}
-              className="rounded-2xl p-6 flex flex-col gap-4 transition-all duration-300 hover:translate-y-[-2px]"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
-            >
-              <div className="flex gap-1">
-                {[...Array(5)].map((_, si) => (
-                  <svg key={si} className="w-3.5 h-3.5 text-white/75" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                ))}
-              </div>
-
-              <p className="text-white/60 text-sm leading-relaxed flex-1 font-light">
+            <div key={i} style={{
+              background: i === 0 ? '#111' : '#fff',
+              border: '1.5px solid',
+              borderColor: i === 0 ? '#111' : '#e5e5e5',
+              borderRadius: 16, padding: 28,
+              display: 'flex', flexDirection: 'column', gap: 20,
+            }}>
+              <p style={{ fontSize: 15, lineHeight: 1.65, color: i === 0 ? 'rgba(255,255,255,0.85)' : '#333', flex: 1 }}>
                 &ldquo;{t.quote}&rdquo;
               </p>
-
-              <div className="flex items-center gap-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white/80 text-xs font-bold flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}
-                >
-                  {t.avatar}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: i === 0 ? 'rgba(255,255,255,0.15)' : '#f0f0f0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: i === 0 ? '#fff' : '#555' }}>{t.avatar}</span>
                 </div>
                 <div>
-                  <p className="text-white text-xs font-semibold">{t.name}</p>
-                  <p className="text-white/65 text-[10px]">{t.role}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: i === 0 ? '#fff' : '#111' }}>{t.name}</p>
+                  <p style={{ fontSize: 12, color: i === 0 ? 'rgba(255,255,255,0.5)' : '#888', marginTop: 1 }}>{t.role}</p>
                 </div>
               </div>
             </div>

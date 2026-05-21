@@ -18,7 +18,8 @@ export function ModeBar({ mode, onModeChange }: Props) {
       display: 'flex',
       gap: 4,
       padding: '8px 16px',
-      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: '1px solid #e5e5e5',
+      background: '#fafaf8',
     }}>
       {modes.map(m => (
         <button
@@ -27,14 +28,15 @@ export function ModeBar({ mode, onModeChange }: Props) {
           style={{
             padding: '4px 10px',
             borderRadius: 6,
-            border: 'none',
+            border: `1.5px solid ${mode === m.key ? '#111' : '#e5e5e5'}`,
             cursor: 'pointer',
             fontSize: 11,
-            fontWeight: mode === m.key ? 600 : 400,
-            background: mode === m.key ? 'rgba(59,130,246,0.8)' : 'rgba(255,255,255,0.08)',
-            color: mode === m.key ? '#fff' : 'rgba(255,255,255,0.5)',
-            transition: 'all 0.15s',
+            fontWeight: mode === m.key ? 700 : 400,
+            background: mode === m.key ? '#111' : 'transparent',
+            color: mode === m.key ? '#fff' : '#666',
+            transition: 'all 0.12s',
             whiteSpace: 'nowrap',
+            fontFamily: 'inherit',
           }}
         >
           {m.label}

@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: zoomguru-backend
+    runtime: node
+    region: oregon
+    rootDir: apps/backend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: ADMIN_SECRET_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: BACKEND_URL
+        value: https://zoomguru.onrender.com
+      - key: ELECTRON_OAUTH_SECRET
+        sync: false
