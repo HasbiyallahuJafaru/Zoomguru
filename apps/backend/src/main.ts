@@ -38,8 +38,10 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false })
   );
 
-  // Capture raw body before JSON parsing so Paystack webhook HMAC can verify against original bytes
+  // Capture raw body before JSON parsing so Paystack webhook HMAC can verify against original bytes.
+  // NestJS/Fastify registers its own application/json parser during init, so we must remove it first.
   const fastify = app.getHttpAdapter().getInstance() as any;
+  fastify.removeContentTypeParser('application/json');
   fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req: any, body: Buffer, done: any) => {
     req.rawBody = body;
     try {
