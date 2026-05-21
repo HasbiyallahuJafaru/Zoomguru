@@ -6,7 +6,7 @@ import ElectricBorder from './ElectricBorder';
 
 declare global {
   interface Window {
-    PaystackPop: new () => {
+    PaystackPop: {
       newTransaction: (config: {
         key: string;
         email: string;
@@ -95,7 +95,7 @@ export default function Pricing() {
     const plan = plans[planKey];
     let refCode: string | null = null;
     try { refCode = localStorage.getItem('zg_ref'); } catch { /* ignore */ }
-    new window.PaystackPop().newTransaction({
+    window.PaystackPop.newTransaction({
       key: PAYSTACK_PUBLIC_KEY,
       email,
       amount: plan.paystackAmount,
