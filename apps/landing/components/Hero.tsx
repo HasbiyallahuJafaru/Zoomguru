@@ -2,109 +2,134 @@
 
 import { useState, useEffect } from 'react';
 
-const MOCK_ANSWERS = [
-  'At Acme Corp I led the migration of a 2M-user Node.js monolith to microservices. Deployment time dropped 60% and p99 latency fell from 800ms to 90ms by introducing Redis caching at the API gateway layer.',
-  'I have 4 years with React and TypeScript. Built a real-time trading dashboard processing 80k events per second using React Query for server state, Zustand for local state, and WebSockets with exponential backoff reconnection.',
-  'For this system I would start with a load balancer across 3 AZs, Postgres with read replicas for strong consistency, a write-through Redis cache for hot data, and async Kafka queues to decouple the notification service.',
-];
-
 const QUESTIONS = [
   'Tell me about a time you led a complex migration.',
   'Walk me through your React experience.',
   'How would you design a high-traffic notification system?',
 ];
 
+const ANSWERS = [
+  'At Acme Corp I led the migration of a 2M-user Node.js monolith to microservices. Deployment time dropped 60% and p99 latency fell from 800ms to 90ms by introducing Redis caching at the API gateway layer.',
+  'I have 4 years with React and TypeScript. Built a real-time trading dashboard processing 80k events/sec using React Query, Zustand, and WebSockets with exponential backoff reconnection.',
+  'Start with a load balancer across 3 AZs, Postgres with read replicas, a write-through Redis cache for hot data, and async Kafka queues to decouple the notification service.',
+];
+
 export default function Hero() {
   const [qi, setQi] = useState(0);
-  const [displayText, setDisplayText] = useState('');
+  const [display, setDisplay] = useState('');
   const [charIdx, setCharIdx] = useState(0);
   const [phase, setPhase] = useState<'typing' | 'pause'>('typing');
-
-  const fullText = MOCK_ANSWERS[qi];
+  const full = ANSWERS[qi];
 
   useEffect(() => {
     if (phase === 'typing') {
-      if (charIdx < fullText.length) {
-        const t = setTimeout(() => { setDisplayText(fullText.slice(0, charIdx + 1)); setCharIdx(i => i + 1); }, 14);
-        return () => clearTimeout(t);
-      } else {
-        const t = setTimeout(() => setPhase('pause'), 3200);
+      if (charIdx < full.length) {
+        const t = setTimeout(() => { setDisplay(full.slice(0, charIdx + 1)); setCharIdx(i => i + 1); }, 13);
         return () => clearTimeout(t);
       }
-    } else {
-      const t = setTimeout(() => {
-        const next = (qi + 1) % MOCK_ANSWERS.length;
-        setQi(next); setDisplayText(''); setCharIdx(0); setPhase('typing');
-      }, 800);
+      const t = setTimeout(() => setPhase('pause'), 3000);
       return () => clearTimeout(t);
     }
-  }, [charIdx, fullText, phase, qi]);
+    const t = setTimeout(() => {
+      const next = (qi + 1) % ANSWERS.length;
+      setQi(next); setDisplay(''); setCharIdx(0); setPhase('typing');
+    }, 700);
+    return () => clearTimeout(t);
+  }, [charIdx, full, phase, qi]);
 
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center px-4 pt-24 pb-16 overflow-hidden">
-      <div className="relative z-10 max-w-4xl w-full mx-auto text-center">
+    <section style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '96px 24px 64px', position: 'relative' }}>
+      <div style={{ maxWidth: 800, width: '100%', margin: '0 auto', position: 'relative', zIndex: 10 }}>
 
-        <div
-          className="inline-flex items-center gap-2 text-white/65 text-xs font-semibold px-4 py-2 rounded-full mb-8 tracking-wide"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
-        >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-          </svg>
-          Invisible to all screen share software
+        {/* Badge */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            background: '#fff', border: '1.5px solid #e5e5e5',
+            borderRadius: 100, padding: '6px 16px',
+            fontSize: 12, fontWeight: 600, color: '#555', letterSpacing: '0.04em',
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#111', display: 'inline-block' }} />
+            Invisible to all screen share software
+          </span>
         </div>
 
-        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white leading-[1.05] tracking-tight mb-6">
-          Your invisible AI edge
-          <br />
-          in every interview.
+        {/* Headline */}
+        <h1 style={{
+          fontSize: 'clamp(42px, 8vw, 80px)', fontWeight: 900, color: '#111',
+          lineHeight: 1.02, letterSpacing: '-2.5px', textAlign: 'center',
+          marginBottom: 24,
+        }}>
+          Your invisible AI edge<br />
+          <span style={{ fontStyle: 'italic', fontWeight: 300, letterSpacing: '-1px' }}>in every interview.</span>
         </h1>
 
-        <p className="text-white/65 text-lg sm:text-xl leading-relaxed mb-10 max-w-2xl mx-auto font-light">
-          ZoomGuru sits on your screen, visible <span className="text-white font-medium">only to you</span>.
-          It listens to questions, reads your screen, and streams answers in real time,{' '}
-          <span className="text-white font-medium">personalized to your CV</span>.
+        {/* Sub */}
+        <p style={{ fontSize: 18, color: '#555', lineHeight: 1.7, textAlign: 'center', maxWidth: 580, margin: '0 auto 40px', fontWeight: 400 }}>
+          ZoomGuru sits on your screen, visible <strong style={{ color: '#111', fontWeight: 600 }}>only to you</strong>.
+          It listens to questions, reads your screen, and streams answers in real time —{' '}
+          <strong style={{ color: '#111', fontWeight: 600 }}>personalized to your CV</strong>.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-          <a
-            href="/pricing"
-            className="btn-shimmer font-bold py-4 px-8 rounded-2xl shadow-xl hover:opacity-90 transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] text-center text-base"
-          >
-            Start free
-          </a>
-          <a
-            href="/how-it-works"
-            className="text-white/70 hover:text-white font-semibold py-4 px-8 rounded-2xl transition-all duration-200 text-center text-base inline-flex items-center justify-center gap-2"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
-          >
-            See how it works
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </a>
+        {/* CTAs */}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 48 }}>
+          <a href="/pricing" style={{
+            background: '#111', color: '#fff', fontWeight: 700, fontSize: 15,
+            padding: '14px 32px', borderRadius: 14, textDecoration: 'none',
+            transition: 'background 0.12s, transform 0.1s',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#333'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#111'; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >Start free →</a>
+
+          <a href="/how-it-works" style={{
+            background: '#fff', color: '#111', fontWeight: 600, fontSize: 15,
+            padding: '14px 32px', borderRadius: 14, textDecoration: 'none',
+            border: '1.5px solid #ddd', transition: 'border-color 0.12s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = '#111')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = '#ddd')}
+          >See how it works</a>
         </div>
 
-        <p className="text-white/50 text-sm">
-          No credit card required. Mac and Windows. Device-locked license.
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#999' }}>
+          No credit card required · Mac &amp; Windows · Device-locked license
         </p>
 
-        {/* Stats strip */}
-        <div className="mt-20">
-          <div className="section-divider mb-10" />
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-            {[
-              { value: 'Sub 500ms', label: 'First AI word' },
-              { value: '100%', label: 'Screen share invisible' },
-              { value: '2 AI models', label: 'Auto-routed by question' },
-              { value: 'CV locked', label: 'Personalized answers' },
-            ].map((s, i) => (
-              <div key={i} className="flex flex-col gap-1">
-                <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">{s.value}</span>
-                <span className="text-white/55 text-xs sm:text-sm font-medium">{s.label}</span>
-              </div>
-            ))}
+        {/* Live demo card */}
+        <div style={{ marginTop: 56, background: '#fff', border: '1.5px solid #e5e5e5', borderRadius: 20, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.07)' }}>
+          {/* Question bar */}
+          <div style={{ background: '#f5f5f3', borderBottom: '1px solid #e5e5e5', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Interviewer</span>
+            <span style={{ fontSize: 13, color: '#333', fontStyle: 'italic' }}>{QUESTIONS[qi]}</span>
           </div>
+          {/* Answer */}
+          <div style={{ padding: '20px 24px', minHeight: 90 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ width: 24, height: 24, borderRadius: 6, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                <span style={{ color: '#fff', fontSize: 11, fontWeight: 900 }}>Z</span>
+              </div>
+              <p style={{ fontSize: 14, color: '#222', lineHeight: 1.65, flex: 1 }}>
+                {display}<span style={{ animation: 'blink 1s infinite', opacity: 1, borderRight: '2px solid #111', marginLeft: 1 }} className="animate-blink">&nbsp;</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div style={{ marginTop: 48, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, textAlign: 'center' }}>
+          {[
+            { value: '<500ms', label: 'First AI word' },
+            { value: '100%', label: 'Screen share invisible' },
+            { value: '2 models', label: 'Auto-routed by question' },
+            { value: 'CV-locked', label: 'Personalized answers' },
+          ].map((s, i) => (
+            <div key={i} style={{ borderTop: '2px solid #111', paddingTop: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#111', letterSpacing: '-0.5px' }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: '#777', marginTop: 4, fontWeight: 500 }}>{s.label}</div>
+            </div>
+          ))}
         </div>
       </div>
     </section>

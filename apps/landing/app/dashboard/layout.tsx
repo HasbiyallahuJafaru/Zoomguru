@@ -24,8 +24,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (status === 'loading') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'rgba(0,0,0,0.4)', fontSize: '14px' }}>Loading…</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafaf8' }}>
+        <div style={{ color: '#999', fontSize: 14 }}>Loading…</div>
       </div>
     );
   }
@@ -35,75 +35,71 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const user = session.user as any;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#fafaf8' }}>
 
-      {/* ── Sidebar (desktop) ───────────────────────── */}
+      {/* Sidebar */}
       <aside style={{
-        width: '240px',
-        flexShrink: 0,
-        background: 'rgba(0,0,0,0.003)',
-        borderRight: '1px solid rgba(0,0,0,0.07)',
-        display: 'flex',
-        flexDirection: 'column',
+        width: 240, flexShrink: 0,
+        background: '#fff',
+        borderRight: '1px solid #e5e5e5',
+        display: 'flex', flexDirection: 'column',
         padding: '24px 0',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: '100vh',
-        zIndex: 40,
+        position: 'fixed', top: 0, left: 0, height: '100vh', zIndex: 40,
       }} className="dashboard-sidebar">
 
         {/* Logo + user */}
-        <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-          <Link href="/" style={{ textDecoration: 'none' }}>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#111', letterSpacing: '-0.5px' }}>
-              Zoom<span style={{ color: '#4f6ef7' }}>Guru</span>
-            </span>
+        <div style={{ padding: '0 20px 24px', borderBottom: '1px solid #f0f0f0' }}>
+          <Link href="/" style={{ textDecoration: 'none', display: 'block', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 7, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#fff', fontWeight: 900, fontSize: 13 }}>Z</span>
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 16, color: '#111', letterSpacing: '-0.3px' }}>
+                Zoom<span style={{ color: '#888' }}>Guru</span>
+              </span>
+            </div>
           </Link>
-          <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{
-              width: '34px', height: '34px', borderRadius: '50%',
-              background: user.image ? 'transparent' : 'rgba(79,110,247,0.3)',
-              border: '1px solid rgba(0,0,0,0.1)',
+              width: 34, height: 34, borderRadius: '50%',
+              background: user.image ? 'transparent' : '#f0f0f0',
+              border: '1.5px solid #e5e5e5',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'hidden', flexShrink: 0,
             }}>
               {user.image
                 ? <img src={user.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <span style={{ fontSize: '14px', color: '#4f6ef7', fontWeight: 600 }}>
+                : <span style={{ fontSize: 14, color: '#555', fontWeight: 600 }}>
                     {(user.name || user.username || 'U')[0].toUpperCase()}
                   </span>
               }
             </div>
             <div style={{ overflow: 'hidden' }}>
-              <p style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user.name || user.username}
               </p>
-              <p style={{ fontSize: '11px', color: 'rgba(0,0,0,0.35)', marginTop: '1px' }}>
+              <p style={{ fontSize: 11, color: '#888', marginTop: 1 }}>
                 {user.isPro ? '✦ Pro' : 'Free plan'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Nav links */}
-        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {NAV.map(({ label, href, icon }) => {
             const active = pathname === href;
             return (
               <Link key={href} href={href} style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '9px 10px',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                color: active ? '#fff' : 'rgba(0,0,0,0.45)',
-                background: active ? 'rgba(79,110,247,0.1)' : 'transparent',
-                fontSize: '14px',
-                fontWeight: active ? 600 : 400,
-                transition: 'background 0.15s, color 0.15s',
-                borderLeft: active ? '2px solid #4f6ef7' : '2px solid transparent',
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 10px', borderRadius: 8, textDecoration: 'none',
+                color: active ? '#111' : '#666',
+                background: active ? '#f5f5f3' : 'transparent',
+                fontSize: 14, fontWeight: active ? 600 : 400,
+                borderLeft: active ? '2px solid #111' : '2px solid transparent',
+                transition: 'background 0.12s, color 0.12s',
               }}>
-                <span style={{ fontSize: '16px', opacity: 0.8 }}>{icon}</span>
+                <span style={{ fontSize: 15, opacity: 0.7 }}>{icon}</span>
                 {label}
               </Link>
             );
@@ -111,64 +107,50 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* Sign out */}
-        <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+        <div style={{ padding: '16px 12px', borderTop: '1px solid #f0f0f0' }}>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '9px 10px', borderRadius: '8px',
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 10px', borderRadius: 8,
               background: 'transparent', border: 'none',
-              color: 'rgba(0,0,0,0.35)', fontSize: '14px',
-              cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-              transition: 'color 0.15s, background 0.15s',
+              color: '#999', fontSize: 14, cursor: 'pointer',
+              textAlign: 'left', fontFamily: 'inherit',
+              transition: 'color 0.12s, background 0.12s',
             }}
-            onMouseEnter={e => {
-              e.currentTarget.style.color = '#f87171';
-              e.currentTarget.style.background = 'rgba(239,68,68,0.08)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.color = 'rgba(0,0,0,0.35)';
-              e.currentTarget.style.background = 'transparent';
-            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#e53e3e'; e.currentTarget.style.background = '#fff5f5'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#999'; e.currentTarget.style.background = 'transparent'; }}
           >
-            <span style={{ fontSize: '16px' }}>⎋</span>
+            <span style={{ fontSize: 15 }}>⎋</span>
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* ── Main content ────────────────────────────── */}
-      <main style={{
-        flex: 1,
-        marginLeft: '240px',
-        padding: '32px 32px',
-        minHeight: '100vh',
-      }} className="dashboard-main">
+      {/* Main content */}
+      <main style={{ flex: 1, marginLeft: 240, padding: '32px', minHeight: '100vh' }} className="dashboard-main">
         {children}
       </main>
 
-      {/* ── Bottom nav (mobile) ─────────────────────── */}
+      {/* Mobile bottom nav */}
       <nav className="dashboard-bottom-nav" style={{
-        display: 'none',
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'rgba(240,240,240,0.95)',
+        display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0,
+        background: 'rgba(255,255,255,0.95)',
         backdropFilter: 'blur(16px)',
-        borderTop: '1px solid rgba(0,0,0,0.08)',
-        padding: '8px 0 12px',
-        zIndex: 40,
+        borderTop: '1px solid #e5e5e5',
+        padding: '8px 0 12px', zIndex: 40,
         justifyContent: 'space-around',
       }}>
         {NAV.map(({ label, href, icon }) => {
           const active = pathname === href;
           return (
             <Link key={href} href={href} style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               textDecoration: 'none',
-              color: active ? '#4f6ef7' : 'rgba(0,0,0,0.35)',
-              fontSize: '10px', fontWeight: active ? 600 : 400,
-              padding: '4px 8px',
+              color: active ? '#111' : '#999',
+              fontSize: 10, fontWeight: active ? 600 : 400, padding: '4px 8px',
             }}>
-              <span style={{ fontSize: '20px' }}>{icon}</span>
+              <span style={{ fontSize: 18 }}>{icon}</span>
               {label}
             </Link>
           );
