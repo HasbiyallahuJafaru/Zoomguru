@@ -5,5 +5,4 @@ Sentry.init({
   environment: process.env.NODE_ENV || 'production',
   release: '1.0.0',
   tracesSampleRate: 0.01,
-  autoSessionTracking: false,
 });
