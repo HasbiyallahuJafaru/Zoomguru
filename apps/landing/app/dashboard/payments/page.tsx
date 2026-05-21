@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
 
@@ -88,7 +87,7 @@ export default function PaymentsPage() {
 
       {/* Title + summary */}
       <div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>Payment History</h1>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111', letterSpacing: '-0.3px' }}>Payment History</h1>
         {data && (
           <div style={{ display: 'flex', gap: '24px', marginTop: '8px', flexWrap: 'wrap' }}>
             <Stat label="Total transactions" value={String(data.total)} />
@@ -107,9 +106,9 @@ export default function PaymentsPage() {
           onChange={e => setSearch(e.target.value)}
           style={{
             flex: '1 1 200px', padding: '9px 14px',
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
-            color: '#e8e8e8', fontSize: '14px', outline: 'none', fontFamily: 'inherit',
+            background: 'rgba(0,0,0,0.005)',
+            border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px',
+            color: '#1a1a1a', fontSize: '14px', outline: 'none', fontFamily: 'inherit',
           }}
         />
         <Select value={filterCurrency} onChange={setFilterCurrency} options={[
@@ -136,9 +135,9 @@ export default function PaymentsPage() {
       ) : (
         <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden' }}>
           {/* Table header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 80px 1fr 100px', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 100px 80px 1fr 100px', padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
             {['Date', 'Plan', 'Amount', 'Currency', 'Reference', 'Status'].map(h => (
-              <span key={h} style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
+              <span key={h} style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
             ))}
           </div>
 
@@ -147,32 +146,32 @@ export default function PaymentsPage() {
             <div key={p.id} style={{
               display: 'grid', gridTemplateColumns: '130px 1fr 100px 80px 1fr 100px',
               padding: '14px 20px', alignItems: 'center',
-              borderBottom: i < data.payments.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-              background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+              borderBottom: i < data.payments.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+              background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)',
             }}>
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+              <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.5)' }}>
                 {new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
               <span>
                 <span style={{
                   display: 'inline-block', padding: '2px 9px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
-                  background: p.plan === 'lifetime' ? 'rgba(79,110,247,0.15)' : 'rgba(16,185,129,0.12)',
+                  background: p.plan === 'lifetime' ? 'rgba(79,110,247,0.1)' : 'rgba(16,185,129,0.12)',
                   color: p.plan === 'lifetime' ? '#4f6ef7' : '#10b981',
                 }}>
                   {p.plan === 'lifetime' ? 'Lifetime' : 'Monthly'}
                 </span>
               </span>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: '#e8e8e8' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>
                 {formatAmount(p.amount, p.currency)}
               </span>
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{p.currency}</span>
+              <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.4)' }}>{p.currency}</span>
               <button
                 onClick={() => copyRef(p.paystack_reference)}
                 title="Click to copy"
                 style={{
                   background: 'none', border: 'none', padding: 0, cursor: 'pointer',
                   fontFamily: 'monospace', fontSize: '12px',
-                  color: copied === p.paystack_reference ? '#10b981' : 'rgba(255,255,255,0.4)',
+                  color: copied === p.paystack_reference ? '#10b981' : 'rgba(0,0,0,0.4)',
                   textAlign: 'left',
                 }}
               >
@@ -190,7 +189,7 @@ export default function PaymentsPage() {
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
           <PageBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} label="← Prev" />
-          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
+          <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.4)' }}>
             Page {page} of {totalPages}
           </span>
           <PageBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} label="Next →" />
@@ -203,8 +202,8 @@ export default function PaymentsPage() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>{label}: </span>
-      <span style={{ fontSize: '13px', fontWeight: 600, color: '#e8e8e8' }}>{value}</span>
+      <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.35)' }}>{label}: </span>
+      <span style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a' }}>{value}</span>
     </div>
   );
 }
@@ -218,9 +217,9 @@ function Select({ value, onChange, options }: {
       value={value}
       onChange={e => onChange(e.target.value)}
       style={{
-        padding: '9px 14px', background: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
-        color: '#e8e8e8', fontSize: '14px', outline: 'none',
+        padding: '9px 14px', background: 'rgba(0,0,0,0.005)',
+        border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px',
+        color: '#1a1a1a', fontSize: '14px', outline: 'none',
         fontFamily: 'inherit', cursor: 'pointer',
       }}
     >
@@ -235,8 +234,8 @@ function PageBtn({ onClick, disabled, label }: { onClick: () => void; disabled: 
       onClick={onClick}
       disabled={disabled}
       style={{
-        padding: '7px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-        background: 'rgba(255,255,255,0.05)', color: disabled ? 'rgba(255,255,255,0.2)' : '#e8e8e8',
+        padding: '7px 16px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)',
+        background: 'rgba(0,0,0,0.005)', color: disabled ? 'rgba(0,0,0,0.2)' : '#e8e8e8',
         fontSize: '13px', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
       }}
     >{label}</button>
@@ -247,10 +246,10 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   return (
     <div className="glass" style={{ borderRadius: '12px', padding: '48px 32px', textAlign: 'center' }}>
       <p style={{ fontSize: '32px', marginBottom: '12px' }}>◎</p>
-      <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>
+      <p style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(0,0,0,0.6)', marginBottom: '6px' }}>
         {hasFilters ? 'No payments match your filters' : 'No payments yet'}
       </p>
-      <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)' }}>
+      <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.3)' }}>
         {hasFilters ? 'Try adjusting your search or filters.' : 'Upgrade to Pro to get started.'}
       </p>
     </div>

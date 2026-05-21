@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
 import { signOut } from 'next-auth/react';
@@ -108,8 +107,8 @@ export default function SettingsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '600px' }}>
 
       <div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>Settings</h1>
-        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px', marginTop: '4px' }}>Manage your profile and account</p>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111', letterSpacing: '-0.3px' }}>Settings</h1>
+        <p style={{ color: 'rgba(0,0,0,0.35)', fontSize: '14px', marginTop: '4px' }}>Manage your profile and account</p>
       </div>
 
       {/* ── Section 1: Profile ── */}
@@ -120,7 +119,7 @@ export default function SettingsPage() {
             <div style={{
               width: '60px', height: '60px', borderRadius: '50%',
               background: user?.image ? 'transparent' : 'rgba(79,110,247,0.2)',
-              border: '2px solid rgba(255,255,255,0.1)',
+              border: '2px solid rgba(0,0,0,0.1)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'hidden', flexShrink: 0,
             }}>
@@ -132,8 +131,8 @@ export default function SettingsPage() {
               }
             </div>
             <div>
-              <p style={{ fontSize: '14px', fontWeight: 600, color: '#e8e8e8' }}>{user?.name}</p>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>{user?.email}</p>
+              <p style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>{user?.name}</p>
+              <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.35)' }}>{user?.email}</p>
             </div>
           </div>
 
@@ -156,14 +155,14 @@ export default function SettingsPage() {
                   ...inputStyle,
                   borderColor: usernameStatus === 'taken' ? 'rgba(239,68,68,0.5)'
                     : usernameStatus === 'available' ? 'rgba(16,185,129,0.5)'
-                    : 'rgba(255,255,255,0.1)',
+                    : 'rgba(0,0,0,0.1)',
                   paddingRight: '36px',
                 }}
                 onFocus={e => { if (usernameStatus === 'idle') e.currentTarget.style.borderColor = 'rgba(79,110,247,0.5)'; }}
-                onBlur={e => { if (usernameStatus === 'idle') e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+                onBlur={e => { if (usernameStatus === 'idle') e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; }}
               />
               <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '13px' }}>
-                {usernameStatus === 'checking' && <span style={{ color: 'rgba(255,255,255,0.3)' }}>…</span>}
+                {usernameStatus === 'checking' && <span style={{ color: 'rgba(0,0,0,0.3)' }}>…</span>}
                 {usernameStatus === 'available' && <span style={{ color: '#10b981' }}>✓</span>}
                 {usernameStatus === 'taken' && <span style={{ color: '#ef4444' }}>✗</span>}
               </span>
@@ -180,7 +179,7 @@ export default function SettingsPage() {
       {/* ── Section 2: Security ── */}
       <Section title="Security">
         {isGoogle ? (
-          <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.45)', fontSize: '14px' }}>
+          <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(0,0,0,0.004)', border: '1px solid rgba(0,0,0,0.08)', color: 'rgba(0,0,0,0.45)', fontSize: '14px' }}>
             You signed in with Google — no password to manage.
           </div>
         ) : (
@@ -199,27 +198,27 @@ export default function SettingsPage() {
         {device?.deviceFingerprint ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <InfoRow label="Device fingerprint">
-              <code style={{ fontFamily: 'monospace', fontSize: '13px', color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.05)', padding: '3px 10px', borderRadius: '6px' }}>
+              <code style={{ fontFamily: 'monospace', fontSize: '13px', color: 'rgba(0,0,0,0.55)', background: 'rgba(0,0,0,0.005)', padding: '3px 10px', borderRadius: '6px' }}>
                 …{device.deviceFingerprint.slice(-8)}
               </code>
             </InfoRow>
             <InfoRow label="Plan">
-              <span style={{ fontSize: '14px', color: '#e8e8e8', textTransform: 'capitalize' }}>{device.plan}</span>
+              <span style={{ fontSize: '14px', color: '#1a1a1a', textTransform: 'capitalize' }}>{device.plan}</span>
             </InfoRow>
             {device.lockedSince && (
               <InfoRow label="Locked since">
-                <span style={{ fontSize: '14px', color: '#e8e8e8' }}>
+                <span style={{ fontSize: '14px', color: '#1a1a1a' }}>
                   {new Date(device.lockedSince).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </span>
               </InfoRow>
             )}
-            <div style={{ marginTop: '4px', padding: '12px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: '13px', color: 'rgba(255,255,255,0.35)' }}>
+            <div style={{ marginTop: '4px', padding: '12px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.003)', border: '1px solid rgba(0,0,0,0.06)', fontSize: '13px', color: 'rgba(0,0,0,0.35)' }}>
               To transfer your license to a new device, contact{' '}
               <a href="mailto:support@zoomguru.com" style={{ color: '#4f6ef7', textDecoration: 'none' }}>support@zoomguru.com</a>
             </div>
           </div>
         ) : (
-          <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.35)' }}>
+          <div style={{ fontSize: '14px', color: 'rgba(0,0,0,0.35)' }}>
             No device bound yet. Download the app and sign in to bind your license.
           </div>
         )}
@@ -227,7 +226,7 @@ export default function SettingsPage() {
 
       {/* ── Section 4: Danger Zone ── */}
       <Section title="Danger Zone" danger>
-        <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.45)', marginBottom: '16px' }}>
+        <p style={{ fontSize: '14px', color: 'rgba(0,0,0,0.45)', marginBottom: '16px' }}>
           This permanently deletes all your data and cancels your subscription. This cannot be undone.
         </p>
         <button
@@ -253,8 +252,8 @@ export default function SettingsPage() {
         }}>
           <div className="glass-dark" style={{ borderRadius: '16px', padding: '32px', maxWidth: '400px', width: '100%' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f87171', marginBottom: '12px' }}>Delete Account</h3>
-            <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.55)', marginBottom: '20px' }}>
-              Type <strong style={{ color: '#fff' }}>DELETE</strong> to confirm. This is irreversible.
+            <p style={{ fontSize: '14px', color: 'rgba(0,0,0,0.55)', marginBottom: '20px' }}>
+              Type <strong style={{ color: '#111' }}>DELETE</strong> to confirm. This is irreversible.
             </p>
             <input
               value={deleteConfirm}
@@ -264,8 +263,8 @@ export default function SettingsPage() {
             />
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => { setShowDeleteModal(false); setDeleteConfirm(''); }} style={{
-                flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)',
-                background: 'transparent', color: '#e8e8e8', fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
+                flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid rgba(0,0,0,0.1)',
+                background: 'transparent', color: '#1a1a1a', fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit',
               }}>Cancel</button>
               <button
                 onClick={deleteAccount}
@@ -273,7 +272,7 @@ export default function SettingsPage() {
                 style={{
                   flex: 1, padding: '11px', borderRadius: '10px', border: 'none',
                   background: deleteConfirm === 'DELETE' ? '#ef4444' : 'rgba(239,68,68,0.3)',
-                  color: '#fff', fontSize: '14px', fontWeight: 600,
+                  color: '#111', fontSize: '14px', fontWeight: 600,
                   cursor: deleteConfirm === 'DELETE' ? 'pointer' : 'not-allowed',
                   fontFamily: 'inherit', opacity: deleteLoading ? 0.7 : 1,
                 }}
@@ -291,7 +290,7 @@ function Section({ title, children, danger }: { title: string; children: React.R
     <div>
       <h2 style={{
         fontSize: '14px', fontWeight: 600, marginBottom: '14px',
-        color: danger ? 'rgba(239,68,68,0.7)' : 'rgba(255,255,255,0.5)',
+        color: danger ? 'rgba(239,68,68,0.7)' : 'rgba(0,0,0,0.5)',
         textTransform: 'uppercase', letterSpacing: '0.5px',
       }}>{title}</h2>
       <div className="glass" style={{
@@ -318,7 +317,7 @@ function SettingField({ label, value, onChange, placeholder, type = 'text', read
         readOnly={readOnly}
         style={{ ...inputStyle, opacity: readOnly ? 0.5 : 1, cursor: readOnly ? 'not-allowed' : 'text' }}
         onFocus={e => { if (!readOnly) e.currentTarget.style.borderColor = 'rgba(79,110,247,0.5)'; }}
-        onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+        onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; }}
       />
     </div>
   );
@@ -327,7 +326,7 @@ function SettingField({ label, value, onChange, placeholder, type = 'text', read
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+      <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.4)' }}>{label}</span>
       {children}
     </div>
   );
@@ -359,14 +358,14 @@ function SubmitBtn({ label, loading }: { label: string; loading: boolean }) {
 }
 
 const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: '13px', color: 'rgba(255,255,255,0.45)',
+  display: 'block', fontSize: '13px', color: 'rgba(0,0,0,0.45)',
   marginBottom: '6px', fontWeight: 500,
 };
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '11px 14px',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.1)', borderRadius: '9px',
-  color: '#e8e8e8', fontSize: '14px', outline: 'none',
+  background: 'rgba(0,0,0,0.005)',
+  border: '1px solid rgba(0,0,0,0.1)', borderRadius: '9px',
+  color: '#1a1a1a', fontSize: '14px', outline: 'none',
   fontFamily: 'inherit', transition: 'border-color 0.2s',
 };

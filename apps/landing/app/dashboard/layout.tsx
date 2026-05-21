@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -26,7 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (status === 'loading') {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Loading…</div>
+        <div style={{ color: 'rgba(0,0,0,0.4)', fontSize: '14px' }}>Loading…</div>
       </div>
     );
   }
@@ -42,8 +41,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside style={{
         width: '240px',
         flexShrink: 0,
-        background: 'rgba(255,255,255,0.03)',
-        borderRight: '1px solid rgba(255,255,255,0.07)',
+        background: 'rgba(0,0,0,0.003)',
+        borderRight: '1px solid rgba(0,0,0,0.07)',
         display: 'flex',
         flexDirection: 'column',
         padding: '24px 0',
@@ -55,9 +54,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }} className="dashboard-sidebar">
 
         {/* Logo + user */}
-        <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
           <Link href="/" style={{ textDecoration: 'none' }}>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>
+            <span style={{ fontSize: '20px', fontWeight: 800, color: '#111', letterSpacing: '-0.5px' }}>
               Zoom<span style={{ color: '#4f6ef7' }}>Guru</span>
             </span>
           </Link>
@@ -65,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div style={{
               width: '34px', height: '34px', borderRadius: '50%',
               background: user.image ? 'transparent' : 'rgba(79,110,247,0.3)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              border: '1px solid rgba(0,0,0,0.1)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'hidden', flexShrink: 0,
             }}>
@@ -77,10 +76,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               }
             </div>
             <div style={{ overflow: 'hidden' }}>
-              <p style={{ fontSize: '13px', fontWeight: 600, color: '#e8e8e8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <p style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user.name || user.username}
               </p>
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '1px' }}>
+              <p style={{ fontSize: '11px', color: 'rgba(0,0,0,0.35)', marginTop: '1px' }}>
                 {user.isPro ? '✦ Pro' : 'Free plan'}
               </p>
             </div>
@@ -97,8 +96,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 padding: '9px 10px',
                 borderRadius: '8px',
                 textDecoration: 'none',
-                color: active ? '#fff' : 'rgba(255,255,255,0.45)',
-                background: active ? 'rgba(79,110,247,0.15)' : 'transparent',
+                color: active ? '#fff' : 'rgba(0,0,0,0.45)',
+                background: active ? 'rgba(79,110,247,0.1)' : 'transparent',
                 fontSize: '14px',
                 fontWeight: active ? 600 : 400,
                 transition: 'background 0.15s, color 0.15s',
@@ -112,14 +111,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* Sign out */}
-        <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
               padding: '9px 10px', borderRadius: '8px',
               background: 'transparent', border: 'none',
-              color: 'rgba(255,255,255,0.35)', fontSize: '14px',
+              color: 'rgba(0,0,0,0.35)', fontSize: '14px',
               cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
               transition: 'color 0.15s, background 0.15s',
             }}
@@ -128,7 +127,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               e.currentTarget.style.background = 'rgba(239,68,68,0.08)';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.color = 'rgba(255,255,255,0.35)';
+              e.currentTarget.style.color = 'rgba(0,0,0,0.35)';
               e.currentTarget.style.background = 'transparent';
             }}
           >
@@ -152,9 +151,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <nav className="dashboard-bottom-nav" style={{
         display: 'none',
         position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'rgba(8,8,8,0.95)',
+        background: 'rgba(240,240,240,0.95)',
         backdropFilter: 'blur(16px)',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
+        borderTop: '1px solid rgba(0,0,0,0.08)',
         padding: '8px 0 12px',
         zIndex: 40,
         justifyContent: 'space-around',
@@ -165,7 +164,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link key={href} href={href} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
               textDecoration: 'none',
-              color: active ? '#4f6ef7' : 'rgba(255,255,255,0.35)',
+              color: active ? '#4f6ef7' : 'rgba(0,0,0,0.35)',
               fontSize: '10px', fontWeight: active ? 600 : 400,
               padding: '4px 8px',
             }}>

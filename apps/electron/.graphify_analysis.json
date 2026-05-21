@@ -1,0 +1,214 @@
+{
+  "communities": {
+    "0": [
+      "apps_electron_dist_electron_main_js",
+      "apps_electron_electron_main_ts",
+      "main_applyscreenshareexclusion",
+      "main_createtray",
+      "main_createwindow",
+      "main_getdevicefingerprint",
+      "main_getfirstmac",
+      "main_handledeeplink",
+      "main_initcapture",
+      "main_initspeech",
+      "main_registerhotkeys",
+      "main_registeripchandlers",
+      "main_runprotectionselftest",
+      "main_setupautoupdater"
+    ],
+    "1": [
+      "apps_electron_src_overlay_overlay_tsx",
+      "overlay_copyanswer",
+      "overlay_gooffline",
+      "overlay_goonline",
+      "overlay_handleclear",
+      "overlay_handlelisten",
+      "overlay_handleopacitychange",
+      "overlay_handleregenerate",
+      "overlay_handlescreenshot",
+      "overlay_streamanswer",
+      "overlay_streamscreenshot"
+    ],
+    "2": [
+      "apps_electron_src_store_auth_ts",
+      "auth_apifetch",
+      "auth_clearauth",
+      "auth_getaccesstoken",
+      "auth_getrefreshtoken",
+      "auth_getuser",
+      "auth_refreshaccesstoken"
+    ],
+    "3": [
+      "apps_electron_src_store_session_ts",
+      "session_clearsession",
+      "session_getsessionid",
+      "session_getsessionstate",
+      "session_savesessionconfig",
+      "session_setsessionid"
+    ],
+    "4": [
+      "apps_electron_src_overlay_paywallmodal_tsx",
+      "paywallmodal_checklicense",
+      "paywallmodal_handleupgrade",
+      "paywallmodal_plancardstyle",
+      "paywallmodal_polllicenseactivation"
+    ],
+    "5": [
+      "apps_electron_electron_fingerprint_ts",
+      "fingerprint_getdevicefingerprint",
+      "fingerprint_getfirstmac"
+    ],
+    "6": [
+      "apps_electron_src_auth_register_tsx",
+      "register_async",
+      "register_handlesubmit"
+    ],
+    "7": [
+      "apps_electron_src_setup_preflightcheck_tsx",
+      "preflightcheck_handlestart",
+      "preflightcheck_stepdotstyle"
+    ],
+    "8": [
+      "apps_electron_vite_config_ts",
+      "vite_config_onstart"
+    ],
+    "9": [
+      "apps_electron_electron_capture_ts",
+      "capture_initcapture"
+    ],
+    "10": [
+      "apps_electron_electron_speech_ts",
+      "speech_initspeech"
+    ],
+    "11": [
+      "apps_electron_src_auth_login_tsx",
+      "login_handlesubmit"
+    ],
+    "12": [
+      "apps_electron_src_onboarding_onboarding_tsx",
+      "onboarding_handleaction"
+    ],
+    "13": [
+      "apps_electron_src_setup_cvupload_tsx",
+      "cvupload_openpicker"
+    ],
+    "14": [
+      "apps_electron_src_setup_jdinput_tsx",
+      "jdinput_e"
+    ],
+    "15": [
+      "apps_electron_electron_builder_config_js"
+    ],
+    "16": [
+      "apps_electron_dist_electron_preload_js"
+    ],
+    "17": [
+      "apps_electron_electron_preload_ts"
+    ],
+    "18": [
+      "apps_electron_src_app_tsx"
+    ],
+    "19": [
+      "apps_electron_src_main_tsx"
+    ],
+    "20": [
+      "src_vite_env_d_ts"
+    ],
+    "21": [
+      "apps_electron_src_overlay_answerstream_tsx"
+    ],
+    "22": [
+      "apps_electron_src_overlay_modebar_tsx"
+    ],
+    "23": [
+      "apps_electron_src_store_auth_store_ts"
+    ],
+    "24": [
+      "apps_electron_src_store_session_store_ts"
+    ],
+    "25": [
+      "apps_electron_src_store_ui_store_ts"
+    ]
+  },
+  "cohesion": {
+    "0": 0.24,
+    "1": 0.24,
+    "2": 0.48,
+    "3": 0.33,
+    "4": 0.5,
+    "5": 1.0,
+    "6": 0.67,
+    "7": 0.67,
+    "8": 1.0,
+    "9": 1.0,
+    "10": 1.0,
+    "11": 1.0,
+    "12": 1.0,
+    "13": 1.0,
+    "14": 1.0,
+    "15": 1.0,
+    "16": 1.0,
+    "17": 1.0,
+    "18": 1.0,
+    "19": 1.0,
+    "20": 1.0,
+    "21": 1.0,
+    "22": 1.0,
+    "23": 1.0,
+    "24": 1.0,
+    "25": 1.0
+  },
+  "gods": [
+    {
+      "id": "auth_refreshaccesstoken",
+      "label": "refreshAccessToken()",
+      "edges": 4
+    },
+    {
+      "id": "main_applyscreenshareexclusion",
+      "label": "applyScreenShareExclusion()",
+      "edges": 3
+    },
+    {
+      "id": "main_createwindow",
+      "label": "createWindow()",
+      "edges": 3
+    },
+    {
+      "id": "overlay_handleregenerate",
+      "label": "handleRegenerate()",
+      "edges": 3
+    },
+    {
+      "id": "overlay_streamscreenshot",
+      "label": "streamScreenshot()",
+      "edges": 3
+    },
+    {
+      "id": "auth_apifetch",
+      "label": "apiFetch()",
+      "edges": 3
+    },
+    {
+      "id": "main_getfirstmac",
+      "label": "getFirstMAC()",
+      "edges": 2
+    },
+    {
+      "id": "main_getdevicefingerprint",
+      "label": "getDeviceFingerprint()",
+      "edges": 2
+    },
+    {
+      "id": "main_createtray",
+      "label": "createTray()",
+      "edges": 2
+    },
+    {
+      "id": "main_setupautoupdater",
+      "label": "setupAutoUpdater()",
+      "edges": 2
+    }
+  ],
+  "surprises": []
+}

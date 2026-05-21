@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
 
@@ -31,10 +30,10 @@ const TYPE_LABELS: Record<string, string> = {
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   behavioral:    { bg: 'rgba(16,185,129,0.12)',  color: '#10b981' },
-  technical:     { bg: 'rgba(79,110,247,0.15)',  color: '#4f6ef7' },
+  technical:     { bg: 'rgba(79,110,247,0.1)',  color: '#4f6ef7' },
   coding:        { bg: 'rgba(245,158,11,0.12)',  color: '#f59e0b' },
   system_design: { bg: 'rgba(168,85,247,0.12)', color: '#a855f7' },
-  general:       { bg: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
+  general:       { bg: 'rgba(0,0,0,0.08)', color: 'rgba(0,0,0,0.5)' },
 };
 
 const TYPE_FILTERS = ['all', 'behavioral', 'technical', 'coding', 'system_design', 'general'];
@@ -95,8 +94,8 @@ export default function SessionsPage() {
 
       {/* Title */}
       <div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>Interview Sessions</h1>
-        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px', marginTop: '4px' }}>Your full interview history</p>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111', letterSpacing: '-0.3px' }}>Interview Sessions</h1>
+        <p style={{ color: 'rgba(0,0,0,0.35)', fontSize: '14px', marginTop: '4px' }}>Your full interview history</p>
       </div>
 
       {/* Stats row */}
@@ -116,11 +115,11 @@ export default function SessionsPage() {
           {TYPE_FILTERS.map(t => (
             <button key={t} onClick={() => setTypeFilter(t)} style={{
               padding: '6px 14px', borderRadius: '20px',
-              background: typeFilter === t ? 'rgba(79,110,247,0.2)' : 'rgba(255,255,255,0.06)',
-              color: typeFilter === t ? '#4f6ef7' : 'rgba(255,255,255,0.45)',
+              background: typeFilter === t ? 'rgba(79,110,247,0.2)' : 'rgba(0,0,0,0.06)',
+              color: typeFilter === t ? '#4f6ef7' : 'rgba(0,0,0,0.45)',
               fontSize: '13px', fontWeight: typeFilter === t ? 600 : 400,
               cursor: 'pointer', fontFamily: 'inherit',
-              border: typeFilter === t ? '1px solid rgba(79,110,247,0.35)' : '1px solid rgba(255,255,255,0.08)',
+              border: typeFilter === t ? '1px solid rgba(79,110,247,0.35)' : '1px solid rgba(0,0,0,0.08)',
               transition: 'all 0.15s',
             }}>
               {t === 'all' ? 'All' : TYPE_LABELS[t] || t}
@@ -129,9 +128,9 @@ export default function SessionsPage() {
         </div>
         {/* Sort */}
         <select value={sort} onChange={e => setSort(e.target.value)} style={{
-          padding: '7px 12px', background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
-          color: '#e8e8e8', fontSize: '13px', outline: 'none', fontFamily: 'inherit', cursor: 'pointer',
+          padding: '7px 12px', background: 'rgba(0,0,0,0.005)',
+          border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px',
+          color: '#1a1a1a', fontSize: '13px', outline: 'none', fontFamily: 'inherit', cursor: 'pointer',
         }}>
           {SORT_OPTIONS.map(o => (
             <option key={o.value} value={o.value} style={{ background: '#1a1a1a' }}>{o.label}</option>
@@ -163,11 +162,11 @@ export default function SessionsPage() {
                       }}>
                         {TYPE_LABELS[s.interview_type] || s.interview_type}
                       </span>
-                      <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>{fmtDate(s.started_at)}</span>
+                      <span style={{ fontSize: '12px', color: 'rgba(0,0,0,0.35)' }}>{fmtDate(s.started_at)}</span>
                     </div>
                     {s.summary && (
                       <p style={{
-                        fontSize: '14px', color: 'rgba(255,255,255,0.55)', lineHeight: 1.5,
+                        fontSize: '14px', color: 'rgba(0,0,0,0.55)', lineHeight: 1.5,
                         display: isExpanded ? 'block' : '-webkit-box',
                         WebkitLineClamp: isExpanded ? undefined : 2,
                         WebkitBoxOrient: 'vertical',
@@ -177,7 +176,7 @@ export default function SessionsPage() {
                       </p>
                     )}
                     {!s.summary && (
-                      <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.25)', fontStyle: 'italic' }}>No summary available</p>
+                      <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.25)', fontStyle: 'italic' }}>No summary available</p>
                     )}
                   </div>
 
@@ -211,7 +210,7 @@ export default function SessionsPage() {
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
           <PageBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} label="← Prev" />
-          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>Page {page} of {totalPages}</span>
+          <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.4)' }}>Page {page} of {totalPages}</span>
           <PageBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} label="Next →" />
         </div>
       )}
@@ -222,8 +221,8 @@ export default function SessionsPage() {
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="glass" style={{ borderRadius: '10px', padding: '14px 16px' }}>
-      <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{label}</p>
-      <p style={{ fontSize: '20px', fontWeight: 700, color: '#e8e8e8' }}>{value}</p>
+      <p style={{ fontSize: '11px', color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{label}</p>
+      <p style={{ fontSize: '20px', fontWeight: 700, color: '#1a1a1a' }}>{value}</p>
     </div>
   );
 }
@@ -231,8 +230,8 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 function SessionStat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ textAlign: 'center' }}>
-      <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginBottom: '2px' }}>{label}</p>
-      <p style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8' }}>{value}</p>
+      <p style={{ fontSize: '11px', color: 'rgba(0,0,0,0.3)', marginBottom: '2px' }}>{label}</p>
+      <p style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>{value}</p>
     </div>
   );
 }
@@ -240,8 +239,8 @@ function SessionStat({ label, value }: { label: string; value: string }) {
 function PageBtn({ onClick, disabled, label }: { onClick: () => void; disabled: boolean; label: string }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      padding: '7px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-      background: 'rgba(255,255,255,0.05)', color: disabled ? 'rgba(255,255,255,0.2)' : '#e8e8e8',
+      padding: '7px 16px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)',
+      background: 'rgba(0,0,0,0.005)', color: disabled ? 'rgba(0,0,0,0.2)' : '#e8e8e8',
       fontSize: '13px', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
     }}>{label}</button>
   );
@@ -251,10 +250,10 @@ function EmptyState({ hasFilter }: { hasFilter: boolean }) {
   return (
     <div className="glass" style={{ borderRadius: '12px', padding: '56px 32px', textAlign: 'center' }}>
       <p style={{ fontSize: '36px', marginBottom: '14px' }}>▣</p>
-      <p style={{ fontSize: '16px', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
+      <p style={{ fontSize: '16px', fontWeight: 600, color: 'rgba(0,0,0,0.6)', marginBottom: '8px' }}>
         {hasFilter ? 'No sessions match this filter' : 'No sessions yet'}
       </p>
-      <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', maxWidth: '320px', margin: '0 auto 20px' }}>
+      <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.3)', maxWidth: '320px', margin: '0 auto 20px' }}>
         {hasFilter
           ? 'Try a different interview type filter.'
           : 'Download the ZoomGuru desktop app and start your first interview to see your history here.'}

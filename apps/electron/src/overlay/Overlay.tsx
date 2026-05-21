@@ -408,7 +408,7 @@ export function Overlay() {
         left: 0,
         right: 0,
         bottom: 0,
-        background: `rgba(8, 8, 14, ${opacity})`,
+        background: `rgba(80, 50, 20, ${opacity})`,
         backdropFilter: opacity > 0.5 ? 'blur(12px)' : 'blur(4px)',
         WebkitBackdropFilter: opacity > 0.5 ? 'blur(12px)' : 'blur(4px)',
         borderRadius: '16px',

@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState, useCallback } from 'react';
 
@@ -140,7 +139,7 @@ export default function ReferralsPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fff' }}>Referrals</h1>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111' }}>Referrals</h1>
         <div className="glass" style={{ borderRadius: '12px', height: '120px', opacity: 0.4 }} />
       </div>
     );
@@ -152,8 +151,8 @@ export default function ReferralsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '820px' }}>
 
       <div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>Referrals</h1>
-        <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px', marginTop: '4px' }}>Earn 25% of every subscription you refer</p>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111', letterSpacing: '-0.3px' }}>Referrals</h1>
+        <p style={{ color: 'rgba(0,0,0,0.35)', fontSize: '14px', marginTop: '4px' }}>Earn 25% of every subscription you refer</p>
       </div>
 
       {/* ── Section 1: Stats ── */}
@@ -170,61 +169,61 @@ export default function ReferralsPage() {
         background: 'rgba(79,110,247,0.07)',
         border: '1px solid rgba(79,110,247,0.2)',
       }}>
-        <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.45)', marginBottom: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Your Referral Link
         </p>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
           <code style={{
             flex: 1, padding: '10px 14px', borderRadius: '8px', fontSize: '14px',
-            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-            color: '#e8e8e8', fontFamily: 'monospace', wordBreak: 'break-all',
+            background: 'rgba(0,0,0,0.006)', border: '1px solid rgba(0,0,0,0.1)',
+            color: '#1a1a1a', fontFamily: 'monospace', wordBreak: 'break-all',
           }}>
             {referralLink || `https://zoomguru.com?ref=${data?.referralCode}`}
           </code>
           <button onClick={() => copy(referralLink, 'link')} style={{
             padding: '10px 18px', borderRadius: '8px', border: 'none',
             background: copied === 'link' ? '#10b981' : '#4f6ef7',
-            color: '#fff', fontSize: '14px', fontWeight: 600,
+            color: '#111', fontSize: '14px', fontWeight: 600,
             cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
             transition: 'background 0.2s',
           }}>
             {copied === 'link' ? '✓ Copied!' : 'Copy Link'}
           </button>
         </div>
-        <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginBottom: '16px' }}>
+        <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.4)', marginBottom: '16px' }}>
           Share this link. Earn 25% of every subscription your referral makes.
         </p>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <ShareBtn onClick={shareTwitter} label="Share on X" bg="rgba(255,255,255,0.08)" />
+          <ShareBtn onClick={shareTwitter} label="Share on X" bg="rgba(0,0,0,0.08)" />
           <ShareBtn onClick={shareWhatsApp} label="WhatsApp" bg="rgba(37,211,102,0.12)" color="#25d366" />
-          <ShareBtn onClick={() => copy(referralLink, 'share')} label={copied === 'share' ? 'Copied!' : 'Copy'} bg="rgba(255,255,255,0.06)" />
+          <ShareBtn onClick={() => copy(referralLink, 'share')} label={copied === 'share' ? 'Copied!' : 'Copy'} bg="rgba(0,0,0,0.06)" />
         </div>
       </div>
 
       {/* ── Section 3: Earnings table ── */}
       <div>
-        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8', marginBottom: '14px' }}>Earnings Breakdown</h2>
+        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginBottom: '14px' }}>Earnings Breakdown</h2>
         {!data?.referrals?.length ? (
-          <div className="glass" style={{ borderRadius: '10px', padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>
+          <div className="glass" style={{ borderRadius: '10px', padding: '32px', textAlign: 'center', color: 'rgba(0,0,0,0.3)', fontSize: '14px' }}>
             No referrals yet. Share your link to get started.
           </div>
         ) : (
           <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 110px 100px', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 110px 100px', padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
               {['Date', 'Referred User', 'Plan', 'Commission', 'Status'].map(h => (
-                <span key={h} style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
+                <span key={h} style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
               ))}
             </div>
             {data.referrals.map((r, i) => (
               <div key={r.id} style={{
                 display: 'grid', gridTemplateColumns: '110px 1fr 100px 110px 100px',
                 padding: '13px 20px', alignItems: 'center',
-                borderBottom: i < data.referrals.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-                background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                borderBottom: i < data.referrals.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)',
               }}>
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>{fmtDate(r.created_at)}</span>
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>{maskEmail(r.referred_email)}</span>
-                <span style={{ fontSize: '13px', color: '#e8e8e8', textTransform: 'capitalize' }}>{r.plan}</span>
+                <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.45)' }}>{fmtDate(r.created_at)}</span>
+                <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.6)', fontFamily: 'monospace' }}>{maskEmail(r.referred_email)}</span>
+                <span style={{ fontSize: '13px', color: '#1a1a1a', textTransform: 'capitalize' }}>{r.plan}</span>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: '#10b981' }}>₦{r.commission_amount.toLocaleString()}</span>
                 <span style={statusStyle(r.status)}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
               </div>
@@ -235,15 +234,15 @@ export default function ReferralsPage() {
 
       {/* ── Section 4: Payout ── */}
       <div>
-        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8', marginBottom: '14px' }}>Request Payout</h2>
+        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginBottom: '14px' }}>Request Payout</h2>
         <div className="glass" style={{ borderRadius: '16px', padding: '24px 28px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginBottom: '4px' }}>Available balance</p>
+              <p style={{ fontSize: '12px', color: 'rgba(0,0,0,0.35)', marginBottom: '4px' }}>Available balance</p>
               <p style={{ fontSize: '28px', fontWeight: 700, color: '#10b981' }}>₦{(data?.pendingBalance || 0).toLocaleString()}</p>
             </div>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', textAlign: 'right' }}>
-              Min. payout: <span style={{ color: '#e8e8e8', fontWeight: 500 }}>₦{MIN_PAYOUT.toLocaleString()}</span>
+            <div style={{ fontSize: '13px', color: 'rgba(0,0,0,0.35)', textAlign: 'right' }}>
+              Min. payout: <span style={{ color: '#1a1a1a', fontWeight: 500 }}>₦{MIN_PAYOUT.toLocaleString()}</span>
             </div>
           </div>
 
@@ -271,7 +270,7 @@ export default function ReferralsPage() {
               )}
               <button type="submit" disabled={payoutLoading} style={{
                 padding: '12px', borderRadius: '10px', border: 'none',
-                background: '#10b981', color: '#fff', fontSize: '15px', fontWeight: 600,
+                background: '#10b981', color: '#111', fontSize: '15px', fontWeight: 600,
                 cursor: payoutLoading ? 'not-allowed' : 'pointer', opacity: payoutLoading ? 0.7 : 1,
                 fontFamily: 'inherit',
               }}>
@@ -279,7 +278,7 @@ export default function ReferralsPage() {
               </button>
             </form>
           ) : (
-            <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.45)', fontSize: '14px' }}>
+            <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(0,0,0,0.004)', border: '1px solid rgba(0,0,0,0.08)', color: 'rgba(0,0,0,0.45)', fontSize: '14px' }}>
               Minimum payout is ₦{MIN_PAYOUT.toLocaleString()}. Keep referring to unlock your balance!
             </div>
           )}
@@ -288,18 +287,18 @@ export default function ReferralsPage() {
         {/* Payout history */}
         {!!data?.payoutHistory?.length && (
           <div style={{ marginTop: '20px' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: '10px' }}>Payout History</h3>
+            <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'rgba(0,0,0,0.5)', marginBottom: '10px' }}>Payout History</h3>
             <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden' }}>
               {data.payoutHistory.map((p, i) => (
                 <div key={p.id} style={{
                   display: 'grid', gridTemplateColumns: '1fr 130px 100px 130px',
                   padding: '13px 20px', alignItems: 'center',
-                  borderBottom: i < data.payoutHistory.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                  borderBottom: i < data.payoutHistory.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                 }}>
-                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>{fmtDate(p.requested_at)}</span>
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#e8e8e8' }}>₦{p.amount.toLocaleString()}</span>
+                  <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.45)' }}>{fmtDate(p.requested_at)}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#1a1a1a' }}>₦{p.amount.toLocaleString()}</span>
                   <span style={statusStyle(p.status)}>{p.status.charAt(0).toUpperCase() + p.status.slice(1)}</span>
-                  <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
+                  <span style={{ fontSize: '12px', color: 'rgba(0,0,0,0.3)' }}>
                     {p.processed_at ? `Processed ${fmtDate(p.processed_at)}` : 'Pending'}
                   </span>
                 </div>
@@ -316,7 +315,7 @@ function StatCard({ label, value, icon, accent }: { label: string; value: string
   return (
     <div className="glass" style={{ borderRadius: '12px', padding: '18px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+        <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
         <span style={{ fontSize: '16px', opacity: 0.4 }}>{icon}</span>
       </div>
       <p style={{ fontSize: '24px', fontWeight: 700, color: accent || '#e8e8e8' }}>{value}</p>
@@ -327,7 +326,7 @@ function StatCard({ label, value, icon, accent }: { label: string; value: string
 function ShareBtn({ onClick, label, bg, color }: { onClick: () => void; label: string; bg: string; color?: string }) {
   return (
     <button onClick={onClick} style={{
-      padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+      padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.1)',
       background: bg, color: color || '#e8e8e8', fontSize: '13px', fontWeight: 500,
       cursor: 'pointer', fontFamily: 'inherit',
     }}>{label}</button>
@@ -339,16 +338,16 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: {
 }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginBottom: '6px', fontWeight: 500 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: '13px', color: 'rgba(0,0,0,0.45)', marginBottom: '6px', fontWeight: 500 }}>{label}</label>
       <input
         type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required
         style={{
-          width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
-          color: '#e8e8e8', fontSize: '14px', outline: 'none', fontFamily: 'inherit',
+          width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.005)',
+          border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px',
+          color: '#1a1a1a', fontSize: '14px', outline: 'none', fontFamily: 'inherit',
         }}
         onFocus={e => (e.currentTarget.style.borderColor = 'rgba(79,110,247,0.5)')}
-        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+        onBlur={e => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)')}
       />
     </div>
   );

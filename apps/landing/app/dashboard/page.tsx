@@ -1,5 +1,4 @@
 'use client';
-export const dynamic = 'force-dynamic';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -66,7 +65,7 @@ export default function DashboardPage() {
   }
 
   function planColor(isPro: boolean) {
-    return isPro ? '#4f6ef7' : 'rgba(255,255,255,0.35)';
+    return isPro ? '#4f6ef7' : 'rgba(0,0,0,0.35)';
   }
 
   if (loading) {
@@ -128,14 +127,14 @@ export default function DashboardPage() {
       {/* ── Row 2: recent sessions ── */}
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8' }}>Recent Sessions</h2>
+          <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a' }}>Recent Sessions</h2>
           <Link href="/dashboard/sessions" style={{ fontSize: '13px', color: '#4f6ef7', textDecoration: 'none' }}>
             View all →
           </Link>
         </div>
 
         {!data?.recentSessions?.length ? (
-          <div className="glass" style={{ borderRadius: '12px', padding: '32px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>
+          <div className="glass" style={{ borderRadius: '12px', padding: '32px', textAlign: 'center', color: 'rgba(0,0,0,0.3)', fontSize: '14px' }}>
             No sessions yet. Download the app to start your first interview.
           </div>
         ) : (
@@ -148,18 +147,18 @@ export default function DashboardPage() {
               }}>
                 <div style={{
                   width: '36px', height: '36px', borderRadius: '8px',
-                  background: 'rgba(79,110,247,0.15)',
+                  background: 'rgba(79,110,247,0.1)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
                   <span style={{ fontSize: '18px' }}>▣</span>
                 </div>
                 <div style={{ flex: 1, minWidth: '120px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: 500, color: '#e8e8e8', textTransform: 'capitalize' }}>
+                  <p style={{ fontSize: '14px', fontWeight: 500, color: '#1a1a1a', textTransform: 'capitalize' }}>
                     {s.interview_type.replace(/_/g, ' ')} Interview
                   </p>
                   {s.summary && (
-                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginTop: '2px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
+                    <p style={{ fontSize: '12px', color: 'rgba(0,0,0,0.35)', marginTop: '2px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
                       {s.summary}
                     </p>
                   )}
@@ -177,7 +176,7 @@ export default function DashboardPage() {
 
       {/* ── Row 3: quick actions ── */}
       <section>
-        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#e8e8e8', marginBottom: '16px' }}>Quick Actions</h2>
+        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginBottom: '16px' }}>Quick Actions</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
           {data?.isPro ? (
             <Link href="/download" style={{ textDecoration: 'none' }}>
@@ -206,10 +205,10 @@ export default function DashboardPage() {
 function PageHeader({ name }: { name?: string }) {
   return (
     <div>
-      <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111', letterSpacing: '-0.3px' }}>
         Welcome back{name ? `, ${name.split(' ')[0]}` : ''} 👋
       </h1>
-      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px', marginTop: '4px' }}>
+      <p style={{ color: 'rgba(0,0,0,0.35)', fontSize: '14px', marginTop: '4px' }}>
         Here&apos;s your ZoomGuru overview
       </p>
     </div>
@@ -222,18 +221,18 @@ function StatCard({ label, value, sub, accent, icon }: {
   return (
     <div className="glass" style={{ borderRadius: '12px', padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-        <span style={{ fontSize: '11px', fontWeight: 500, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+        <span style={{ fontSize: '11px', fontWeight: 500, color: 'rgba(0,0,0,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
         <span style={{ fontSize: '18px', opacity: 0.5 }}>{icon}</span>
       </div>
       <p style={{ fontSize: '26px', fontWeight: 700, color: accent || '#e8e8e8', letterSpacing: '-0.5px' }}>{value}</p>
-      <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '4px' }}>{sub}</p>
+      <p style={{ fontSize: '12px', color: 'rgba(0,0,0,0.3)', marginTop: '4px' }}>{sub}</p>
     </div>
   );
 }
 
 function Chip({ label, dim }: { label: string; dim?: boolean }) {
   return (
-    <span style={{ fontSize: '12px', color: dim ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.5)' }}>
+    <span style={{ fontSize: '12px', color: dim ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.5)' }}>
       {label}
     </span>
   );
@@ -244,8 +243,8 @@ function ActionButton({ label, icon, primary }: { label: string; icon: string; p
     <div style={{
       display: 'flex', alignItems: 'center', gap: '8px',
       padding: '11px 18px', borderRadius: '10px',
-      background: primary ? '#fff' : 'rgba(255,255,255,0.06)',
-      border: primary ? 'none' : '1px solid rgba(255,255,255,0.1)',
+      background: primary ? '#fff' : 'rgba(0,0,0,0.06)',
+      border: primary ? 'none' : '1px solid rgba(0,0,0,0.1)',
       color: primary ? '#080808' : '#e8e8e8',
       fontSize: '14px', fontWeight: primary ? 600 : 500,
       transition: 'opacity 0.15s',

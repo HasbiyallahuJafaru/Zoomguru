@@ -583,6 +583,84 @@ These five sentences are the entire system.
 Every other rule in this document exists to enforce them.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 13 — GRAPHIFY CONTEXT RETENTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+graphify builds a persistent knowledge graph of the codebase that
+survives across sessions. It prevents hallucination of imports,
+wiring mistakes, and logic errors caused by lost context.
+
+MANDATORY AT SESSION START
+    Before any code is read or written, run:
+
+        cd apps/backend  → python -c "from graphify.extract import ..."
+        cd apps/electron → python -c "from graphify.extract import ..."
+
+    Or use the /graphify skill shortcut:
+        /graphify apps/backend
+        /graphify apps/electron
+
+    The graphs are already built at:
+        apps/backend/graphify-out/graph.json
+        apps/backend/graphify-out/GRAPH_REPORT.md
+        apps/electron/graphify-out/graph.json
+        apps/electron/graphify-out/GRAPH_REPORT.md
+
+    Read GRAPH_REPORT.md before touching any file in that scope.
+    It contains god nodes, community structure, and surprising
+    connections that are not obvious from reading files individually.
+
+AFTER EVERY CODE CHANGE
+    Re-extract AST to keep graph current (free, no LLM):
+
+        cd apps/backend  && python -m graphify.watch . --once
+        cd apps/electron && python -m graphify.watch . --once
+
+    Or re-run /graphify with --update flag.
+
+BACKEND GOD NODES (changes ripple everywhere — verify all callers)
+    getDB()           — database/db.ts — every service imports this
+    AuthService       — login, register, JWT, device binding
+    AuthController    — all /auth/* routes
+    AdminController   — /admin/* routes, separate x-admin-key guard
+    CvService         — CV parsing, profile injected into AI prompts
+    PaystackService   — webhook processing, license activation
+    SessionController — session start/end, usage tracking
+
+ELECTRON GOD NODES (changes ripple everywhere — verify all callers)
+    createWindow()            — main.ts, window lifecycle owner
+    applyScreenShareExclusion() — must be called BEFORE show()
+    getDeviceFingerprint()    — fingerprint.ts, only source of deviceId
+    apiFetch()                — shared auth-aware fetch with token refresh
+    streamAnswer()            — Overlay.tsx, POST /ai/stream
+    streamScreenshot()        — Overlay.tsx, POST /ai/screenshot
+
+KNOWN WIRING CONTRACTS (verified as of last audit)
+    Login flow:
+        Renderer: POST /auth/login body={email, password}
+                  header: x-device-id (NOT in body)
+        Backend:  @Headers('x-device-id') deviceId — reads from header
+        Returns:  { accessToken, refreshToken, user }
+        Stored:   localStorage + electron-store
+
+    AI stream:
+        Renderer: POST /ai/stream body={transcript, sessionId, mode}
+                  headers: Authorization: Bearer <token>, X-Device-ID
+        Backend:  @Body() { sessionId, transcript, mode? }
+                  resolveRoute(transcript, mode) selects model
+        SSE format: data: {"chunk":"...","done":false}\n\n
+                    data: {"chunk":"","done":true,"fullAnswer":"..."}\n\n
+
+    IPC channels (preload ↔ main):
+        capture:screen   → initCapture() in main.ts
+        speech:start     → initSpeech() in main.ts
+        speech:stop      → initSpeech() in main.ts
+        device:fingerprint → registerIpcHandlers()
+        store:get/set/delete → registerIpcHandlers()
+        shell:openExternal → registerIpcHandlers()
+        window:hide      → registerIpcHandlers()
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EFFECTIVE DATE: This document governs all ZoomGuru code
 from the moment it is placed in .claude/BIBLE.md.
 All previous prompting approaches are superseded.
