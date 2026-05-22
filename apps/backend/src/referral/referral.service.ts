@@ -1,6 +1,10 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { getDB } from '../database/db';
 
+// In-memory bank list cache — refreshed every 24 hours
+let banksCache: { id: number; name: string; code: string }[] | null = null;
+let banksCachedAt = 0;
+
 @Injectable()
 export class ReferralService {
   async getStats(userId: string) {
@@ -34,10 +38,48 @@ export class ReferralService {
     };
   }
 
+  async getBanks(): Promise<{ id: number; name: string; code: string }[]> {
+    const TTL = 24 * 60 * 60 * 1000;
+    if (banksCache && Date.now() - banksCachedAt < TTL) return banksCache;
+
+    const res = await fetch('https://api.paystack.co/bank?country=nigeria&perPage=100&use_cursor=false', {
+      headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+    });
+    const data = await res.json();
+    if (!data.status) throw new BadRequestException('Could not fetch bank list');
+
+    banksCache = (data.data as any[]).map(b => ({ id: b.id, name: b.name, code: b.code }));
+    banksCachedAt = Date.now();
+    return banksCache!;
+  }
+
+  async verifyBankAccount(accountNumber: string, bankCode: string): Promise<{ accountName: string; accountNumber: string; bankCode: string }> {
+    if (!/^\d{10}$/.test(accountNumber)) {
+      throw new BadRequestException('Account number must be exactly 10 digits');
+    }
+
+    const res = await fetch(
+      `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
+      { headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` } },
+    );
+    const data = await res.json();
+
+    if (!data.status) {
+      throw new BadRequestException(data.message || 'Account could not be verified. Check the number and bank.');
+    }
+
+    return {
+      accountName: data.data.account_name,
+      accountNumber: data.data.account_number,
+      bankCode,
+    };
+  }
+
   async requestPayout(userId: string, params: {
     amount: number;
     currency: string;
     bankName: string;
+    bankCode: string;
     accountNumber: string;
     accountName: string;
   }) {
@@ -56,8 +98,8 @@ export class ReferralService {
     }
 
     await sql`
-      INSERT INTO payout_requests (user_id, amount, currency, bank_name, account_number, account_name)
-      VALUES (${userId}, ${params.amount}, ${params.currency}, ${params.bankName}, ${params.accountNumber}, ${params.accountName})
+      INSERT INTO payout_requests (user_id, amount, currency, bank_name, bank_code, account_number, account_name)
+      VALUES (${userId}, ${params.amount}, ${params.currency}, ${params.bankName}, ${params.bankCode}, ${params.accountNumber}, ${params.accountName})
     `;
 
     // Deduct from pending balance immediately (hold state)

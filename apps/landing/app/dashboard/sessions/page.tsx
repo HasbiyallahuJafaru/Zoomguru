@@ -181,7 +181,7 @@ export default function SessionsPage() {
                   </div>
 
                   {/* Right: stats */}
-                  <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <SessionStat label="Duration" value={fmt(s.duration_seconds)} />
                     <SessionStat label="Questions" value={String(s.total_questions)} />
                     {s.summary && (

@@ -50,7 +50,7 @@ export async function initDB(): Promise<void> {
         CREATE TABLE IF NOT EXISTS licenses (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          device_fingerprint TEXT NOT NULL,
+          device_fingerprint TEXT,
           plan TEXT NOT NULL,
           currency TEXT NOT NULL,
           amount NUMERIC NOT NULL,
@@ -144,11 +144,16 @@ export async function initDB(): Promise<void> {
       await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS currency TEXT`;
       await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0`;
       await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS paystack_reference TEXT`;
+      // device_fingerprint is bound on login, not at payment time — must be nullable
+      await sql`ALTER TABLE licenses ALTER COLUMN device_fingerprint DROP NOT NULL`;
 
       // payments — add missing columns
       await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS paystack_event TEXT`;
       await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS metadata JSONB`;
       await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
+
+      // payout_requests — add bank_code for Paystack transfers
+      await sql`ALTER TABLE payout_requests ADD COLUMN IF NOT EXISTS bank_code TEXT`;
 
       // ── Indexes for performance ──────────────────────────────────────────
       await sql`CREATE INDEX IF NOT EXISTS idx_licenses_user ON licenses(user_id)`;

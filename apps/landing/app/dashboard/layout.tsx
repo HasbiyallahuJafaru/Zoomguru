@@ -128,7 +128,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main content */}
-      <main style={{ flex: 1, marginLeft: 240, padding: '32px', minHeight: '100vh' }} className="dashboard-main">
+      <main style={{ flex: 1, marginLeft: 240, padding: '32px', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%', boxSizing: 'border-box' }} className="dashboard-main">
         {children}
       </main>
 

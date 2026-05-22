@@ -12,6 +12,16 @@ export class ReferralController {
     return this.referralService.getStats(req.user.userId);
   }
 
+  @Get('banks')
+  getBanks() {
+    return this.referralService.getBanks();
+  }
+
+  @Post('verify-account')
+  verifyAccount(@Body() body: { accountNumber: string; bankCode: string }) {
+    return this.referralService.verifyBankAccount(body.accountNumber, body.bankCode);
+  }
+
   @Post('payout')
   requestPayout(
     @Req() req: any,
@@ -19,6 +29,7 @@ export class ReferralController {
       amount: number;
       currency: string;
       bankName: string;
+      bankCode: string;
       accountNumber: string;
       accountName: string;
     },

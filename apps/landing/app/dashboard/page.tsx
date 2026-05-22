@@ -163,7 +163,7 @@ export default function DashboardPage() {
                     </p>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '20px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <Chip label={`${s.total_questions} Q`} />
                   <Chip label={formatDuration(s.duration_seconds)} />
                   <Chip label={formatDate(s.started_at)} dim />

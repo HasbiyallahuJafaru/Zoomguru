@@ -204,7 +204,7 @@ export default function SubscriptionPage() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
               {/* Monthly */}
               {!sub?.isPro && (
                 <PlanCard
@@ -234,7 +234,8 @@ export default function SubscriptionPage() {
         {/* ── Section 3: Feature comparison ── */}
         <div>
           <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginBottom: '16px' }}>Plan Comparison</h2>
-          <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto', borderRadius: '12px' }}>
+          <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden', minWidth: '420px' }}>
             {/* Header */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
               <span style={thStyle}>Feature</span>
@@ -257,6 +258,7 @@ export default function SubscriptionPage() {
                 </span>
               </div>
             ))}
+          </div>
           </div>
         </div>
 

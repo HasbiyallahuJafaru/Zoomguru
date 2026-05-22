@@ -36,7 +36,11 @@ export default function ReferralsPage() {
   const [data, setData] = useState<ReferralData | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
-  const [payoutForm, setPayoutForm] = useState({ bankName: '', accountNumber: '', accountName: '', amount: '' });
+  const [banks, setBanks] = useState<{ id: number; name: string; code: string }[]>([]);
+  const [payoutForm, setPayoutForm] = useState({ bankCode: '', bankName: '', accountNumber: '', accountName: '', amount: '' });
+  const [verifying, setVerifying] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [verifyError, setVerifyError] = useState('');
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutMsg, setPayoutMsg] = useState('');
 
@@ -74,6 +78,13 @@ export default function ReferralsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  useEffect(() => {
+    if (!user?.accessToken) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/banks`, {
+      headers: { Authorization: `Bearer ${user.accessToken}` },
+    }).then(r => r.json()).then(d => { if (Array.isArray(d)) setBanks(d); });
+  }, [user?.accessToken]);
+
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text);
     setCopied(key);
@@ -90,9 +101,32 @@ export default function ReferralsPage() {
     window.open(`https://wa.me/?text=${text}`, '_blank');
   }
 
+  async function verifyAccount() {
+    if (!user?.accessToken || !payoutForm.bankCode || payoutForm.accountNumber.length !== 10) return;
+    setVerifying(true);
+    setVerifyError('');
+    setVerified(false);
+    setPayoutForm(f => ({ ...f, accountName: '' }));
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/verify-account`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
+      body: JSON.stringify({ accountNumber: payoutForm.accountNumber, bankCode: payoutForm.bankCode }),
+    });
+    const result = await res.json();
+    setVerifying(false);
+
+    if (res.ok) {
+      setPayoutForm(f => ({ ...f, accountName: result.accountName }));
+      setVerified(true);
+    } else {
+      setVerifyError(result.message || 'Account could not be verified.');
+    }
+  }
+
   async function requestPayout(e: React.FormEvent) {
     e.preventDefault();
-    if (!user?.accessToken) return;
+    if (!user?.accessToken || !verified) return;
     setPayoutLoading(true);
     setPayoutMsg('');
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/payout`, {
@@ -100,6 +134,7 @@ export default function ReferralsPage() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
       body: JSON.stringify({
         bankName: payoutForm.bankName,
+        bankCode: payoutForm.bankCode,
         accountNumber: payoutForm.accountNumber,
         accountName: payoutForm.accountName,
         amount: parseFloat(payoutForm.amount),
@@ -110,7 +145,8 @@ export default function ReferralsPage() {
     setPayoutLoading(false);
     if (res.ok) {
       setPayoutMsg('Payout request submitted! We\'ll process within 3 business days.');
-      setPayoutForm({ bankName: '', accountNumber: '', accountName: '', amount: '' });
+      setPayoutForm({ bankCode: '', bankName: '', accountNumber: '', accountName: '', amount: '' });
+      setVerified(false);
       fetchData();
     } else {
       setPayoutMsg(result.message || 'Failed to submit payout request.');
@@ -208,15 +244,16 @@ export default function ReferralsPage() {
             No referrals yet. Share your link to get started.
           </div>
         ) : (
-          <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px 110px 100px', padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+          <div style={{ overflowX: 'auto', borderRadius: '12px' }}>
+          <div className="glass" style={{ borderRadius: '12px', overflow: 'hidden', minWidth: '520px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 90px 110px 90px', padding: '12px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
               {['Date', 'Referred User', 'Plan', 'Commission', 'Status'].map(h => (
                 <span key={h} style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
               ))}
             </div>
             {data.referrals.map((r, i) => (
               <div key={r.id} style={{
-                display: 'grid', gridTemplateColumns: '110px 1fr 100px 110px 100px',
+                display: 'grid', gridTemplateColumns: '110px 1fr 90px 110px 90px',
                 padding: '13px 20px', alignItems: 'center',
                 borderBottom: i < data.referrals.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
                 background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.015)',
@@ -228,6 +265,7 @@ export default function ReferralsPage() {
                 <span style={statusStyle(r.status)}>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
               </div>
             ))}
+          </div>
           </div>
         )}
       </div>
@@ -248,11 +286,86 @@ export default function ReferralsPage() {
 
           {canPayout ? (
             <form onSubmit={requestPayout} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <Field label="Bank Name" value={payoutForm.bankName} onChange={v => setPayoutForm(f => ({ ...f, bankName: v }))} placeholder="e.g. GTBank" />
-                <Field label="Account Number" value={payoutForm.accountNumber} onChange={v => setPayoutForm(f => ({ ...f, accountNumber: v }))} placeholder="0123456789" />
+
+              {/* Bank selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(0,0,0,0.45)', marginBottom: '6px', fontWeight: 500 }}>Bank</label>
+                <select
+                  required
+                  value={payoutForm.bankCode}
+                  onChange={e => {
+                    const bank = banks.find(b => b.code === e.target.value);
+                    setPayoutForm(f => ({ ...f, bankCode: e.target.value, bankName: bank?.name || '', accountName: '', accountNumber: '' }));
+                    setVerified(false);
+                    setVerifyError('');
+                  }}
+                  style={{
+                    width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.005)',
+                    border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px',
+                    color: payoutForm.bankCode ? '#1a1a1a' : 'rgba(0,0,0,0.35)',
+                    fontSize: '14px', outline: 'none', fontFamily: 'inherit', appearance: 'none',
+                  }}
+                >
+                  <option value="">Select bank…</option>
+                  {banks.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+                </select>
               </div>
-              <Field label="Account Name" value={payoutForm.accountName} onChange={v => setPayoutForm(f => ({ ...f, accountName: v }))} placeholder="Full name on account" />
+
+              {/* Account number + verify button */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'rgba(0,0,0,0.45)', marginBottom: '6px', fontWeight: 500 }}>Account Number</label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    required
+                    value={payoutForm.accountNumber}
+                    onChange={e => {
+                      const v = e.target.value.replace(/\D/g, '');
+                      setPayoutForm(f => ({ ...f, accountNumber: v, accountName: '' }));
+                      setVerified(false);
+                      setVerifyError('');
+                    }}
+                    placeholder="10-digit account number"
+                    style={{
+                      flex: 1, padding: '10px 14px', background: 'rgba(0,0,0,0.005)',
+                      border: `1px solid ${verified ? 'rgba(16,185,129,0.5)' : verifyError ? 'rgba(239,68,68,0.4)' : 'rgba(0,0,0,0.1)'}`,
+                      borderRadius: '8px', color: '#1a1a1a', fontSize: '14px', outline: 'none', fontFamily: 'inherit',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={verifying || payoutForm.accountNumber.length !== 10 || !payoutForm.bankCode}
+                    onClick={verifyAccount}
+                    style={{
+                      padding: '10px 18px', borderRadius: '8px', border: 'none', flexShrink: 0,
+                      background: verified ? 'rgba(16,185,129,0.12)' : 'rgba(79,110,247,0.12)',
+                      color: verified ? '#10b981' : '#4f6ef7',
+                      fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                      opacity: (payoutForm.accountNumber.length !== 10 || !payoutForm.bankCode) ? 0.4 : 1,
+                    }}
+                  >
+                    {verifying ? 'Checking…' : verified ? '✓ Verified' : 'Verify'}
+                  </button>
+                </div>
+                {verifyError && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '6px' }}>{verifyError}</p>}
+              </div>
+
+              {/* Auto-filled account name (read-only after verification) */}
+              {payoutForm.accountName && (
+                <div style={{
+                  padding: '12px 14px', borderRadius: '8px',
+                  background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)',
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                }}>
+                  <span style={{ fontSize: '13px', color: 'rgba(0,0,0,0.4)' }}>Account Name</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#10b981', flex: 1 }}>{payoutForm.accountName}</span>
+                  <span style={{ fontSize: '11px', color: '#10b981', background: 'rgba(16,185,129,0.15)', padding: '2px 8px', borderRadius: '20px' }}>Verified by Paystack</span>
+                </div>
+              )}
+
+              {/* Amount */}
               <Field
                 label={`Amount (max ₦${(data?.pendingBalance || 0).toLocaleString()})`}
                 value={payoutForm.amount}
@@ -260,6 +373,7 @@ export default function ReferralsPage() {
                 placeholder={String(data?.pendingBalance || '')}
                 type="number"
               />
+
               {payoutMsg && (
                 <div style={{
                   padding: '12px 14px', borderRadius: '8px', fontSize: '14px',
@@ -268,13 +382,17 @@ export default function ReferralsPage() {
                   color: payoutMsg.includes('submitted') ? '#10b981' : '#f87171',
                 }}>{payoutMsg}</div>
               )}
-              <button type="submit" disabled={payoutLoading} style={{
+
+              <button type="submit" disabled={payoutLoading || !verified} style={{
                 padding: '12px', borderRadius: '10px', border: 'none',
-                background: '#10b981', color: '#111', fontSize: '15px', fontWeight: 600,
-                cursor: payoutLoading ? 'not-allowed' : 'pointer', opacity: payoutLoading ? 0.7 : 1,
-                fontFamily: 'inherit',
+                background: verified ? '#10b981' : 'rgba(0,0,0,0.08)',
+                color: verified ? '#111' : 'rgba(0,0,0,0.3)',
+                fontSize: '15px', fontWeight: 600,
+                cursor: (payoutLoading || !verified) ? 'not-allowed' : 'pointer',
+                opacity: payoutLoading ? 0.7 : 1,
+                fontFamily: 'inherit', transition: 'background 0.2s',
               }}>
-                {payoutLoading ? 'Submitting…' : 'Request Payout'}
+                {payoutLoading ? 'Submitting…' : !verified ? 'Verify account to continue' : 'Request Payout'}
               </button>
             </form>
           ) : (

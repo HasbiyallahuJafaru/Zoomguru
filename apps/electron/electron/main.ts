@@ -2,16 +2,6 @@ import { app, BrowserWindow, globalShortcut, ipcMain, shell, Tray, Menu } from '
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 
-// ─── CUSTOM PROTOCOL — must run before app is ready ───────────────────────
-if (process.defaultApp) {
-  if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient(
-      'zoomguru', process.execPath, [path.resolve(process.argv[1])]
-    );
-  }
-} else {
-  app.setAsDefaultProtocolClient('zoomguru');
-}
 import Store from 'electron-store';
 import { initCapture } from './capture';
 import { initSpeech } from './speech';
@@ -451,42 +441,55 @@ function handleDeepLink(url: string): void {
 }
 
 // ─── APP LIFECYCLE ─────────────────────────────────────────────────────────
+// setImmediate defers past the synchronous module evaluation.
+// vite-plugin-electron dev mode initializes electron.app AFTER the main
+// module file is fully parsed, so any top-level app.* call would throw.
+// All app event registrations must live inside this setImmediate.
+setImmediate(() => {
+  // Guard: vite-plugin-electron evaluates main.js in its own Node.js process
+  // (for module analysis). In that context process.type is undefined and
+  // require('electron') returns the binary path string, not the Electron API.
+  // Skip all Electron API calls when not inside the real Electron main process.
+  if ((process as any).type !== 'browser') return;
 
-app.whenReady().then(() => {
-  createWindow();
-  createTray();
-  setupAutoUpdater();
-  registerHotkeys();
-  registerIpcHandlers();
-  initCapture(mainWindow!);
-  initSpeech(mainWindow!);
-
-  // Handle deep link for Google OAuth on macOS
-  app.on('open-url', (event, url) => {
-    event.preventDefault();
-    handleDeepLink(url);
-  });
-
-  // Handle deep link on Windows (passed as argv)
-  if (process.platform === 'win32') {
-    const deepLinkUrl = process.argv.find(arg => arg.startsWith('zoomguru://'));
-    if (deepLinkUrl) handleDeepLink(deepLinkUrl);
-  }
-
-  app.on('activate', () => {
-    // macOS — re-create window if dock icon is clicked and no windows are open
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+  // Protocol client must be registered before app ready fires.
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient('zoomguru', process.execPath, [path.resolve(process.argv[1])]);
     }
-  });
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+  } else {
+    app.setAsDefaultProtocolClient('zoomguru');
   }
-});
 
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
+  app.whenReady().then(() => {
+    createWindow();
+    createTray();
+    setupAutoUpdater();
+    registerHotkeys();
+    registerIpcHandlers();
+    initCapture(mainWindow!);
+    initSpeech(mainWindow!);
+
+    app.on('open-url', (event, url) => {
+      event.preventDefault();
+      handleDeepLink(url);
+    });
+
+    if (process.platform === 'win32') {
+      const deepLinkUrl = process.argv.find(arg => arg.startsWith('zoomguru://'));
+      if (deepLinkUrl) handleDeepLink(deepLinkUrl);
+    }
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+  });
 });
