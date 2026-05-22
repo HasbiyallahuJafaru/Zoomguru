@@ -4,12 +4,32 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { useSession } from 'next-auth/react';
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const ref = searchParams.get('reference') || searchParams.get('ref');
   const plan = searchParams.get('plan');
   const [countdown, setCountdown] = useState(5);
+  const { data: session } = useSession();
+  const [activating, setActivating] = useState(false);
+  const [activationDone, setActivationDone] = useState(false);
+  const [activationError, setActivationError] = useState('');
+
+  useEffect(() => {
+    if (!ref || activationDone) return;
+    const token = (session?.user as any)?.accessToken;
+    if (!token) return;
+    setActivating(true);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/paystack/verify-transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reference: ref }),
+    })
+      .then(r => r.json())
+      .then(() => { setActivationDone(true); setActivating(false); })
+      .catch(() => { setActivationError('Could not verify payment automatically. Please contact support.'); setActivating(false); });
+  }, [ref, session]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -62,10 +82,20 @@ function PaymentSuccessContent() {
         </p>
 
         {ref && (
-          <div className="bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm text-zinc-400 mb-6">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm text-zinc-400 mb-3">
             Transaction reference:{' '}
             <span className="text-zinc-300 font-mono text-xs">{ref}</span>
           </div>
+        )}
+
+        {activating && (
+          <div className="text-zinc-400 text-sm mb-4">Activating your license…</div>
+        )}
+        {activationDone && (
+          <div className="text-green-400 text-sm mb-4">✓ License activated on your account.</div>
+        )}
+        {activationError && (
+          <div className="text-red-400 text-sm mb-4">{activationError}</div>
         )}
 
         {/* CTA */}

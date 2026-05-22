@@ -30,6 +30,7 @@ module.exports = {
       { target: 'zip', arch: ['x64'] },
     ],
     icon: 'assets/icon.png',
+    forceCodeSigning: false,
   },
   nsis: {
     oneClick: false,

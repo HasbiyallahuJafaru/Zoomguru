@@ -148,13 +148,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               textDecoration: 'none',
               color: active ? '#111' : '#999',
-              fontSize: 10, fontWeight: active ? 600 : 400, padding: '4px 8px',
+              fontSize: 10, fontWeight: active ? 600 : 400, padding: '4px 6px',
             }}>
-              <span style={{ fontSize: 18 }}>{icon}</span>
+              <span style={{ fontSize: 17 }}>{icon}</span>
               {label}
             </Link>
           );
         })}
+        <button
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            color: '#e53e3e', fontSize: 10, fontWeight: 400, padding: '4px 6px',
+          }}
+        >
+          <span style={{ fontSize: 17 }}>⎋</span>
+          Sign Out
+        </button>
       </nav>
 
       <style>{`

@@ -84,6 +84,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.accessToken = data.accessToken;
         }
       }
+      // Always refresh isPro from DB so payment changes reflect without re-login
+      if (token.accessToken) {
+        try {
+          const meRes = await fetch(process.env.NEXT_PUBLIC_API_URL + '/auth/me', {
+            headers: { Authorization: `Bearer ${token.accessToken}` },
+          });
+          if (meRes.ok) {
+            const me = await meRes.json();
+            token.isPro = me.isPro;
+            token.role = me.role;
+          }
+        } catch {}
+      }
       return token;
     },
 

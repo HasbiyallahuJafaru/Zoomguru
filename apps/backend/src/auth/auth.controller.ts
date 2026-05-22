@@ -44,6 +44,12 @@ export class AuthController {
     return this.authService.checkUsername(username);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Req() req: any) {
+    return this.authService.getMe(req.user.userId);
+  }
+
   @Get('user/dashboard-summary')
   @UseGuards(JwtAuthGuard)
   async getDashboardSummary(@Req() req: any) {

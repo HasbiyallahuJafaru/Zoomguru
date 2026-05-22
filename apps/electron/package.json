@@ -9,10 +9,10 @@
     "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 file:dist-electron/main.js && electron .\"",
     "build": "vite build",
     "build:native": "cd native/wgc-exclude && npm install && npm run build:electron",
-    "dist:win": "npm run build:native && npm run build && electron-builder --win --config electron-builder.config.js",
+    "dist:win": "npm run build:native && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 electron-builder --win --config electron-builder.config.js",
     "dist:mac": "npm run build && electron-builder --mac --config electron-builder.config.js",
-    "dist": "npm run build:native && npm run build && electron-builder --mac --win --config electron-builder.config.js",
-    "release:win": "npm run build:native && npm run build && electron-builder --win --publish always --config electron-builder.config.js",
+    "dist": "npm run build:native && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 electron-builder --mac --win --config electron-builder.config.js",
+    "release:win": "npm run build:native && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 electron-builder --win --publish always --config electron-builder.config.js",
     "release:mac": "npm run build && electron-builder --mac --publish always --config electron-builder.config.js"
   },
   "dependencies": {
@@ -27,6 +27,7 @@
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "electron": "^42.1.0",
     "electron-builder": "^26.8.1",
     "react": "^18.2.0",

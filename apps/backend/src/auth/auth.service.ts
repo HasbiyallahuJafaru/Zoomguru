@@ -392,6 +392,13 @@ export class AuthService {
     return { available: !existing };
   }
 
+  async getMe(userId: string) {
+    const sql = getDB();
+    const [user] = await sql`SELECT id, email, name, username, is_pro, role FROM users WHERE id = ${userId} LIMIT 1`;
+    if (!user) throw new UnauthorizedException();
+    return { isPro: user.is_pro, role: user.role };
+  }
+
   async getDashboardSummary(userId: string) {
     const sql = getDB();
 
