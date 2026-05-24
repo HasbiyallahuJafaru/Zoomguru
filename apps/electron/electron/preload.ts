@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 // Vite bakes this value in at build time from .env / .env.production
-const API_URL: string = (import.meta as any).env?.VITE_API_URL ?? 'https://zoomguru.onrender.com';
+const API_URL: string = (import.meta as any).env?.VITE_API_URL ?? 'https://zoomguru-backend.onrender.com';
 
 contextBridge.exposeInMainWorld('zoomguru', {
   // Triggers from main process → renderer (hotkeys)
