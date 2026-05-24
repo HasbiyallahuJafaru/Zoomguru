@@ -4,7 +4,7 @@ module.exports = {
   electronVersion: '42.1.0',
   asar: true,
   asarUnpack: ['**/node_modules/**/*.node'],
-  directories: { output: 'release' },
+  directories: { output: 'dist-release' },
   files: [
     'dist/**/*',
     '!dist/**/*.map',
