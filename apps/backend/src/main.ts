@@ -1,11 +1,13 @@
 import * as Sentry from '@sentry/node';
 
-Sentry.init({
-  dsn: process.env.GLITCHTIP_DSN,
-  environment: process.env.NODE_ENV || 'production',
-  release: '1.0.0',
-  tracesSampleRate: 0.01,
-});
+if (process.env.GLITCHTIP_DSN) {
+  Sentry.init({
+    dsn: process.env.GLITCHTIP_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    release: '1.0.0',
+    tracesSampleRate: 0.01,
+  });
+}
 
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -23,7 +25,6 @@ async function bootstrap() {
     'PAYSTACK_WEBHOOK_SECRET',
     'ADMIN_SECRET_KEY',
     'ELECTRON_OAUTH_SECRET',
-    'GLITCHTIP_DSN',
   ];
 
   const missing = REQUIRED_ENV.filter(key => !process.env[key]);
