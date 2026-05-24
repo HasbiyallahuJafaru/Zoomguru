@@ -1,8 +1,8 @@
-# PATCH-17 — Error Logging Table + Admin Stats Endpoint
+﻿# PATCH-17 â€” Error Logging Table + Admin Stats Endpoint
 
 ## Problem
-1. No visibility into backend errors — flying blind
-2. No revenue/usage dashboard — can't make decisions
+1. No visibility into backend errors â€” flying blind
+2. No revenue/usage dashboard â€” can't make decisions
 
 ## Files Affected
 - `apps/backend/src/database/init.ts`
@@ -13,7 +13,7 @@
 - `apps/backend/src/main.ts`
 
 ## Risk Level
-🟢 LOW — Purely additive. New module, new table, new endpoints.
+ðŸŸ¢ LOW â€” Purely additive. New module, new table, new endpoints.
 
 ---
 
@@ -23,11 +23,11 @@
 Read .claude/BACKEND.md and .claude/DATABASE.md first.
 
 I need to add error logging and an admin stats endpoint.
-This is purely additive — do not change any existing code.
+This is purely additive â€” do not change any existing code.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — Add error_logs table to init.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 1 â€” Add error_logs table to init.ts
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/src/database/init.ts,
 add this CREATE TABLE at the end of initDB(),
 before the console.log('ZoomGuru DB initialized'):
@@ -50,9 +50,9 @@ before the console.log('ZoomGuru DB initialized'):
     ON error_logs(created_at DESC)
   `;
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 2 — Create admin module files
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 2 â€” Create admin module files
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/backend/src/admin/admin.service.ts:
 
 import { Injectable } from '@nestjs/common';
@@ -154,9 +154,9 @@ export class AdminService {
   }
 }
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/backend/src/admin/admin.controller.ts:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 import { Controller, Get, UseGuards, Headers, ForbiddenException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 
@@ -166,7 +166,7 @@ export class AdminController {
 
   @Get('stats')
   async getStats(@Headers('x-admin-key') adminKey: string) {
-    // Simple secret key auth — not JWT (no user account needed)
+    // Simple secret key auth â€” not JWT (no user account needed)
     if (adminKey !== process.env.ADMIN_SECRET_KEY) {
       throw new ForbiddenException('Unauthorized');
     }
@@ -174,9 +174,9 @@ export class AdminController {
   }
 }
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/backend/src/admin/admin.module.ts:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 import { Module } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
@@ -188,16 +188,16 @@ import { AdminService } from './admin.service';
 })
 export class AdminModule {}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 3 — Register AdminModule in app.module.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 3 â€” Register AdminModule in app.module.ts
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/src/app.module.ts:
 - Add: import { AdminModule } from './admin/admin.module';
 - Add AdminModule to the imports array
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 4 — Global error handler in main.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 4 â€” Global error handler in main.ts
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/src/main.ts, after app is created
 but before app.listen(), add:
 
@@ -212,9 +212,9 @@ but before app.listen(), add:
     console.error('Uncaught exception:', err);
   });
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 5 — Add ADMIN_SECRET_KEY to env
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 5 â€” Add ADMIN_SECRET_KEY to env
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/.env, add:
 ADMIN_SECRET_KEY=generate_a_random_32_char_string_here
 
@@ -229,7 +229,7 @@ Show me all created and modified files.
 
 ```bash
 # Check your stats anytime
-curl https://api.zoomguru.com/admin/stats \
+curl https://api.zoomguru.xyz/admin/stats \
   -H "x-admin-key: your_admin_secret_key"
 
 # Returns:
@@ -249,3 +249,4 @@ Remove AdminModule from app.module.ts.
 Remove error_logs CREATE TABLE from init.ts.
 Remove uncaughtException handler from main.ts.
 Remove ADMIN_SECRET_KEY from env + validation.
+

@@ -1,4 +1,4 @@
-# PATCH-05 — Paystack Webhook Replay Protection
+﻿# PATCH-05 â€” Paystack Webhook Replay Protection
 
 ## Problem
 Someone could capture a valid Paystack webhook payload and
@@ -9,7 +9,7 @@ The ON CONFLICT clause helps but doesn't catch all edge cases.
 - `apps/backend/src/paystack/paystack.service.ts`
 
 ## Risk Level
-🟡 MEDIUM — Modifies webhook handler. Test with Paystack CLI after.
+ðŸŸ¡ MEDIUM â€” Modifies webhook handler. Test with Paystack CLI after.
 
 ---
 
@@ -26,7 +26,7 @@ that throws BadRequestException if invalid), and BEFORE the
 event handling (before the if (event === 'charge.success') block),
 add this idempotency check:
 
-  // Idempotency check — block replayed webhooks
+  // Idempotency check â€” block replayed webhooks
   const sql = getDB();
   const reference = body?.data?.reference;
   
@@ -39,7 +39,7 @@ add this idempotency check:
     `;
     
     if (existing) {
-      // Already processed — return 200 silently (Paystack expects 200)
+      // Already processed â€” return 200 silently (Paystack expects 200)
       return { received: true, duplicate: true };
     }
   }
@@ -63,3 +63,4 @@ Show me exactly where in the method this was inserted.
 
 ## Rollback
 Remove the idempotency check block entirely.
+

@@ -7,7 +7,9 @@ module.exports = {
   directories: { output: 'release' },
   files: [
     'dist/**/*',
+    '!dist/**/*.map',
     'dist-electron/**/*',
+    '!dist-electron/**/*.map',
     'assets/**/*',
   ],
   publish: [

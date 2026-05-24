@@ -1,15 +1,15 @@
-# ZoomGuru — Database
+﻿# ZoomGuru â€” Database
 
 ## Driver
 ```
-@neondatabase/serverless — direct SQL, no ORM, no Prisma
+@neondatabase/serverless â€” direct SQL, no ORM, no Prisma
 ```
 
 No migration files. No schema.prisma. Tables auto-created on backend boot via `initDB()`.
 
 ---
 
-## db.ts — Singleton Client
+## db.ts â€” Singleton Client
 
 ```typescript
 import { neon, NeonQueryFunction } from '@neondatabase/serverless';
@@ -29,7 +29,7 @@ export function getDB(): NeonQueryFunction<false, false> {
 
 ---
 
-## init.ts — Auto Schema Creation
+## init.ts â€” Auto Schema Creation
 
 ```typescript
 import { getDB } from './db';
@@ -253,7 +253,7 @@ await sql`
     'active',
     ${plan === 'monthly'
       ? sql`NOW() + INTERVAL '30 days'`
-      : null  /* lifetime — no expiry */
+      : null  /* lifetime â€” no expiry */
     }
   )
   ON CONFLICT (paystack_reference) DO NOTHING
@@ -323,4 +323,5 @@ export interface CVProfile {
 DATABASE_URL=postgresql://username:password@ep-xxx.us-east-2.aws.neon.tech/zoomguru?sslmode=require
 ```
 
-Get from: console.neon.tech → your project → Connection Details
+Get from: console.neon.tech â†’ your project â†’ Connection Details
+

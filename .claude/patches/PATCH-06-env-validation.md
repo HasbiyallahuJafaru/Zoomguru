@@ -1,4 +1,4 @@
-# PATCH-06 — Environment Variable Validation on Startup
+﻿# PATCH-06 â€” Environment Variable Validation on Startup
 
 ## Problem
 Backend starts with missing env vars and crashes on first
@@ -8,7 +8,7 @@ DB or API call with a confusing error. Hard to debug on Render.
 - `apps/backend/src/main.ts`
 
 ## Risk Level
-🟢 LOW — Additive only. Added before app.listen().
+ðŸŸ¢ LOW â€” Additive only. Added before app.listen().
 
 ---
 
@@ -35,12 +35,12 @@ bootstrap(), before any NestFactory.create() call:
 
   const missing = REQUIRED_ENV.filter(key => !process.env[key]);
   if (missing.length > 0) {
-    console.error('❌ Missing required environment variables:');
+    console.error('âŒ Missing required environment variables:');
     missing.forEach(key => console.error(`   - ${key}`));
     process.exit(1);
   }
 
-  console.log('✅ All environment variables present');
+  console.log('âœ… All environment variables present');
 
 Place this BEFORE the NestFactory.create() line.
 Do not touch anything else in bootstrap().
@@ -54,10 +54,11 @@ Show me the exact diff.
 ```bash
 # Temporarily unset DATABASE_URL
 # unset DATABASE_URL && npm run start:dev
-# Should see: ❌ Missing required environment variables: DATABASE_URL
+# Should see: âŒ Missing required environment variables: DATABASE_URL
 # Process should exit immediately with code 1
-# Restore DATABASE_URL — server should start normally
+# Restore DATABASE_URL â€” server should start normally
 ```
 
 ## Rollback
 Remove the REQUIRED_ENV validation block.
+

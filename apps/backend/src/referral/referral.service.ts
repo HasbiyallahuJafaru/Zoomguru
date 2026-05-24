@@ -32,7 +32,7 @@ export class ReferralService {
 
     return {
       referralCode: user?.referral_code ?? null,
-      referralLink: user?.referral_code ? `https://zoomguru.com/?ref=${user.referral_code}` : null,
+      referralLink: user?.referral_code ? `https://zoomguru.xyz/?ref=${user.referral_code}` : null,
       balance: balance ?? { total_earned: 0, pending_balance: 0, total_paid: 0, currency: 'NGN' },
       referrals,
     };

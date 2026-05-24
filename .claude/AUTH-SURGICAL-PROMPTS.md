@@ -1,11 +1,11 @@
-# ZoomGuru — Auth & Dashboard Surgical Prompts
+﻿# ZoomGuru â€” Auth & Dashboard Surgical Prompts
 # One prompt per fix. Copy exactly. Paste into Claude Code.
 # Always paste SESSION STARTER first.
 # Apply in order. Verify each before moving to next.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SESSION STARTER — Paste this FIRST in every Claude Code session
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+SESSION STARTER â€” Paste this FIRST in every Claude Code session
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Read .claude/CLAUDE.md and
 .claude/patches/auth-dashboard/AUTH-DASHBOARD.md
@@ -18,16 +18,16 @@ Rules:
 - Tell me which files you will touch BEFORE touching them
 - One fix at a time. Never combine two fixes.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-01 — Database Schema Additions
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-01 â€” Database Schema Additions
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 File: apps/backend/src/database/init.ts
 Risk: MEDIUM
 
 Make three changes. Show diff after each:
 
-CHANGE 1 — In CREATE TABLE users, add these columns
+CHANGE 1 â€” In CREATE TABLE users, add these columns
 AFTER currency TEXT and BEFORE created_at:
   username TEXT UNIQUE,
   google_id TEXT UNIQUE,
@@ -36,7 +36,7 @@ AFTER currency TEXT and BEFORE created_at:
   last_login_at TIMESTAMPTZ,
   login_count INTEGER DEFAULT 0,
 
-CHANGE 2 — At end of initDB() before console.log, add:
+CHANGE 2 â€” At end of initDB() before console.log, add:
   await sql`CREATE TABLE IF NOT EXISTS nextauth_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_token TEXT UNIQUE NOT NULL,
@@ -59,7 +59,7 @@ CHANGE 2 — At end of initDB() before console.log, add:
     PRIMARY KEY(identifier, token)
   )`;
 
-CHANGE 3 — Add indexes:
+CHANGE 3 â€” Add indexes:
   await sql`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`;
@@ -67,12 +67,12 @@ CHANGE 3 — Add indexes:
 
 Do not touch any other table. Show all 3 diffs separately.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-02A — Login Accepts Username OR Email
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-02A â€” Login Accepts Username OR Email
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 File: apps/backend/src/auth/auth.service.ts
-Risk: HIGH — test login after
+Risk: HIGH â€” test login after
 
 In login(), change the user lookup query from email-only to:
   const identifier = email.toLowerCase().trim();
@@ -93,9 +93,9 @@ Update return user object to include username, role, avatarUrl.
 
 Do not change any other method. Show me the diff.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-02B — Register Requires Username
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-02B â€” Register Requires Username
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 File: apps/backend/src/auth/auth.service.ts
 Risk: MEDIUM
@@ -117,9 +117,9 @@ Add GET /auth/check-username?username=X endpoint:
 
 Show me the diff of service + controller.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-02C — Admin Guard
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-02C â€” Admin Guard
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/backend/src/guards/admin.guard.ts
 Risk: LOW
@@ -128,46 +128,46 @@ Create this file exactly:
   Injectable CanActivate that:
   1. Gets userId from request.user (set by JwtAuthGuard)
   2. Queries: SELECT role FROM users WHERE id = userId
-  3. If role !== 'admin' → throw ForbiddenException
-  4. If role === 'admin' → return true
+  3. If role !== 'admin' â†’ throw ForbiddenException
+  4. If role === 'admin' â†’ return true
 
 Then add AdminGuard to the existing /admin/stats endpoint
 in admin.controller.ts alongside JwtAuthGuard.
 
 Do not modify any other endpoint. Show me both files.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-02D — Admin User Management Endpoints
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-02D â€” Admin User Management Endpoints
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Files: admin.controller.ts + admin.service.ts
-Risk: LOW — purely additive
+Risk: LOW â€” purely additive
 
 Add these endpoints to admin.controller.ts
 (all protected by JwtAuthGuard + AdminGuard):
 
-GET  /admin/users          → paginated users list with search/filter
-GET  /admin/users/:id      → full user detail
-PATCH /admin/users/:id/role → update role (also requires x-admin-key)
-PATCH /admin/users/:id/license → toggle license active/revoked
-GET  /admin/payouts        → payout requests by status
-PATCH /admin/payouts/:id   → approve or reject payout
-GET  /admin/analytics/revenue?period=30  → revenue data
-GET  /admin/analytics/users?period=30    → user growth data
-GET  /admin/analytics/sessions?period=30 → session analytics
-GET  /admin/analytics/referrals          → referral funnel data
-GET  /admin/errors         → error log with pagination + search
+GET  /admin/users          â†’ paginated users list with search/filter
+GET  /admin/users/:id      â†’ full user detail
+PATCH /admin/users/:id/role â†’ update role (also requires x-admin-key)
+PATCH /admin/users/:id/license â†’ toggle license active/revoked
+GET  /admin/payouts        â†’ payout requests by status
+PATCH /admin/payouts/:id   â†’ approve or reject payout
+GET  /admin/analytics/revenue?period=30  â†’ revenue data
+GET  /admin/analytics/users?period=30    â†’ user growth data
+GET  /admin/analytics/sessions?period=30 â†’ session analytics
+GET  /admin/analytics/referrals          â†’ referral funnel data
+GET  /admin/errors         â†’ error log with pagination + search
 
 Add all corresponding methods to admin.service.ts.
 Each method queries Neon directly with getDB().
 
 Show me controller first. Confirm. Then service methods one at a time.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-03 — Google Cloud Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-03 â€” Google Cloud Setup
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
-MANUAL SETUP — No code changes.
+MANUAL SETUP â€” No code changes.
 Follow the step-by-step guide in:
 .claude/patches/auth-dashboard/AUTH-03-google-cloud-setup.md
 
@@ -180,24 +180,24 @@ Add to: apps/backend/.env
         apps/admin/.env.local
         Render environment variables
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-04 — Cloudflare Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-04 â€” Cloudflare Setup
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
-MANUAL SETUP — No code changes.
+MANUAL SETUP â€” No code changes.
 Follow the step-by-step guide in:
 .claude/patches/auth-dashboard/AUTH-04-cloudflare-setup.md
 
 After completing:
-  zoomguru.com → Cloudflare proxied to Netlify
-  admin.zoomguru.com → Cloudflare proxied to Netlify
-  api.zoomguru.com → Cloudflare proxied to Render
+  zoomguru.xyz â†’ Cloudflare proxied to Netlify
+  admin.zoomguru.xyz â†’ Cloudflare proxied to Netlify
+  api.zoomguru.xyz â†’ Cloudflare proxied to Render
   WAF rate limiting active on /api/auth/*
   DDoS protection: always on
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-05 — NextAuth in Landing App
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-05 â€” NextAuth in Landing App
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Run first:
   cd apps/landing
@@ -223,21 +223,21 @@ FILE 2: apps/landing/app/api/auth/[...nextauth]/route.ts
   export const { GET, POST } = handlers;
 
 FILE 3: apps/landing/middleware.ts
-  Protect /dashboard/* → redirect to /login if no session
-  Redirect /login and /register → /dashboard if already logged in
+  Protect /dashboard/* â†’ redirect to /login if no session
+  Redirect /login and /register â†’ /dashboard if already logged in
 
 Add to apps/landing/.env.local:
   NEXTAUTH_SECRET= (generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))")
-  NEXTAUTH_URL=https://zoomguru.com
+  NEXTAUTH_URL=https://zoomguru.xyz
   GOOGLE_CLIENT_ID=from_google_cloud
   GOOGLE_CLIENT_SECRET=from_google_cloud
 
 Do not modify any existing landing page files.
 Show me all 3 created files.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-06 — Login + Register Pages
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-06 â€” Login + Register Pages
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create 3 files. Dark theme matching landing page.
 
@@ -268,9 +268,9 @@ Same dark CSS variables as landing page.
 No new npm packages needed.
 Show me all 3 files.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-07 — Dashboard Layout + Home Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-07 â€” Dashboard Layout + Home Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create 2 files. Dark theme.
 
@@ -291,9 +291,9 @@ Add to backend:
 
 Show me files + backend endpoint.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-08 — Subscription Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-08 â€” Subscription Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/landing/app/dashboard/subscription/page.tsx
 Dark theme.
@@ -307,9 +307,9 @@ Returns: plan, status, expiresAt, deviceFingerprintLast8, usageStats
 
 Show me file + endpoint.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-09 — Payments History Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-09 â€” Payments History Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/landing/app/dashboard/payments/page.tsx
 Dark theme.
@@ -323,9 +323,9 @@ Queries payments WHERE user_id = userId ORDER BY created_at DESC
 
 Show me file + endpoint.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-10 — Sessions History Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-10 â€” Sessions History Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/landing/app/dashboard/sessions/page.tsx
 Dark theme.
@@ -339,15 +339,15 @@ Queries interview_sessions WHERE user_id ORDER BY started_at DESC
 
 Show me file + endpoint.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-11 — Referrals Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-11 â€” Referrals Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/landing/app/dashboard/referrals/page.tsx
 Dark theme.
 
 Shows: 4 KPI cards | Referral link with copy + share buttons
-Earnings breakdown table | Payout request form (if balance >= ₦5,000)
+Earnings breakdown table | Payout request form (if balance >= â‚¦5,000)
 Payout history table
 
 Uses existing endpoints:
@@ -357,24 +357,24 @@ Uses existing endpoints:
 No new backend endpoints needed.
 Show me the page file.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-12 — Settings Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-12 â€” Settings Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/landing/app/dashboard/settings/page.tsx
 Dark theme. 4 sections: Profile | Security | Device | Danger Zone
 
 Add backend endpoints:
-  PATCH /user/profile → UPDATE users SET name, username
-  PATCH /user/password → verify current, hash new, UPDATE
-  DELETE /user/account → soft delete
-  GET /user/device → license device fingerprint info
+  PATCH /user/profile â†’ UPDATE users SET name, username
+  PATCH /user/password â†’ verify current, hash new, UPDATE
+  DELETE /user/account â†’ soft delete
+  GET /user/device â†’ license device fingerprint info
 
 Show me file + all 4 endpoints.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-13A — Electron Deep Link Handler
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-13A â€” Electron Deep Link Handler
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 File: apps/electron/electron/main.ts
 Risk: MEDIUM
@@ -395,9 +395,9 @@ In preload.ts, add to contextBridge:
 
 Show me both file diffs.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-13B — Electron Login + Register Updates
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-13B â€” Electron Login + Register Updates
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Files: Login.tsx + Register.tsx
 Risk: LOW
@@ -424,9 +424,9 @@ Add to backend: POST /auth/google/electron/exchange
 
 Show me all diffs separately.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-14 — Admin App Scaffold
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-14 â€” Admin App Scaffold
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Run first:
   cd apps
@@ -434,20 +434,20 @@ Run first:
   cd admin && npm install next-auth@beta recharts @heroicons/react
 
 Create:
-  apps/admin/lib/theme.css — light theme CSS variables
-  apps/admin/app/layout.tsx — root layout, Inter font, white bg
-  apps/admin/auth.ts — NextAuth credentials only (no Google)
+  apps/admin/lib/theme.css â€” light theme CSS variables
+  apps/admin/app/layout.tsx â€” root layout, Inter font, white bg
+  apps/admin/auth.ts â€” NextAuth credentials only (no Google)
     Authorize: call /auth/login, check role === 'admin'
-  apps/admin/middleware.ts — protect all routes except /login
-  apps/admin/components/AdminLayout.tsx — white sidebar shell
+  apps/admin/middleware.ts â€” protect all routes except /login
+  apps/admin/components/AdminLayout.tsx â€” white sidebar shell
     Nav: Overview, Users, Revenue, Sessions, Referrals, Payouts, Errors, Settings
 
 All pure white/light gray theme. No dark colors.
 Show me all created files.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-15 — Admin Login Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-15 â€” Admin Login Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/login/page.tsx
 Pure light theme. Centered card on #f8fafc background.
@@ -455,9 +455,9 @@ Email + password form. No Google button. No register link.
 Loading state. Error message. "Authorized personnel only" footer.
 Show me the file.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-16 — Admin Overview Dashboard
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-16 â€” Admin Overview Dashboard
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/page.tsx
 AdminLayout wrapper. Light theme. Uses Recharts.
@@ -474,9 +474,9 @@ System health row (backend status, DB connections)
 Data from existing /admin/stats + /admin/analytics/revenue.
 Show me the file.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-17 — Admin Users Pages
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-17 â€” Admin Users Pages
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create 2 files. Light theme. AdminLayout.
 
@@ -493,9 +493,9 @@ FILE 2: apps/admin/app/users/[id]/page.tsx
 
 Show me both files.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-18 — Admin Revenue Analytics
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-18 â€” Admin Revenue Analytics
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/revenue/page.tsx
 AdminLayout. Light theme. Recharts heavy.
@@ -510,9 +510,9 @@ Churn rate line chart
 Expand /admin/analytics/revenue endpoint to return all these fields.
 Show me page + updated service method.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-19 — Admin Sessions Analytics
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-19 â€” Admin Sessions Analytics
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/sessions/page.tsx
 AdminLayout. Light theme. Recharts.
@@ -527,24 +527,24 @@ Recent sessions table with expandable summaries
 Expand /admin/analytics/sessions endpoint.
 Show me page + service method.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-20A — Admin Referrals Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-20A â€” Admin Referrals Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/referrals/page.tsx
 AdminLayout. Light theme.
 
 KPI cards: total links | signups | converted | commissions earned/paid
-Funnel visualization (links → signups → paid → retained)
+Funnel visualization (links â†’ signups â†’ paid â†’ retained)
 Top referrers table (rank, username, referred, earned, pending)
 All referrals table
 
 Uses existing /admin/analytics/referrals endpoint.
 Show me the file.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-20B — Admin Payouts Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-20B â€” Admin Payouts Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/payouts/page.tsx
 AdminLayout. Light theme.
@@ -556,9 +556,9 @@ Payout history table
 Uses existing /admin/payouts endpoints.
 Show me the file.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-21 — Admin Error Log Viewer
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-21 â€” Admin Error Log Viewer
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/errors/page.tsx
 AdminLayout. Light theme.
@@ -574,9 +574,9 @@ Add backend: GET /admin/errors?page&limit&search&endpoint
 
 Show me file + endpoint.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-AUTH-22 — Admin Settings Page
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+AUTH-22 â€” Admin Settings Page
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create: apps/admin/app/settings/page.tsx
 AdminLayout. Light theme.
@@ -590,9 +590,9 @@ AdminLayout. Light theme.
 Uses /admin/users?role=admin and /admin/users/:id/role endpoints.
 Show me the file.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FINAL STEP — Make Yourself Admin
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+FINAL STEP â€” Make Yourself Admin
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 After deploying everything, run this in Neon SQL Editor:
 
@@ -600,9 +600,10 @@ UPDATE users
 SET role = 'admin'
 WHERE email = 'your@email.com';
 
-Then log into admin.zoomguru.com with your credentials.
+Then log into admin.zoomguru.xyz with your credentials.
 You now have full admin access.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 END OF AUTH + DASHBOARD PROMPTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+

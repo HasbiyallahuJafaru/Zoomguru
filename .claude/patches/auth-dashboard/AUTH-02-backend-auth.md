@@ -1,4 +1,4 @@
-# AUTH-02 — Backend Auth Extensions
+﻿# AUTH-02 â€” Backend Auth Extensions
 
 ## What This Does
 - Allows login via username OR email
@@ -14,11 +14,11 @@
 - `apps/backend/src/admin/admin.controller.ts`
 
 ## Risk Level
-🔴 HIGH — Modifies core auth. Test all login flows after.
+ðŸ”´ HIGH â€” Modifies core auth. Test all login flows after.
 
 ---
 
-## STEP 1 Prompt — Username login + register extension
+## STEP 1 Prompt â€” Username login + register extension
 
 ```
 Read .claude/AUTH.md and .claude/patches/auth-dashboard/AUTH-DASHBOARD.md
@@ -28,9 +28,9 @@ Tell me which files you will touch before writing any code.
 In apps/backend/src/auth/auth.service.ts make these
 changes only. Show diff after each change.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CHANGE 1 — Login accepts username OR email
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+CHANGE 1 â€” Login accepts username OR email
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Find the login() method. It currently queries by email only.
 Change the user lookup query from:
@@ -56,9 +56,9 @@ To:
 The parameter name stays as 'email' for backward compatibility
 with the Electron app. It now accepts either value.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CHANGE 2 — Update login response to include username + role
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+CHANGE 2 â€” Update login response to include username + role
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 In login(), find the generateTokens() call.
 After the successful bcrypt compare, before generateTokens,
@@ -71,9 +71,9 @@ update last_login_at and login_count:
     WHERE id = ${user.id}
   `;
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CHANGE 3 — Register requires username
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+CHANGE 3 â€” Register requires username
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Find the register() method signature. Add username parameter:
   async register(
@@ -117,9 +117,9 @@ Then update the INSERT INTO users to include username:
     (${email.toLowerCase()}, ${passwordHash}, ${name},
      ${cleanUsername}, ${deviceId || null}, ${referralCode})
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CHANGE 4 — generateTokens includes role + username
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+CHANGE 4 â€” generateTokens includes role + username
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 In generateTokens(), update the accessToken payload to include:
   { sub: user.id, email: user.email, isPro: user.is_pro,
@@ -141,7 +141,7 @@ Show me all 4 changes as separate diffs.
 
 ---
 
-## STEP 2 Prompt — Admin guard
+## STEP 2 Prompt â€” Admin guard
 
 ```
 Read .claude/BACKEND.md first.
@@ -184,7 +184,7 @@ Show me the created file.
 
 ---
 
-## STEP 3 Prompt — Google OAuth Electron deep link endpoint
+## STEP 3 Prompt â€” Google OAuth Electron deep link endpoint
 
 ```
 Read .claude/AUTH.md and .claude/BACKEND.md first.
@@ -264,7 +264,7 @@ add this method to AuthService:
     `;
 
     if (!user) {
-      // New user via Google — auto-generate username
+      // New user via Google â€” auto-generate username
       const baseUsername = googleUser.email
         .split('@')[0]
         .toLowerCase()
@@ -320,7 +320,7 @@ add this method to AuthService:
   }
 
 Add to .env:
-  BACKEND_URL=https://api.zoomguru.com
+  BACKEND_URL=https://api.zoomguru.xyz
   ELECTRON_OAUTH_SECRET=generate_random_32_chars
   GOOGLE_CLIENT_ID=from_google_cloud_console
   GOOGLE_CLIENT_SECRET=from_google_cloud_console
@@ -330,7 +330,7 @@ Show me all changes with exact diffs.
 
 ---
 
-## STEP 4 Prompt — Admin user management endpoints
+## STEP 4 Prompt â€” Admin user management endpoints
 
 ```
 Read .claude/BACKEND.md first.
@@ -455,3 +455,4 @@ curl http://localhost:3000/admin/users \
   -H "Authorization: Bearer admin_token"
 # Should return users list
 ```
+

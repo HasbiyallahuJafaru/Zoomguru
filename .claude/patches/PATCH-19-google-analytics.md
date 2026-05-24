@@ -1,4 +1,4 @@
-# PATCH-19 — Google Analytics 4 on Landing Page
+﻿# PATCH-19 â€” Google Analytics 4 on Landing Page
 
 ## Problem
 No visibility into landing page traffic, conversions,
@@ -11,7 +11,7 @@ pricing plan preferences, or download rates.
 - `apps/landing/app/payment/success/page.tsx`
 
 ## Risk Level
-🟢 LOW — Additive only. No existing logic changed.
+ðŸŸ¢ LOW â€” Additive only. No existing logic changed.
 
 ---
 
@@ -42,7 +42,7 @@ STEP 3: In apps/landing/.env.local, add:
   NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
 
 Replace G-XXXXXXXXXX with actual GA4 Measurement ID.
-(Get from: analytics.google.com → Admin → Data Streams)
+(Get from: analytics.google.com â†’ Admin â†’ Data Streams)
 
 STEP 4: In apps/landing/components/Pricing.tsx,
 add GA event tracking to the pay() function.
@@ -116,27 +116,27 @@ Show me each file changed with its diff.
 
 ```
 Events being tracked:
-    ├── page_view (automatic via GoogleAnalytics component)
-    ├── begin_checkout (pricing plan clicked)
-    ├── purchase (payment success page)
-    ├── file_download (download button clicked)
-    └── scroll, session_start (automatic via GA4)
+    â”œâ”€â”€ page_view (automatic via GoogleAnalytics component)
+    â”œâ”€â”€ begin_checkout (pricing plan clicked)
+    â”œâ”€â”€ purchase (payment success page)
+    â”œâ”€â”€ file_download (download button clicked)
+    â””â”€â”€ scroll, session_start (automatic via GA4)
 
 Custom dimensions to add in GA4 dashboard:
-    ├── plan (monthly/lifetime)
-    ├── currency (NGN/USD)
-    └── platform (mac/win)
+    â”œâ”€â”€ plan (monthly/lifetime)
+    â”œâ”€â”€ currency (NGN/USD)
+    â””â”€â”€ platform (mac/win)
 ```
 
 ## GA4 Setup Steps
 
 ```
 1. Go to analytics.google.com
-2. Create new GA4 property for zoomguru.com
-3. Add Web data stream → enter zoomguru.com
+2. Create new GA4 property for zoomguru.xyz
+3. Add Web data stream â†’ enter zoomguru.xyz
 4. Copy Measurement ID (G-XXXXXXXXXX)
 5. Paste into NEXT_PUBLIC_GA_ID in .env.local
-6. Deploy → verify in GA4 Realtime reports
+6. Deploy â†’ verify in GA4 Realtime reports
 ```
 
 ## Verification
@@ -144,11 +144,11 @@ Custom dimensions to add in GA4 dashboard:
 ```bash
 npm run dev
 
-# Open browser dev tools → Network tab
+# Open browser dev tools â†’ Network tab
 # Navigate landing page
 # Should see requests to google-analytics.com
-# Go to GA4 → Realtime → should see active users
-# Click a pricing button → DebugView should show begin_checkout event
+# Go to GA4 â†’ Realtime â†’ should see active users
+# Click a pricing button â†’ DebugView should show begin_checkout event
 ```
 
 ## Rollback
@@ -156,3 +156,4 @@ Remove GoogleAnalytics component from layout.tsx.
 Remove gtag() calls from Pricing.tsx, success page, Download.tsx.
 Uninstall @next/third-parties.
 Remove NEXT_PUBLIC_GA_ID from .env.local.
+

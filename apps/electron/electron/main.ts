@@ -255,7 +255,7 @@ function createTray() {
 // ─── AUTO UPDATER ──────────────────────────────────────────────────────────
 
 function setupAutoUpdater() {
-  autoUpdater.checkForUpdatesAndNotify();
+  setTimeout(() => autoUpdater.checkForUpdatesAndNotify(), 3000);
 
   autoUpdater.on('update-downloaded', () => {
     if (!mainWindow) return;
@@ -363,31 +363,51 @@ async function runProtectionSelfTest(): Promise<void> {
 
 // ─── IPC HANDLERS ──────────────────────────────────────────────────────────
 
+const ALLOWED_PROTOCOLS = new Set(['https:', 'http:']);
+
+function isTrustedFrame(event: Electron.IpcMainInvokeEvent): boolean {
+  // Reject any IPC that originates from a navigation away from the app origin
+  const { url } = event.senderFrame ?? { url: '' };
+  return url.startsWith('file://') || url.startsWith('app://');
+}
+
 function registerIpcHandlers() {
   // Encrypted local store
-  ipcMain.handle('store:get', (_event, key: string) => {
+  ipcMain.handle('store:get', (event, key: string) => {
+    if (!isTrustedFrame(event)) return null;
     return store.get(key);
   });
 
-  ipcMain.handle('store:set', (_event, key: string, value: unknown) => {
+  ipcMain.handle('store:set', (event, key: string, value: unknown) => {
+    if (!isTrustedFrame(event)) return;
     store.set(key, value);
   });
 
-  ipcMain.handle('store:delete', (_event, key: string) => {
+  ipcMain.handle('store:delete', (event, key: string) => {
+    if (!isTrustedFrame(event)) return;
     store.delete(key);
   });
 
-  // Open links in default system browser
-  ipcMain.handle('shell:openExternal', (_event, url: string) => {
+  // Open links in default system browser — only allow http/https
+  ipcMain.handle('shell:openExternal', (event, url: string) => {
+    if (!isTrustedFrame(event)) return;
+    try {
+      const parsed = new URL(url);
+      if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) return;
+    } catch {
+      return;
+    }
     return shell.openExternal(url);
   });
 
   // Device fingerprint
-  ipcMain.handle('device:fingerprint', () => {
+  ipcMain.handle('device:fingerprint', (event) => {
+    if (!isTrustedFrame(event)) return null;
     return fingerprint;
   });
 
-  ipcMain.handle('window:hide', () => {
+  ipcMain.handle('window:hide', (event) => {
+    if (!isTrustedFrame(event)) return;
     mainWindow?.hide();
   });
 }

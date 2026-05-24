@@ -1,9 +1,9 @@
-# PATCH-15 — Session Summary Optimization (No Mid-Session DB Writes)
+﻿# PATCH-15 â€” Session Summary Optimization (No Mid-Session DB Writes)
 
 ## Problem
 Current system writes to DB on every Q&A pair.
 10 questions = 10 DB writes per session.
-At 500 users × 10 writes = 5,000 writes per session cycle.
+At 500 users Ã— 10 writes = 5,000 writes per session cycle.
 
 ## Fix
 Messages live in Zustand (memory) during session.
@@ -16,7 +16,7 @@ On session end: one DB write with AI-generated summary only.
 - `apps/backend/src/database/init.ts`
 
 ## Risk Level
-🔴 HIGH — Core data flow change. Test end-to-end thoroughly.
+ðŸ”´ HIGH â€” Core data flow change. Test end-to-end thoroughly.
 
 ---
 
@@ -28,9 +28,9 @@ Read .claude/DATABASE.md, .claude/AI.md, .claude/BACKEND.md first.
 This patch changes how session data is stored.
 Apply each step carefully and do not skip any.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — Update interview_sessions table schema
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 1 â€” Update interview_sessions table schema
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/src/database/init.ts,
 find the CREATE TABLE interview_sessions statement.
 
@@ -52,9 +52,9 @@ The final columns for interview_sessions should be:
   started_at TIMESTAMPTZ DEFAULT NOW(),
   ended_at TIMESTAMPTZ
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 2 — Remove mid-session DB writes from ai.service.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 2 â€” Remove mid-session DB writes from ai.service.ts
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/src/ai/ai.service.ts,
 find the streamAnswer() method.
 
@@ -70,12 +70,12 @@ At the end of streamAnswer(), find and REMOVE this block
 Keep ONLY the incrementUsage() call:
   await this.incrementUsage(userId);
 
-Do the same for streamScreenshot() — remove any mid-session
+Do the same for streamScreenshot() â€” remove any mid-session
 message append queries. Keep only incrementUsage().
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 3 — Add session/end endpoint
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 3 â€” Add session/end endpoint
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/src/session/session.service.ts,
 add this new method to the SessionService class:
 
@@ -120,11 +120,11 @@ add this new method to the SessionService class:
         const data = await response.json();
         summary = data.choices?.[0]?.message?.content || summary;
       } catch {
-        // Summary generation failed — use default, don't block session end
+        // Summary generation failed â€” use default, don't block session end
       }
     }
 
-    // Single write — summary only, no message history
+    // Single write â€” summary only, no message history
     await sql`
       UPDATE interview_sessions
       SET
@@ -137,9 +137,9 @@ add this new method to the SessionService class:
     `;
   }
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 4 — Add POST /session/end endpoint
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 4 â€” Add POST /session/end endpoint
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/backend/src/session/session.controller.ts,
 add this endpoint:
 
@@ -198,13 +198,14 @@ async function endInterview() {
 ```bash
 # 1. Start interview session
 # 2. Ask 5 questions
-# 3. Check Neon DB mid-session → interview_sessions.summary should be NULL
+# 3. Check Neon DB mid-session â†’ interview_sessions.summary should be NULL
 # 4. End session
-# 5. Check Neon DB → summary should be populated, ended_at set
-# 6. Confirm NO messages column exists — all in Zustand only
+# 5. Check Neon DB â†’ summary should be populated, ended_at set
+# 6. Confirm NO messages column exists â€” all in Zustand only
 ```
 
 ## Rollback
 Re-add messages column to CREATE TABLE.
 Restore message append in ai.service.ts streamAnswer().
 Remove endSession() method and endpoint.
+

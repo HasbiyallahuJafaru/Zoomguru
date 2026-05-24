@@ -11,7 +11,7 @@ const faqs = [
   { category: 'Plans & Billing', question: 'What do I get on the free plan?', answer: '3 complete interview sessions with up to 10 AI responses each. Full AI engine, voice listening, answer streaming, and CV personalisation. Screenshot mode and wake word are Pro-only.' },
   { category: 'Plans & Billing', question: 'Monthly vs Lifetime?', answer: 'Monthly (₦15,000) gives full Pro access for 30 days — no auto-renewal. Lifetime (₦100,000) is a one-time payment that never expires. Both are device-locked to one machine.' },
   { category: 'Plans & Billing', question: 'How do I pay?', answer: 'Payments via Paystack: card, bank transfer, or USSD. All prices in NGN. Your card details are never stored by ZoomGuru.' },
-  { category: 'Plans & Billing', question: 'Can I get a refund?', answer: 'No — all sales are final due to instant digital license delivery. Use the free tier to test before purchasing. Billing errors? Email support@zoomguru.com within 7 days with your payment reference.' },
+  { category: 'Plans & Billing', question: 'Can I get a refund?', answer: 'No — all sales are final due to instant digital license delivery. Use the free tier to test before purchasing. Billing errors? Email support@zoomguru.xyz within 7 days with your payment reference.' },
   { category: 'Device & Licensing', question: 'Can I use it on multiple devices?', answer: 'Each license is locked to one machine via SHA-256 hardware fingerprint. One license = one machine. Need to transfer? Email support — we allow one transfer every 90 days.' },
   { category: 'Privacy & Security', question: 'Is my CV data safe?', answer: 'CV text is transmitted over HTTPS and stored encrypted, used only to personalise your responses. We never sell or share your CV. You can delete all data from Settings at any time. Audio is never sent to our servers.' },
   { category: 'Privacy & Security', question: 'Does ZoomGuru record my audio?', answer: 'No. Speech-to-text runs entirely on your device using a local Whisper model. Only the final text transcript is sent to our backend for AI processing.' },
@@ -34,7 +34,7 @@ export default function FAQ() {
           <p style={{ fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>FAQ</p>
           <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 900, color: '#111', letterSpacing: '-1.5px', lineHeight: 1.05 }}>
             Common questions.<br />
-            <a href="mailto:support@zoomguru.com" style={{ fontStyle: 'italic', fontWeight: 300, color: '#888', textDecoration: 'none', borderBottom: '1px solid #ccc' }}>Anything else, email us.</a>
+            <a href="mailto:support@zoomguru.xyz" style={{ fontStyle: 'italic', fontWeight: 300, color: '#888', textDecoration: 'none', borderBottom: '1px solid #ccc' }}>Anything else, email us.</a>
           </h2>
         </div>
 

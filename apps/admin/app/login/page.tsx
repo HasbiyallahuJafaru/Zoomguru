@@ -133,7 +133,7 @@ function LoginForm() {
               onChange={e => setEmail(e.target.value)}
               required
               autoComplete="email"
-              placeholder="admin@zoomguru.com"
+              placeholder="admin@zoomguru.xyz"
               style={inputStyle}
               onFocus={e => (e.target.style.borderColor = '#4f6ef7')}
               onBlur={e => (e.target.style.borderColor = '#e2e8f0')}

@@ -28,18 +28,19 @@ export default function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const isGoogle = !!(user as any)?.image && !(user as any)?.accessToken?.startsWith?.('ey');
+  // Google users have an image set and no credentials-based password
+  const isGoogle = !!(user as any)?.image && !(user as any)?.role;
 
   useEffect(() => {
     if (user) setProfile({ name: user.name || '', username: user.username || '' });
   }, [user]);
 
   useEffect(() => {
-    if (!user?.accessToken) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/device`, {
-      headers: { Authorization: `Bearer ${user.accessToken}` },
-    }).then(r => r.ok ? r.json() : null).then(d => d && setDevice(d));
-  }, [user?.accessToken]);
+    if (!session) return;
+    fetch('/api/proxy/auth/user/device')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setDevice(d));
+  }, [session]);
 
   const checkUsername = useCallback(async (username: string) => {
     if (username === user?.username || username.length < 3) { setUsernameStatus('idle'); return; }
@@ -51,13 +52,13 @@ export default function SettingsPage() {
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
-    if (!user?.accessToken) return;
+    if (!session) return;
     if (usernameStatus === 'taken') { setProfileMsg('Username is already taken.'); return; }
     setProfileLoading(true);
     setProfileMsg('');
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/profile`, {
+    const res = await fetch('/api/proxy/auth/user/profile', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: profile.name, username: profile.username }),
     });
     const data = await res.json();
@@ -74,12 +75,12 @@ export default function SettingsPage() {
     e.preventDefault();
     if (passwords.next !== passwords.confirm) { setPwMsg('Passwords do not match.'); return; }
     if (passwords.next.length < 8) { setPwMsg('Password must be at least 8 characters.'); return; }
-    if (!user?.accessToken) return;
+    if (!session) return;
     setPwLoading(true);
     setPwMsg('');
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/password`, {
+    const res = await fetch('/api/proxy/auth/user/password', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ currentPassword: passwords.current, newPassword: passwords.next }),
     });
     const data = await res.json();
@@ -93,12 +94,9 @@ export default function SettingsPage() {
   }
 
   async function deleteAccount() {
-    if (!user?.accessToken || deleteConfirm !== 'DELETE') return;
+    if (!session || deleteConfirm !== 'DELETE') return;
     setDeleteLoading(true);
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/account`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${user.accessToken}` },
-    });
+    const res = await fetch('/api/proxy/auth/user/account', { method: 'DELETE' });
     if (res.ok) await signOut({ callbackUrl: '/' });
     else { setDeleteLoading(false); setShowDeleteModal(false); }
   }
@@ -214,7 +212,7 @@ export default function SettingsPage() {
             )}
             <div style={{ marginTop: '4px', padding: '12px 14px', borderRadius: '8px', background: 'rgba(0,0,0,0.003)', border: '1px solid rgba(0,0,0,0.06)', fontSize: '13px', color: 'rgba(0,0,0,0.35)' }}>
               To transfer your license to a new device, contact{' '}
-              <a href="mailto:support@zoomguru.com" style={{ color: '#4f6ef7', textDecoration: 'none' }}>support@zoomguru.com</a>
+              <a href="mailto:support@zoomguru.xyz" style={{ color: '#4f6ef7', textDecoration: 'none' }}>support@zoomguru.xyz</a>
             </div>
           </div>
         ) : (

@@ -1,11 +1,11 @@
-# AUTH-14 — Admin App Scaffold
+﻿# AUTH-14 â€” Admin App Scaffold
 
 ## What This Does
 Creates the standalone Next.js admin dashboard app.
-Pure light theme. Deployed to admin.zoomguru.com.
+Pure light theme. Deployed to admin.zoomguru.xyz.
 
 ## Risk Level
-🟢 LOW — Brand new app. Nothing existing is touched.
+ðŸŸ¢ LOW â€” Brand new app. Nothing existing is touched.
 
 ---
 
@@ -25,9 +25,9 @@ npx create-next-app@latest admin --typescript --tailwind \
 cd admin
 npm install next-auth@beta recharts @heroicons/react
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/admin/lib/theme.css (global CSS variables)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 :root {
   --bg: #ffffff;
@@ -51,9 +51,9 @@ Create apps/admin/lib/theme.css (global CSS variables)
   --mono: 'JetBrains Mono', monospace;
 }
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/admin/app/layout.tsx
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Root layout with:
   - Inter font from Google Fonts
@@ -62,59 +62,59 @@ Root layout with:
   - HTML lang="en"
   - Metadata: title "ZoomGuru Admin"
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/admin/auth.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 NextAuth configured with ONLY credentials provider.
-No Google OAuth on admin — credentials only.
+No Google OAuth on admin â€” credentials only.
 
 Credentials authorize:
   1. Accepts email + password
   2. Calls POST ${API_URL}/auth/login
   3. Checks returned user.role === 'admin'
-  4. If not admin → return null (access denied)
+  4. If not admin â†’ return null (access denied)
   5. Returns user with role, accessToken
 
 Pages: signIn: '/login'
 Session strategy: 'jwt'
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/admin/middleware.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Protect all routes except /login.
 Redirect unauthenticated users to /login.
 Redirect authenticated non-admins to /login with error.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/admin/.env.local
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 NEXTAUTH_SECRET=different_secret_from_landing_app
-NEXTAUTH_URL=https://admin.zoomguru.com
-NEXT_PUBLIC_API_URL=https://api.zoomguru.com
+NEXTAUTH_URL=https://admin.zoomguru.xyz
+NEXT_PUBLIC_API_URL=https://api.zoomguru.xyz
 ADMIN_SECRET_KEY=same_as_backend
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Create apps/admin/components/AdminLayout.tsx
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Light theme admin shell:
 
 Left sidebar (240px wide, white, border-right):
-  ├── ZoomGuru logo + "Admin" badge at top
-  ├── Admin user avatar + name + email
-  ├── Navigation:
-  │   📊 Overview
-  │   👥 Users
-  │   💰 Revenue
-  │   🎯 Sessions
-  │   🔗 Referrals
-  │   💸 Payouts
-  │   ⚠️  Errors
-  │   ⚙️  Settings
-  └── Sign Out
+  â”œâ”€â”€ ZoomGuru logo + "Admin" badge at top
+  â”œâ”€â”€ Admin user avatar + name + email
+  â”œâ”€â”€ Navigation:
+  â”‚   ðŸ“Š Overview
+  â”‚   ðŸ‘¥ Users
+  â”‚   ðŸ’° Revenue
+  â”‚   ðŸŽ¯ Sessions
+  â”‚   ðŸ”— Referrals
+  â”‚   ðŸ’¸ Payouts
+  â”‚   âš ï¸  Errors
+  â”‚   âš™ï¸  Settings
+  â””â”€â”€ Sign Out
 
 Top bar:
   Page title (dynamic)
@@ -131,7 +131,7 @@ Show me all created files.
 
 ---
 
-# AUTH-15 — Admin Login Page
+# AUTH-15 â€” Admin Login Page
 
 ## Prompt
 
@@ -156,8 +156,8 @@ Layout:
     
   Footer text: "Authorized personnel only"
 
-No Google OAuth button — credentials only.
-No register link — admins are created manually.
+No Google OAuth button â€” credentials only.
+No register link â€” admins are created manually.
 
 Loading state on button during sign in attempt.
 Auto-focus email field on mount.
@@ -168,7 +168,7 @@ Show me the created file.
 
 ---
 
-# AUTH-16 — Admin Overview Dashboard
+# AUTH-16 â€” Admin Overview Dashboard
 
 ## Prompt
 
@@ -181,17 +181,17 @@ Use AdminLayout wrapper. Pure light theme.
 
 Layout:
 
-ROW 1 — KPI Cards (5 cards, horizontal):
+ROW 1 â€” KPI Cards (5 cards, horizontal):
   Each card: white background, border, rounded, padding 24px
 
   Card 1: Total Revenue (this month)
-    Value: ₦X,XXX,XXX
-    Sub: ↑ X% from last month
+    Value: â‚¦X,XXX,XXX
+    Sub: â†‘ X% from last month
     Color accent: green
 
   Card 2: Active Subscribers
     Value: XXX
-    Sub: X monthly · X lifetime
+    Sub: X monthly Â· X lifetime
     Color accent: blue
 
   Card 3: New Users (last 7 days)
@@ -205,16 +205,16 @@ ROW 1 — KPI Cards (5 cards, horizontal):
     Color accent: amber if >5%, red if >10%
 
   Card 5: Pending Payouts
-    Value: ₦XX,XXX
+    Value: â‚¦XX,XXX
     Sub: X requests pending
     Color accent: purple
 
-ROW 2 — Two charts side by side:
+ROW 2 â€” Two charts side by side:
 
   Left chart (60% width): Revenue over last 30 days
     Line chart using Recharts
     X axis: dates
-    Y axis: ₦ amount
+    Y axis: â‚¦ amount
     Shows daily revenue as area chart
     Color: accent blue fill
 
@@ -223,7 +223,7 @@ ROW 2 — Two charts side by side:
     Segments: NGN Monthly / NGN Lifetime / USD Monthly / USD Lifetime
     Legend below
 
-ROW 3 — Two panels side by side:
+ROW 3 â€” Two panels side by side:
 
   Left: Recent Signups (last 10 users)
     Table: Username | Email | Plan | Joined | Country
@@ -234,14 +234,14 @@ ROW 3 — Two panels side by side:
     Color code by severity
     "View all errors" link
 
-ROW 4 — System Health row:
-  Backend status: ● Online (green dot, last checked Xs ago)
+ROW 4 â€” System Health row:
+  Backend status: â— Online (green dot, last checked Xs ago)
   DB connections: X/100 active
   Active SSE streams: X concurrent
   API uptime: XX% (last 30 days)
 
 Data from:
-  GET ${API_URL}/admin/stats (existing endpoint — expand it)
+  GET ${API_URL}/admin/stats (existing endpoint â€” expand it)
   GET ${API_URL}/admin/analytics/revenue?period=30 (new)
   All requests include: Authorization: Bearer {adminAccessToken}
 
@@ -254,7 +254,7 @@ Show me all files created.
 
 ---
 
-# AUTH-17 — Admin Users Page + User Detail
+# AUTH-17 â€” Admin Users Page + User Detail
 
 ## Prompt
 
@@ -265,9 +265,9 @@ Create two files:
 
 Both use AdminLayout. Pure light theme.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 USERS LIST PAGE (users/page.tsx)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Top bar:
   Page title: "Users"
@@ -292,17 +292,17 @@ Users table:
     Actions: [View] button
 
   Pagination: 50 per page
-  Click row → navigate to /users/[id]
+  Click row â†’ navigate to /users/[id]
   Sticky header
 
 Data from:
   GET ${API_URL}/admin/users?page=1&limit=50&search=&plan=&role=
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 USER DETAIL PAGE (users/[id]/page.tsx)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
-Back button → /users
+Back button â†’ /users
 
 Header card:
   Large avatar (80px)
@@ -312,7 +312,7 @@ Header card:
 
 Four info sections:
 
-Section 1 — Subscription:
+Section 1 â€” Subscription:
   Plan, currency, amount paid
   Activated date, expires date (or "Lifetime")
   Paystack reference (copyable)
@@ -320,26 +320,26 @@ Section 1 — Subscription:
   [Revoke License] button (red, confirmation required)
   [Reactivate License] button (green, if revoked)
 
-Section 2 — Usage Stats:
+Section 2 â€” Usage Stats:
   Total sessions | Total responses
   Last session date
   Favorite interview type (from sessions data)
   Sessions list (last 5, compact)
 
-Section 3 — Payment History:
+Section 3 â€” Payment History:
   All payments for this user
   Date | Amount | Plan | Reference | Status
 
-Section 4 — Referrals:
+Section 4 â€” Referrals:
   Their referral code + link
   People they referred (count)
   Total commission earned
   Pending balance
   [Mark as Paid] button for pending balance
 
-Section 5 — Admin Actions:
+Section 5 â€” Admin Actions:
   [Grant Admin Role] / [Remove Admin Role] button
-    → Requires x-admin-key header confirmation modal
+    â†’ Requires x-admin-key header confirmation modal
   [Delete Account] button (red, triple confirmation)
   [Send Password Reset] button (placeholder)
 
@@ -348,3 +348,4 @@ Data from:
 
 Show me both page files.
 ```
+

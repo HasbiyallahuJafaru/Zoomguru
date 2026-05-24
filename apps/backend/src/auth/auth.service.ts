@@ -211,12 +211,14 @@ export class AuthService {
         ? sql`ORDER BY total_questions DESC`
         : sql`ORDER BY started_at DESC`;
 
+    const typeFilter = opts.type === 'all' ? sql`` : sql`AND interview_type = ${opts.type}`;
+
     const sessions = await sql`
       SELECT id, interview_type, duration_seconds,
              total_questions, summary, started_at, ended_at
       FROM interview_sessions
       WHERE user_id = ${userId}
-      AND (${opts.type} = 'all' OR interview_type = ${opts.type})
+      ${typeFilter}
       ${orderBy}
       LIMIT ${opts.limit} OFFSET ${offset}
     `;
@@ -228,7 +230,7 @@ export class AuthService {
         AVG(total_questions) AS avg_questions
       FROM interview_sessions
       WHERE user_id = ${userId}
-      AND (${opts.type} = 'all' OR interview_type = ${opts.type})
+      ${typeFilter}
     `;
 
     const total = parseInt(counts.total);
@@ -299,7 +301,7 @@ export class AuthService {
 
   async deleteAccount(userId: string) {
     const sql = getDB();
-    const anon = `deleted_${userId.slice(0, 8)}@deleted.zoomguru.com`;
+    const anon = `deleted_${userId.slice(0, 8)}@deleted.zoomguru.xyz`;
     await sql`
       UPDATE users
       SET email = ${anon}, name = 'Deleted User', username = NULL,
@@ -548,9 +550,19 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  async handleGoogleWebAuth(params: { googleId: string; email: string; name: string; avatar?: string }) {
+  async handleGoogleWebAuth(params: { idToken: string }) {
     const sql = getDB();
-    const { googleId, email, name, avatar } = params;
+
+    const verifyRes = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(params.idToken)}`
+    );
+    if (!verifyRes.ok) throw new UnauthorizedException('Invalid Google token');
+    const claims = await verifyRes.json();
+    if (claims.aud !== process.env.GOOGLE_CLIENT_ID) {
+      throw new UnauthorizedException('Token audience mismatch');
+    }
+    const { sub: googleId, email, name, picture: avatar } = claims;
+    if (!googleId || !email) throw new UnauthorizedException('Google token missing required claims');
 
     let [user] = await sql`
       SELECT id, email, name, username, is_pro, role, avatar_url

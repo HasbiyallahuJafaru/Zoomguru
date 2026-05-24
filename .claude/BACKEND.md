@@ -1,9 +1,9 @@
-# ZoomGuru — Backend
+﻿# ZoomGuru â€” Backend
 
 ## Stack
 - **NestJS** with **Fastify adapter** (not Express)
-- **@neondatabase/serverless** — direct SQL, no ORM, no Prisma
-- **Render** — hosting (free tier to start, upgrade as needed)
+- **@neondatabase/serverless** â€” direct SQL, no ORM, no Prisma
+- **Render** â€” hosting (free tier to start, upgrade as needed)
 - **Node.js 20+**
 
 ---
@@ -59,7 +59,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      'https://zoomguru.com',
+      'https://zoomguru.xyz',
       'app://.',           // Electron production
       'http://localhost:5173' // Electron dev
     ],
@@ -82,37 +82,37 @@ bootstrap();
 
 ```
 src/
-├── main.ts
-├── app.module.ts
-├── database/
-│   ├── db.ts              ← neon client singleton
-│   └── init.ts            ← CREATE TABLE IF NOT EXISTS
-├── auth/
-│   ├── auth.module.ts
-│   ├── auth.controller.ts
-│   ├── auth.service.ts
-│   └── jwt.strategy.ts
-├── license/
-│   ├── license.module.ts
-│   ├── license.controller.ts
-│   └── license.service.ts
-├── ai/
-│   ├── ai.module.ts
-│   ├── ai.controller.ts
-│   ├── ai.service.ts
-│   └── question-router.ts
-├── cv/
-│   ├── cv.module.ts
-│   ├── cv.controller.ts
-│   └── cv.service.ts
-├── session/
-│   ├── session.module.ts
-│   ├── session.controller.ts
-│   └── session.service.ts
-└── paystack/
-    ├── paystack.module.ts
-    ├── paystack.controller.ts
-    └── paystack.service.ts
+â”œâ”€â”€ main.ts
+â”œâ”€â”€ app.module.ts
+â”œâ”€â”€ database/
+â”‚   â”œâ”€â”€ db.ts              â† neon client singleton
+â”‚   â””â”€â”€ init.ts            â† CREATE TABLE IF NOT EXISTS
+â”œâ”€â”€ auth/
+â”‚   â”œâ”€â”€ auth.module.ts
+â”‚   â”œâ”€â”€ auth.controller.ts
+â”‚   â”œâ”€â”€ auth.service.ts
+â”‚   â””â”€â”€ jwt.strategy.ts
+â”œâ”€â”€ license/
+â”‚   â”œâ”€â”€ license.module.ts
+â”‚   â”œâ”€â”€ license.controller.ts
+â”‚   â””â”€â”€ license.service.ts
+â”œâ”€â”€ ai/
+â”‚   â”œâ”€â”€ ai.module.ts
+â”‚   â”œâ”€â”€ ai.controller.ts
+â”‚   â”œâ”€â”€ ai.service.ts
+â”‚   â””â”€â”€ question-router.ts
+â”œâ”€â”€ cv/
+â”‚   â”œâ”€â”€ cv.module.ts
+â”‚   â”œâ”€â”€ cv.controller.ts
+â”‚   â””â”€â”€ cv.service.ts
+â”œâ”€â”€ session/
+â”‚   â”œâ”€â”€ session.module.ts
+â”‚   â”œâ”€â”€ session.controller.ts
+â”‚   â””â”€â”€ session.service.ts
+â””â”€â”€ paystack/
+    â”œâ”€â”€ paystack.module.ts
+    â”œâ”€â”€ paystack.controller.ts
+    â””â”€â”€ paystack.service.ts
 ```
 
 ---
@@ -138,45 +138,45 @@ export function getDB() {
 
 ### Auth
 ```
-POST /auth/register         → create account
-POST /auth/login            → returns access_token + refresh_token
-POST /auth/refresh          → rotate refresh token
-POST /auth/logout           → invalidate refresh token
+POST /auth/register         â†’ create account
+POST /auth/login            â†’ returns access_token + refresh_token
+POST /auth/refresh          â†’ rotate refresh token
+POST /auth/logout           â†’ invalidate refresh token
 ```
 
 ### License
 ```
-GET  /license/verify        → check device fingerprint + pro status
-POST /license/bind          → bind license to device on first login
+GET  /license/verify        â†’ check device fingerprint + pro status
+POST /license/bind          â†’ bind license to device on first login
 ```
 
 ### AI
 ```
-POST /ai/stream             → SSE stream — text question answer
-POST /ai/screenshot         → SSE stream — screenshot + optional voice
-POST /ai/session/start      → create new interview session
-POST /ai/session/end        → close session, save transcript
+POST /ai/stream             â†’ SSE stream â€” text question answer
+POST /ai/screenshot         â†’ SSE stream â€” screenshot + optional voice
+POST /ai/session/start      â†’ create new interview session
+POST /ai/session/end        â†’ close session, save transcript
 ```
 
 ### CV
 ```
-POST /cv/upload             → upload + parse CV (PDF or DOCX)
-GET  /cv/profile            → get parsed CV profile for user
-DELETE /cv/profile          → remove CV
+POST /cv/upload             â†’ upload + parse CV (PDF or DOCX)
+GET  /cv/profile            â†’ get parsed CV profile for user
+DELETE /cv/profile          â†’ remove CV
 ```
 
 ### Paystack
 ```
-POST /paystack/webhook      → Paystack event handler (public, HMAC verified)
-POST /paystack/initialize   → create payment link for in-app payment
-GET  /paystack/plans        → return pricing plans with Paystack plan codes
+POST /paystack/webhook      â†’ Paystack event handler (public, HMAC verified)
+POST /paystack/initialize   â†’ create payment link for in-app payment
+GET  /paystack/plans        â†’ return pricing plans with Paystack plan codes
 ```
 
 ### Session
 ```
-GET  /session/history       → list past interview sessions
-GET  /session/:id           → get session transcript
-DELETE /session/:id         → delete a session
+GET  /session/history       â†’ list past interview sessions
+GET  /session/:id           â†’ get session transcript
+DELETE /session/:id         â†’ delete a session
 ```
 
 ---
@@ -233,10 +233,10 @@ export class DeviceGuard implements CanActivate {
       LIMIT 1
     `;
 
-    // New user — no license yet (free tier)
+    // New user â€” no license yet (free tier)
     if (!license) return true;
 
-    // Pro user — fingerprint must match
+    // Pro user â€” fingerprint must match
     if (license.device_fingerprint !== deviceId) {
       throw new ForbiddenException('License bound to different device');
     }
@@ -308,10 +308,10 @@ export class AiController {
 
 ---
 
-## Rate Limiting (Free Tier — Postgres Only)
+## Rate Limiting (Free Tier â€” Postgres Only)
 
 ```typescript
-// ai.service.ts — before every AI call
+// ai.service.ts â€” before every AI call
 async checkUsageLimit(userId: string): Promise<void> {
   const sql = getDB();
 
@@ -322,7 +322,7 @@ async checkUsageLimit(userId: string): Promise<void> {
     WHERE u.id = ${userId}
   `;
 
-  // Pro users — skip all checks
+  // Pro users â€” skip all checks
   if (user.is_pro) return;
 
   // Free tier limits
@@ -384,3 +384,4 @@ services:
       - key: PAYSTACK_WEBHOOK_SECRET
         sync: false
 ```
+

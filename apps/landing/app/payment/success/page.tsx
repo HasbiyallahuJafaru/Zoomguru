@@ -17,19 +17,19 @@ function PaymentSuccessContent() {
   const [activationError, setActivationError] = useState('');
 
   useEffect(() => {
-    if (!ref || activationDone) return;
-    const token = (session?.user as any)?.accessToken;
-    if (!token) return;
+    if (!ref || activationDone || !session) return;
+    // Use a ref to prevent double-fire if session object identity changes
     setActivating(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/paystack/verify-transaction`, {
+    fetch('/api/proxy/paystack/verify-transaction', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reference: ref }),
     })
       .then(r => r.json())
       .then(() => { setActivationDone(true); setActivating(false); })
       .catch(() => { setActivationError('Could not verify payment automatically. Please contact support.'); setActivating(false); });
-  }, [ref, session]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ref]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -150,10 +150,10 @@ function PaymentSuccessContent() {
         <p className="mt-6 text-zinc-500 text-sm">
           Questions?{' '}
           <a
-            href="mailto:support@zoomguru.com"
+            href="mailto:support@zoomguru.xyz"
             className="text-blue-400 hover:underline"
           >
-            support@zoomguru.com
+            support@zoomguru.xyz
           </a>
         </p>
       </div>

@@ -1,12 +1,12 @@
-# AUTH-03 — Google Cloud Project Setup (Guided)
+﻿# AUTH-03 â€” Google Cloud Project Setup (Guided)
 
 ## What This Does
 Creates a Google Cloud project and OAuth 2.0 credentials
 needed for "Continue with Google" on the web and Electron app.
-This is a manual setup — no code changes in this patch.
+This is a manual setup â€” no code changes in this patch.
 
 ## Risk Level
-🟢 LOW — External service setup only. No code changes.
+ðŸŸ¢ LOW â€” External service setup only. No code changes.
 
 ---
 
@@ -15,21 +15,21 @@ This is a manual setup — no code changes in this patch.
 ```
 I need to set up Google OAuth for ZoomGuru. Guide me through
 creating a Google Cloud project and OAuth credentials step by step.
-Do not write any code yet — just give me the exact steps to follow
+Do not write any code yet â€” just give me the exact steps to follow
 in the Google Cloud Console so I can get my:
   - GOOGLE_CLIENT_ID
   - GOOGLE_CLIENT_SECRET
 
 I need OAuth to work for:
-1. Web login at zoomguru.com (Next.js with NextAuth)
-2. Electron app deep link callback via api.zoomguru.com
+1. Web login at zoomguru.xyz (Next.js with NextAuth)
+2. Electron app deep link callback via api.zoomguru.xyz
 ```
 
 ---
 
 ## The Steps (Follow These Exactly)
 
-### Part 1 — Create Google Cloud Project
+### Part 1 â€” Create Google Cloud Project
 
 ```
 1. Go to: console.cloud.google.com
@@ -41,28 +41,28 @@ I need OAuth to work for:
 7. Wait ~30 seconds, then select the ZoomGuru project
 ```
 
-### Part 2 — Enable Google OAuth API
+### Part 2 â€” Enable Google OAuth API
 
 ```
-1. In the left sidebar, go to: APIs & Services → Library
+1. In the left sidebar, go to: APIs & Services â†’ Library
 2. Search for: "Google Identity"
-3. Click "Google Identity Toolkit API" → Enable
-4. Also search "Google+ API" → Enable (needed for profile info)
-   OR search "People API" → Enable
+3. Click "Google Identity Toolkit API" â†’ Enable
+4. Also search "Google+ API" â†’ Enable (needed for profile info)
+   OR search "People API" â†’ Enable
 ```
 
-### Part 3 — Configure OAuth Consent Screen
+### Part 3 â€” Configure OAuth Consent Screen
 
 ```
-1. Go to: APIs & Services → OAuth consent screen
+1. Go to: APIs & Services â†’ OAuth consent screen
 2. Select: External (so any Google account can sign in)
 3. Click Create
 4. Fill in:
    App name:         ZoomGuru
    User support email: your@email.com
    App logo:         upload your logo (optional)
-   App domain:       zoomguru.com
-   Authorized domain: zoomguru.com
+   App domain:       zoomguru.xyz
+   Authorized domain: zoomguru.xyz
    Developer email:  your@email.com
 5. Click Save and Continue
 6. On Scopes screen:
@@ -75,34 +75,34 @@ I need OAuth to work for:
 7. On Test users screen:
    Add your own Gmail as a test user
    (Required while app is in Testing mode)
-8. Click Save and Continue → Back to Dashboard
+8. Click Save and Continue â†’ Back to Dashboard
 ```
 
-### Part 4 — Create OAuth Credentials
+### Part 4 â€” Create OAuth Credentials
 
 ```
-1. Go to: APIs & Services → Credentials
-2. Click "+ Create Credentials" → OAuth Client ID
+1. Go to: APIs & Services â†’ Credentials
+2. Click "+ Create Credentials" â†’ OAuth Client ID
 3. Application type: Web application
 4. Name: ZoomGuru Web
-5. Authorized JavaScript origins — add ALL of these:
+5. Authorized JavaScript origins â€” add ALL of these:
    http://localhost:3000
    http://localhost:3001
-   https://zoomguru.com
-   https://admin.zoomguru.com
-6. Authorized redirect URIs — add ALL of these:
+   https://zoomguru.xyz
+   https://admin.zoomguru.xyz
+6. Authorized redirect URIs â€” add ALL of these:
    http://localhost:3000/api/auth/callback/google
    http://localhost:3001/api/auth/callback/google
-   https://zoomguru.com/api/auth/callback/google
-   https://admin.zoomguru.com/api/auth/callback/google
-   https://api.zoomguru.com/auth/google/electron/callback
+   https://zoomguru.xyz/api/auth/callback/google
+   https://admin.zoomguru.xyz/api/auth/callback/google
+   https://api.zoomguru.xyz/auth/google/electron/callback
 7. Click Create
 8. COPY and SAVE:
-   Client ID     → this is your GOOGLE_CLIENT_ID
-   Client secret → this is your GOOGLE_CLIENT_SECRET
+   Client ID     â†’ this is your GOOGLE_CLIENT_ID
+   Client secret â†’ this is your GOOGLE_CLIENT_SECRET
 ```
 
-### Part 5 — Add to Environment Files
+### Part 5 â€” Add to Environment Files
 
 ```
 Add to apps/landing/.env.local:
@@ -116,18 +116,18 @@ Add to apps/admin/.env.local:
 Add to apps/backend/.env:
   GOOGLE_CLIENT_ID=your_client_id_here
   GOOGLE_CLIENT_SECRET=your_client_secret_here
-  BACKEND_URL=https://api.zoomguru.com
+  BACKEND_URL=https://api.zoomguru.xyz
   ELECTRON_OAUTH_SECRET=run this: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 Add to Render environment variables (same as above)
 ```
 
-### Part 6 — Publish the App (Remove Test Restriction)
+### Part 6 â€” Publish the App (Remove Test Restriction)
 
 ```
 Do this BEFORE going live to paying users.
 
-1. Go to: APIs & Services → OAuth consent screen
+1. Go to: APIs & Services â†’ OAuth consent screen
 2. Click "Publish App"
 3. Confirm the warning
 4. App is now in Production mode
@@ -151,7 +151,7 @@ After completing setup, test with:
    After approval, should redirect back logged in
 
 2. Check Google Cloud Console:
-   APIs & Services → OAuth consent screen
+   APIs & Services â†’ OAuth consent screen
    Should show active users after first login
 ```
 
@@ -172,3 +172,4 @@ Error: "Error 400: admin_policy_enforced"
 Fix: Your Google Workspace org blocks OAuth apps.
 Use a personal Gmail account for testing.
 ```
+

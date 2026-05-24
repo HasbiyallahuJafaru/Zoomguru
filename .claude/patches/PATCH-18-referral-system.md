@@ -1,4 +1,4 @@
-# PATCH-18 — Referral System (DB + Backend + Electron UI + Landing)
+﻿# PATCH-18 â€” Referral System (DB + Backend + Electron UI + Landing)
 
 ## Problem
 No referral system. Users who spread the word get nothing.
@@ -6,7 +6,7 @@ Missing a viral growth mechanism.
 
 ## Rule
 25% commission on every paid referral.
-Minimum payout: ₦5,000 / $5.
+Minimum payout: â‚¦5,000 / $5.
 Manual payout via bank transfer (automated later).
 
 ## Files Affected
@@ -19,11 +19,11 @@ Manual payout via bank transfer (automated later).
 - `apps/landing/app/page.tsx` (referral capture)
 
 ## Risk Level
-🟡 MEDIUM — New module, small changes to existing files.
+ðŸŸ¡ MEDIUM â€” New module, small changes to existing files.
 
 ---
 
-## Claude Code Prompt — PART A: Database
+## Claude Code Prompt â€” PART A: Database
 
 ```
 Read .claude/DATABASE.md first.
@@ -84,7 +84,7 @@ Show me exactly what you added.
 
 ---
 
-## Claude Code Prompt — PART B: Auth (Generate Referral Code on Register)
+## Claude Code Prompt â€” PART B: Auth (Generate Referral Code on Register)
 
 ```
 Read .claude/AUTH.md first.
@@ -144,7 +144,7 @@ Show me the full diff of auth.service.ts changes.
 
 ---
 
-## Claude Code Prompt — PART C: Paystack Commission Trigger
+## Claude Code Prompt â€” PART C: Paystack Commission Trigger
 
 ```
 Read .claude/PAYMENTS.md first.
@@ -203,7 +203,7 @@ Show me only what changed.
 
 ---
 
-## Claude Code Prompt — PART D: Referral Endpoints
+## Claude Code Prompt â€” PART D: Referral Endpoints
 
 ```
 Create a new NestJS module at apps/backend/src/referral/.
@@ -242,7 +242,7 @@ export class ReferralService {
 
     return {
       referralCode: user.referral_code,
-      referralLink: 'https://zoomguru.com?ref=' + user.referral_code,
+      referralLink: 'https://zoomguru.xyz?ref=' + user.referral_code,
       balance: balance || { totalEarned: 0, totalPaid: 0, pendingBalance: 0 },
       referrals,
       totalReferred: referrals.length,
@@ -268,7 +268,7 @@ export class ReferralService {
 
     if (!balance || balance.pending_balance < minPayout) {
       throw new BadRequestException(
-        `Minimum payout is ${data.currency === 'NGN' ? '₦5,000' : '$5'}. ` +
+        `Minimum payout is ${data.currency === 'NGN' ? 'â‚¦5,000' : '$5'}. ` +
         `Your balance is ${balance?.pending_balance || 0}.`
       );
     }
@@ -340,7 +340,7 @@ Show me all created files and the app.module.ts change.
 
 ---
 
-## Claude Code Prompt — PART E: Landing Page Referral Capture
+## Claude Code Prompt â€” PART E: Landing Page Referral Capture
 
 ```
 Read .claude/LANDING.md first.
@@ -383,12 +383,13 @@ Do not change any other landing page logic.
 ## Verification
 
 ```bash
-# 1. Register user A → gets referral code e.g. "ABC123XY"
-# 2. Share link: zoomguru.com?ref=ABC123XY
-# 3. User B visits link → localStorage stores ref code
-# 4. User B registers → referrals table gets a record
-# 5. User B pays → commission 25% credited to user A
-# 6. GET /referral/me as user A → shows earned commission
-# 7. POST /referral/payout → payout request created
-# 8. Check admin stats → referrals section shows data
+# 1. Register user A â†’ gets referral code e.g. "ABC123XY"
+# 2. Share link: zoomguru.xyz?ref=ABC123XY
+# 3. User B visits link â†’ localStorage stores ref code
+# 4. User B registers â†’ referrals table gets a record
+# 5. User B pays â†’ commission 25% credited to user A
+# 6. GET /referral/me as user A â†’ shows earned commission
+# 7. POST /referral/payout â†’ payout request created
+# 8. Check admin stats â†’ referrals section shows data
 ```
+

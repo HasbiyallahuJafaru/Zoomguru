@@ -40,6 +40,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-fastify": "^11.1.21",
     "@nestjs/schematics": "^11.1.0",
+    "@nestjs/throttler": "^6.5.0",
     "@sentry/node": "^10.53.1",
     "bcryptjs": "^2.4.3",
     "mammoth": "^1.7.2",

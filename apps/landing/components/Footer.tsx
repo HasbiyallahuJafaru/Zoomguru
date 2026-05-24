@@ -16,8 +16,8 @@ export default function Footer() {
             <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, maxWidth: 260 }}>
               Your invisible edge in every interview. AI that listens, reads your screen, and answers in real time.
             </p>
-            <a href="mailto:support@zoomguru.com" style={{ display: 'inline-block', marginTop: 16, fontSize: 13, color: '#888', textDecoration: 'none' }}>
-              support@zoomguru.com
+            <a href="mailto:support@zoomguru.xyz" style={{ display: 'inline-block', marginTop: 16, fontSize: 13, color: '#888', textDecoration: 'none' }}>
+              support@zoomguru.xyz
             </a>
           </div>
 

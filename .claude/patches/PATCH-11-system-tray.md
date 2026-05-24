@@ -1,7 +1,7 @@
-# PATCH-11 — System Tray Icon
+﻿# PATCH-11 â€” System Tray Icon
 
 ## Problem
-User closes overlay — app disappears completely.
+User closes overlay â€” app disappears completely.
 No way to reopen without relaunching from Applications folder.
 Paid users lose access mid-session if they accidentally close.
 
@@ -10,7 +10,7 @@ Paid users lose access mid-session if they accidentally close.
 - `apps/electron/assets/tray-icon.png` (you must provide 16x16 or 22x22 PNG)
 
 ## Risk Level
-🟡 MEDIUM — Modifies main process. Test on both Mac and Windows.
+ðŸŸ¡ MEDIUM â€” Modifies main process. Test on both Mac and Windows.
 
 ---
 
@@ -56,7 +56,7 @@ function createTray() {
     },
   ]);
 
-  tray.setToolTip('ZoomGuru — Interview Copilot');
+  tray.setToolTip('ZoomGuru â€” Interview Copilot');
   tray.setContextMenu(contextMenu);
 
   // Single click toggles overlay
@@ -124,7 +124,7 @@ npm run dev
 # 1. Tray icon appears in menu bar (Mac) or system tray (Win)
 # 2. Clicking X on overlay hides it (does not quit)
 # 3. Clicking tray icon shows/hides overlay
-# 4. Right-click tray → Quit actually closes app
+# 4. Right-click tray â†’ Quit actually closes app
 ```
 
 ## Rollback
@@ -134,3 +134,4 @@ Remove createTray() function.
 Remove createTray() call from app.whenReady().
 Remove isQuitting flag.
 Restore close handler to default behavior.
+

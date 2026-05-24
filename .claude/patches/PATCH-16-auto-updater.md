@@ -1,4 +1,4 @@
-# PATCH-16 — Auto-Updater (electron-updater)
+﻿# PATCH-16 â€” Auto-Updater (electron-updater)
 
 ## Problem
 No way to push bug fixes to existing users.
@@ -10,7 +10,7 @@ They're stuck on whatever version they installed forever.
 - `apps/electron/package.json`
 
 ## Risk Level
-🟡 MEDIUM — Main process addition. Does not affect renderer.
+ðŸŸ¡ MEDIUM â€” Main process addition. Does not affect renderer.
 
 ---
 
@@ -33,7 +33,7 @@ function setupAutoUpdater() {
   // Check for updates silently on launch
   autoUpdater.checkForUpdatesAndNotify();
 
-  // Update downloaded — prompt user to restart
+  // Update downloaded â€” prompt user to restart
   autoUpdater.on('update-downloaded', () => {
     if (!mainWindow) return;
     
@@ -56,7 +56,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
-    // Silent fail — don't interrupt interview with update errors
+    // Silent fail â€” don't interrupt interview with update errors
     console.error('Auto-updater error:', err.message);
   });
 }
@@ -112,17 +112,17 @@ npm run dist:win
 
 ## How It Works After Setup
 ```
-You push new code → build release → upload to GitHub Releases
-         ↓
+You push new code â†’ build release â†’ upload to GitHub Releases
+         â†“
 Existing users launch app
-         ↓
+         â†“
 autoUpdater checks GitHub for latest.yml
-         ↓
-New version found → downloads in background
-         ↓
+         â†“
+New version found â†’ downloads in background
+         â†“
 Dialog: "Restart Now" or "Later"
-         ↓
-User restarts → new version installed
+         â†“
+User restarts â†’ new version installed
 ```
 
 ## Overlay Update Notification (Optional)
@@ -153,3 +153,4 @@ useEffect(() => {
 Remove import and setupAutoUpdater() from main.ts.
 Remove publish config from electron-builder.config.js.
 Uninstall: npm uninstall electron-updater
+

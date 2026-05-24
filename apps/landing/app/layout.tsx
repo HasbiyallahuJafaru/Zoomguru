@@ -19,9 +19,9 @@ export const metadata: Metadata = {
     title: 'ZoomGuru — Your invisible edge in every interview',
     description:
       'AI copilot that listens, reads your screen, and streams personalized answers. Hidden from Zoom, Meet, and Teams. Personalized to your CV.',
-    url: 'https://zoomguru.com',
+    url: 'https://zoomguru.xyz',
     siteName: 'ZoomGuru',
-    images: [{ url: 'https://zoomguru.com/og-image.png', width: 1200, height: 630 }],
+    images: [{ url: 'https://zoomguru.xyz/og-image.png', width: 1200, height: 630 }],
     type: 'website',
   },
   twitter: {
@@ -29,9 +29,9 @@ export const metadata: Metadata = {
     title: 'ZoomGuru — Invisible AI Interview Copilot',
     description:
       'AI that listens to your interview and streams personalized answers in real time. Invisible to screen share.',
-    images: ['https://zoomguru.com/og-image.png'],
+    images: ['https://zoomguru.xyz/og-image.png'],
   },
-  metadataBase: new URL('https://zoomguru.com'),
+  metadataBase: new URL('https://zoomguru.xyz'),
   robots: { index: true, follow: true },
 };
 

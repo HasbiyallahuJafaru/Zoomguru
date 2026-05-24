@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Patch, Delete, Query, Body, Headers, UseGuards, Req, Res, Request } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { FastifyReply } from 'fastify';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -8,6 +9,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   async register(
     @Body() body: { email: string; password: string; name: string; deviceId?: string; refCode?: string; username?: string }
   ) {
@@ -15,6 +17,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   async login(
     @Body() body: { email: string; password: string },
     @Headers('x-device-id') deviceId: string
@@ -23,6 +26,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   async refresh(
     @Body() body: { refreshToken: string },
     @Headers('x-device-id') deviceId: string
@@ -125,7 +129,7 @@ export class AuthController {
 
   @Post('google/web')
   async googleWebAuth(
-    @Body() body: { googleId: string; email: string; name: string; avatar?: string }
+    @Body() body: { idToken: string }
   ) {
     return this.authService.handleGoogleWebAuth(body);
   }

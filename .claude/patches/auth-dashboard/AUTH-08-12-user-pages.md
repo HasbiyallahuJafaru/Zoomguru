@@ -1,4 +1,4 @@
-# AUTH-08 — Subscription Page
+﻿# AUTH-08 â€” Subscription Page
 
 ## Prompt
 
@@ -12,7 +12,7 @@ upgrade or management. Dark theme, matches dashboard layout.
 
 Sections:
 
-SECTION 1 — Current Plan Card:
+SECTION 1 â€” Current Plan Card:
   Large card showing:
     Plan name: Free / Pro Monthly / Pro Lifetime
     Status: Active / Expired / Cancelled
@@ -21,32 +21,32 @@ SECTION 1 — Current Plan Card:
     If free: Sessions used (X of 3), Responses (X of 10)
     Device locked to: [fingerprint last 8 chars]
 
-SECTION 2 — Upgrade Options (if not lifetime):
+SECTION 2 â€” Upgrade Options (if not lifetime):
   Two plan cards side by side:
-  ┌─────────────────┬──────────────────┐
-  │ Monthly         │ Lifetime ★       │
-  │ ₦15,000/mo     │ ₦100,000         │
-  │ $12/mo          │ $79              │
-  │ [Upgrade]       │ [Get Lifetime]   │
-  └─────────────────┴──────────────────┘
+  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+  â”‚ Monthly         â”‚ Lifetime â˜…       â”‚
+  â”‚ â‚¦15,000/mo     â”‚ â‚¦100,000         â”‚
+  â”‚ $12/mo          â”‚ $79              â”‚
+  â”‚ [Upgrade]       â”‚ [Get Lifetime]   â”‚
+  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
   Currency toggle: NGN / USD
   Clicking upgrade opens Paystack inline payment
   After payment: page auto-refreshes subscription status
 
-SECTION 3 — Plan Features comparison table:
+SECTION 3 â€” Plan Features comparison table:
   Feature | Free | Pro
   Sessions | 3 total | Unlimited
   Responses | 10/session | Unlimited
-  Screenshot mode | ✗ | ✓
-  Wake word | ✗ | ✓
-  Session history | ✗ | ✓
-  Priority support | ✗ | ✓
+  Screenshot mode | âœ— | âœ“
+  Wake word | âœ— | âœ“
+  Session history | âœ— | âœ“
+  Priority support | âœ— | âœ“
 
 Data from: GET ${API_URL}/user/subscription (add to backend)
 Payment via: Paystack inline (same as landing page Pricing.tsx)
 
 Add to backend:
-  GET /user/subscription → returns plan, status, expiresAt,
+  GET /user/subscription â†’ returns plan, status, expiresAt,
     deviceFingerprint (last 8 chars), usageStats
   These come from users + licenses + user_usage tables.
 
@@ -55,7 +55,7 @@ Show me the page file and backend endpoint additions.
 
 ---
 
-# AUTH-09 — Payments History Page
+# AUTH-09 â€” Payments History Page
 
 ## Prompt
 
@@ -77,7 +77,7 @@ Layout:
     Columns:
       Date
       Plan (Monthly / Lifetime badge)
-      Amount (₦15,000 or $12)
+      Amount (â‚¦15,000 or $12)
       Currency
       Reference (truncated, copyable)
       Status (Success green / Pending amber / Failed red)
@@ -97,14 +97,14 @@ Add to backend (auth.controller.ts or new user.controller.ts):
     @Request() req: any,
     @Query('page') page = '1',
     @Query('limit') limit = '20',
-  ) → queries payments table WHERE user_id = userId
+  ) â†’ queries payments table WHERE user_id = userId
 
 Show me the page and backend endpoint.
 ```
 
 ---
 
-# AUTH-10 — Sessions Page
+# AUTH-10 â€” Sessions Page
 
 ## Prompt
 
@@ -124,7 +124,7 @@ Layout:
       Duration (e.g. "42 minutes")
       Questions answered: X
       AI-generated summary (2-3 sentences, truncated)
-      [View Summary] button → expands full summary inline
+      [View Summary] button â†’ expands full summary inline
 
   Filter: All / Behavioral / Technical / Coding / System Design
   Sort: Newest first / Longest / Most questions
@@ -138,14 +138,14 @@ Data from:
 Add backend endpoint:
   @Get('user/sessions')
   @UseGuards(JwtAuthGuard)
-  async getSessions → queries interview_sessions WHERE user_id
+  async getSessions â†’ queries interview_sessions WHERE user_id
 
 Show me the page and endpoint.
 ```
 
 ---
 
-# AUTH-11 — Referrals Page
+# AUTH-11 â€” Referrals Page
 
 ## Prompt
 
@@ -156,30 +156,30 @@ Dark theme. Full referral dashboard.
 
 Layout:
 
-SECTION 1 — Stats row (4 cards):
+SECTION 1 â€” Stats row (4 cards):
   Total referred | Converted to paid | Total earned | Pending payout
 
-SECTION 2 — Referral link card:
+SECTION 2 â€” Referral link card:
   Large highlighted card:
     "Your referral link:"
-    https://zoomguru.com?ref=ABC123XY    [Copy button]
+    https://zoomguru.xyz?ref=ABC123XY    [Copy button]
     "Share this link. Earn 25% of every subscription."
     Share buttons: Twitter/X | WhatsApp | Copy
 
-SECTION 3 — Earnings breakdown table:
+SECTION 3 â€” Earnings breakdown table:
   Columns: Date | Referred User (email masked) | Plan | Commission | Status
   Statuses: Pending (not yet paid) | Earned (payment confirmed) | Paid out
 
-SECTION 4 — Payout Request:
-  Available balance: ₦XX,XXX
-  Minimum payout: ₦5,000
+SECTION 4 â€” Payout Request:
+  Available balance: â‚¦XX,XXX
+  Minimum payout: â‚¦5,000
   Form (shown if balance >= 5000):
     Bank name input
     Account number input
     Account name input
     Amount input (max = pending balance)
     [Request Payout] button
-  If balance < 5000: "Minimum payout is ₦5,000. Keep referring!"
+  If balance < 5000: "Minimum payout is â‚¦5,000. Keep referring!"
 
   Payout history table:
     Date requested | Amount | Status | Date processed
@@ -194,7 +194,7 @@ Show me the page file.
 
 ---
 
-# AUTH-12 — Settings Page
+# AUTH-12 â€” Settings Page
 
 ## Prompt
 
@@ -205,50 +205,51 @@ Dark theme. User profile management.
 
 Layout (tabbed or sections):
 
-SECTION 1 — Profile:
+SECTION 1 â€” Profile:
   Avatar (circle, shows Google avatar or initials fallback)
   Full name input
   Username input (shows if taken on blur)
   Email (read-only if Google OAuth user)
   [Save Profile] button
 
-SECTION 2 — Security:
+SECTION 2 â€” Security:
   Current password input
   New password input
   Confirm new password input
   [Change Password] button
   Hidden for Google OAuth users (show: "Signed in with Google")
 
-SECTION 3 — Device:
+SECTION 3 â€” Device:
   "Your app license is locked to:"
   Device fingerprint: xxxx...xxxx (last 8 chars)
   Platform: macOS / Windows
   Locked since: [date]
   Note: "To transfer your license to a new device,
-         contact support@zoomguru.com"
+         contact support@zoomguru.xyz"
 
-SECTION 4 — Danger Zone:
+SECTION 4 â€” Danger Zone:
   [Delete Account] button (red, confirmation modal)
   Text: "This permanently deletes all your data and
          cancels your subscription."
 
 API calls:
-  PATCH ${API_URL}/user/profile → updates name, username
-  PATCH ${API_URL}/user/password → changes password
-  DELETE ${API_URL}/user/account → deletes account
+  PATCH ${API_URL}/user/profile â†’ updates name, username
+  PATCH ${API_URL}/user/password â†’ changes password
+  DELETE ${API_URL}/user/account â†’ deletes account
 
 Add these endpoints to backend:
   @Patch('user/profile') @UseGuards(JwtAuthGuard)
-    → UPDATE users SET name, username WHERE id = userId
+    â†’ UPDATE users SET name, username WHERE id = userId
 
   @Patch('user/password') @UseGuards(JwtAuthGuard)
-    → Verify current password, hash new, UPDATE
+    â†’ Verify current password, hash new, UPDATE
 
   @Delete('user/account') @UseGuards(JwtAuthGuard)
-    → Soft delete: set deleted_at, anonymize data
+    â†’ Soft delete: set deleted_at, anonymize data
 
   @Get('user/device') @UseGuards(JwtAuthGuard)
-    → Returns license device info for current user
+    â†’ Returns license device info for current user
 
 Show me the page and all backend endpoint additions.
 ```
+

@@ -1,7 +1,7 @@
-# ZoomGuru — Payments
+﻿# ZoomGuru â€” Payments
 
 ## Provider
-**Paystack** — NGN only. All prices in Nigerian Naira.
+**Paystack** â€” NGN only. All prices in Nigerian Naira.
 
 ---
 
@@ -9,8 +9,8 @@
 
 | Plan | NGN | Type | expires_at |
 |------|-----|------|------------|
-| Monthly | ₦15,000 | One-time charge, self-renew | NOW() + 30 days |
-| Lifetime | ₦100,000 | One-time charge | NULL (never) |
+| Monthly | â‚¦15,000 | One-time charge, self-renew | NOW() + 30 days |
+| Lifetime | â‚¦100,000 | One-time charge | NULL (never) |
 
 No Paystack subscription plans or plan codes. We charge inline and track expiry in our own database.
 
@@ -19,9 +19,9 @@ No Paystack subscription plans or plan codes. We charge inline and track expiry 
 ## Environment Variables
 
 ```env
-PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxx     # Backend — signs API requests
-PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxx     # Landing page — inline JS popup
-PAYSTACK_WEBHOOK_SECRET=xxxxxxxxxxxx         # Backend — verifies webhook signatures
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxx     # Backend â€” signs API requests
+PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxx     # Landing page â€” inline JS popup
+PAYSTACK_WEBHOOK_SECRET=xxxxxxxxxxxx         # Backend â€” verifies webhook signatures
 ```
 
 No `PAYSTACK_NGN_MONTHLY_PLAN` or `PAYSTACK_USD_MONTHLY_PLAN` needed.
@@ -30,39 +30,39 @@ No `PAYSTACK_NGN_MONTHLY_PLAN` or `PAYSTACK_USD_MONTHLY_PLAN` needed.
 
 ## Payment Flows
 
-### Flow 1 — Landing Page (inline JS)
+### Flow 1 â€” Landing Page (inline JS)
 ```
 User on /pricing enters email, clicks plan
-        ↓
+        â†“
 Paystack inline popup opens (card / bank transfer / USSD)
-        ↓
+        â†“
 User pays
-        ↓
-Paystack fires POST /paystack/webhook → backend
+        â†“
+Paystack fires POST /paystack/webhook â†’ backend
 Backend verifies HMAC signature
 Sets is_pro = true, inserts license row
 Monthly: expires_at = NOW() + 30 days
 Lifetime: expires_at = NULL
-        ↓
+        â†“
 Redirect to /download?ref=<reference>&plan=<plan>
-User downloads app, logs in → already Pro
+User downloads app, logs in â†’ already Pro
 ```
 
-### Flow 2 — In-App (Electron)
+### Flow 2 â€” In-App (Electron)
 ```
-User hits usage limit in overlay → PaywallModal opens
-        ↓
+User hits usage limit in overlay â†’ PaywallModal opens
+        â†“
 Electron calls POST /paystack/initialize (JWT auth)
 Backend creates Paystack transaction, returns authorization_url
-        ↓
+        â†“
 Electron opens authorization_url in system browser
-        ↓
+        â†“
 User pays on Paystack hosted page
-        ↓
-Paystack fires POST /paystack/webhook → backend activates license
-        ↓
+        â†“
+Paystack fires POST /paystack/webhook â†’ backend activates license
+        â†“
 Electron polls GET /license/verify every 3s for up to 60s
-License verified → overlay unlocks Pro features
+License verified â†’ overlay unlocks Pro features
 ```
 
 ---
@@ -73,14 +73,14 @@ License verified → overlay unlocks Pro features
 POST /paystack/webhook
 ```
 
-Registered in Paystack Dashboard → Settings → API Keys & Webhooks.
+Registered in Paystack Dashboard â†’ Settings â†’ API Keys & Webhooks.
 
 **Events handled:**
-- `charge.success` → activate license
-- `invoice.payment_failed` → logged only (no action)
+- `charge.success` â†’ activate license
+- `invoice.payment_failed` â†’ logged only (no action)
 
 **Security:** Every request verified with HMAC-SHA512 using `PAYSTACK_WEBHOOK_SECRET`.
-Idempotent — replayed webhooks with an already-processed reference return `200` silently.
+Idempotent â€” replayed webhooks with an already-processed reference return `200` silently.
 
 ---
 
@@ -90,7 +90,7 @@ Monthly licenses are **not auto-renewed** by Paystack. Renewal is a new payment.
 
 On every login, `auth.service.ts` runs:
 1. Expire any license where `expires_at < NOW()`
-2. If no active licenses remain → downgrade user to `is_pro = false`, `plan = 'free'`
+2. If no active licenses remain â†’ downgrade user to `is_pro = false`, `plan = 'free'`
 3. User must pay again to re-activate
 
 ---
@@ -101,8 +101,8 @@ On every login, `auth.service.ts` runs:
 @Controller('paystack')
 export class PaystackController {
 
-  @Post('initialize')        // JWT protected — Electron in-app upgrade
-  @Post('webhook')           // Public — Paystack calls this
+  @Post('initialize')        // JWT protected â€” Electron in-app upgrade
+  @Post('webhook')           // Public â€” Paystack calls this
   @Get('plans')              // Returns NGN prices
 }
 ```
@@ -110,8 +110,8 @@ export class PaystackController {
 ### GET /paystack/plans response
 ```json
 {
-  "monthly":  { "amount": 15000,  "currency": "NGN", "label": "₦15,000/month",    "period": "/month" },
-  "lifetime": { "amount": 100000, "currency": "NGN", "label": "₦100,000 one-time", "period": " one-time" }
+  "monthly":  { "amount": 15000,  "currency": "NGN", "label": "â‚¦15,000/month",    "period": "/month" },
+  "lifetime": { "amount": 100000, "currency": "NGN", "label": "â‚¦100,000 one-time", "period": " one-time" }
 }
 ```
 
@@ -127,7 +127,7 @@ export class PaystackController {
 window.PaystackPop.newTransaction({
   key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
   email,
-  amount: 1500000, // kobo — ₦15,000 monthly | 10000000 = ₦100,000 lifetime
+  amount: 1500000, // kobo â€” â‚¦15,000 monthly | 10000000 = â‚¦100,000 lifetime
   currency: 'NGN',
   ref: 'ZG-' + randomString,
   metadata: { plan: 'monthly' | 'lifetime' },
@@ -154,10 +154,11 @@ async function handleUpgrade(plan: 'monthly' | 'lifetime') {
   const res = await fetch(`${API_URL}/paystack/initialize`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan }),  // NGN only — no currency param
+    body: JSON.stringify({ plan }),  // NGN only â€” no currency param
   });
   const { authorizationUrl } = await res.json();
   await window.zoomguru.openExternal(authorizationUrl);  // Opens system browser
   pollLicenseActivation();  // Polls GET /license/verify every 3s
 }
 ```
+

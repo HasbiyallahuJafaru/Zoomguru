@@ -1,4 +1,4 @@
-# AUTH-01 — Database Schema Additions
+﻿# AUTH-01 â€” Database Schema Additions
 
 ## What This Does
 Adds username, Google OAuth fields, admin role, and NextAuth
@@ -8,7 +8,7 @@ session tables to the existing Neon database.
 - `apps/backend/src/database/init.ts`
 
 ## Risk Level
-🟡 MEDIUM — Modifies existing users table CREATE statement.
+ðŸŸ¡ MEDIUM â€” Modifies existing users table CREATE statement.
 Test all existing auth endpoints after.
 
 ---
@@ -24,9 +24,9 @@ Tell me which files you will touch before writing any code.
 In apps/backend/src/database/init.ts, make these changes
 surgically. Do not touch any other table definitions.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CHANGE 1 — Extend users CREATE TABLE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+CHANGE 1 â€” Extend users CREATE TABLE
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Find the CREATE TABLE IF NOT EXISTS users statement.
 Add these columns AFTER the existing currency TEXT column
@@ -42,9 +42,9 @@ and BEFORE created_at:
 Note: username is nullable for now because existing users
 won't have one. We enforce it at registration level in code.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CHANGE 2 — Add NextAuth tables
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+CHANGE 2 â€” Add NextAuth tables
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Add these three CREATE TABLE statements at the end of
 initDB(), BEFORE the console.log line:
@@ -85,9 +85,9 @@ initDB(), BEFORE the console.log line:
     )
   `;
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CHANGE 3 — Add indexes
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+CHANGE 3 â€” Add indexes
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Add these after the new CREATE TABLEs:
 
@@ -114,7 +114,7 @@ Show me the exact diff of what you added.
 ```bash
 npm run start:dev
 
-# Check Neon console — users table should have new columns
+# Check Neon console â€” users table should have new columns
 # Check: nextauth_sessions, nextauth_accounts,
 #        nextauth_verification_tokens tables exist
 
@@ -129,3 +129,4 @@ curl -X POST http://localhost:3000/auth/login \
 Remove the 6 new column definitions from users CREATE TABLE.
 Remove the 3 new CREATE TABLE statements.
 Remove the 5 new indexes.
+

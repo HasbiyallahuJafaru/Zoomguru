@@ -1,9 +1,9 @@
-# ZoomGuru — Commands
+﻿# ZoomGuru â€” Commands
 
 ## Monorepo Setup
 
 ```bash
-# Root package.json — npm workspaces
+# Root package.json â€” npm workspaces
 {
   "name": "zoomguru",
   "private": true,
@@ -110,12 +110,12 @@ npx vercel --prod
 ## Database Commands
 
 ```bash
-# No migration CLI — tables auto-created on backend boot
+# No migration CLI â€” tables auto-created on backend boot
 
 # Manual Neon SQL console
-# Go to: console.neon.tech → SQL Editor
+# Go to: console.neon.tech â†’ SQL Editor
 
-# Reset all tables (CAUTION — destroys data)
+# Reset all tables (CAUTION â€” destroys data)
 DROP TABLE IF EXISTS payments CASCADE;
 DROP TABLE IF EXISTS interview_sessions CASCADE;
 DROP TABLE IF EXISTS cv_profiles CASCADE;
@@ -123,7 +123,7 @@ DROP TABLE IF EXISTS user_usage CASCADE;
 DROP TABLE IF EXISTS licenses CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
-# Then restart backend — initDB() recreates everything
+# Then restart backend â€” initDB() recreates everything
 
 # View active licenses
 SELECT u.email, l.plan, l.currency, l.device_fingerprint, l.expires_at, l.status
@@ -171,7 +171,7 @@ VITE_APP_ENV=development
 
 ### apps/electron/.env.production
 ```env
-VITE_API_URL=https://api.zoomguru.com
+VITE_API_URL=https://api.zoomguru.xyz
 VITE_PAYSTACK_PUBLIC_KEY=pk_live_xxxxxxxxxxxx
 VITE_APP_ENV=production
 ```
@@ -179,7 +179,7 @@ VITE_APP_ENV=production
 ### apps/landing/.env.local
 ```env
 NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_xxxxxxxxxxxx
-NEXT_PUBLIC_API_URL=https://api.zoomguru.com
+NEXT_PUBLIC_API_URL=https://api.zoomguru.xyz
 ```
 
 ---
@@ -208,7 +208,7 @@ node dist/main.js
 ## Vercel Deployment (Landing)
 
 ```bash
-# Recommended — connect repo in Vercel dashboard
+# Recommended â€” connect repo in Vercel dashboard
 # 1. Import at vercel.com/new
 # 2. Root Directory: apps/landing
 # 3. Framework: Next.js (auto-detected)
@@ -239,7 +239,7 @@ npm run dist:win
 
 # Upload release files to:
 # GitHub Releases OR
-# Cloudflare R2 bucket (releases.zoomguru.com)
+# Cloudflare R2 bucket (releases.zoomguru.xyz)
 # Then update DOWNLOAD_LINKS in landing/components/Download.tsx
 ```
 
@@ -250,10 +250,10 @@ npm run dist:win
 ```bash
 # Run once to generate secure secrets
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-# Copy output → JWT_SECRET
+# Copy output â†’ JWT_SECRET
 
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-# Copy output → JWT_REFRESH_SECRET
+# Copy output â†’ JWT_REFRESH_SECRET
 ```
 
 ---
@@ -265,8 +265,8 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 # With ngrok:
 ngrok http 3000
-# Copy https URL → set as Paystack webhook in dashboard
-# Dashboard → Settings → API Keys & Webhooks → Webhook URL
+# Copy https URL â†’ set as Paystack webhook in dashboard
+# Dashboard â†’ Settings â†’ API Keys & Webhooks â†’ Webhook URL
 
 # Test charge event:
 curl -X POST https://your-ngrok-url/paystack/webhook \
@@ -274,3 +274,4 @@ curl -X POST https://your-ngrok-url/paystack/webhook \
   -H "x-paystack-signature: {computed_hmac}" \
   -d '{"event":"charge.success","data":{"reference":"test_ref","metadata":{"user_id":"uuid","plan":"monthly"},"amount":1500000,"currency":"NGN"}}'
 ```
+

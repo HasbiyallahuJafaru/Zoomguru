@@ -12,14 +12,15 @@ export class SessionController {
     @Request() req: any,
     @Body() body: {
       sessionId: string;
-      messages: Array<{ role: string; content: string }>;
       durationSeconds: number;
       totalQuestions: number;
     }
   ) {
     await this.sessionService.endSession({
       userId: req.user.userId,
-      ...body,
+      sessionId: body.sessionId,
+      durationSeconds: body.durationSeconds,
+      totalQuestions: body.totalQuestions,
     });
     return { success: true };
   }

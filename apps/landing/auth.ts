@@ -62,17 +62,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.accessToken = (user as any).accessToken;
       }
       if (account?.provider === 'google') {
+        const apiUrl = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
         const res = await fetch(
-          process.env.NEXT_PUBLIC_API_URL + '/auth/google/web',
+          apiUrl + '/auth/google/web',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              googleId: account.providerAccountId,
-              email: token.email,
-              name: token.name,
-              avatar: token.picture,
-            }),
+            // Send the Google id_token so the backend can verify it independently.
+            // Never send raw profile claims — the backend must derive them from the token.
+            body: JSON.stringify({ idToken: account.id_token }),
           }
         );
         if (res.ok) {
@@ -105,7 +103,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       (session.user as any).username = token.username;
       (session.user as any).isPro = token.isPro;
       (session.user as any).role = token.role;
-      (session.user as any).accessToken = token.accessToken;
+      // accessToken intentionally NOT copied to session.user — it stays in the
+      // encrypted server-side JWT only. Client components must use /api/proxy/*.
       return session;
     },
   },

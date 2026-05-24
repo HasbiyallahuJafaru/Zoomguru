@@ -15,7 +15,7 @@ function validatePayoutRequest(
   return { valid: true };
 }
 
-function buildReferralLink(referralCode: string | null, baseUrl = 'https://zoomguru.com'): string | null {
+function buildReferralLink(referralCode: string | null, baseUrl = 'https://zoomguru.xyz'): string | null {
   if (!referralCode) return null;
   return `${baseUrl}/?ref=${referralCode}`;
 }
@@ -98,7 +98,7 @@ describe('validatePayoutRequest', () => {
 
 describe('buildReferralLink', () => {
   it('builds correct referral URL', () => {
-    expect(buildReferralLink('ABC12345')).toBe('https://zoomguru.com/?ref=ABC12345');
+    expect(buildReferralLink('ABC12345')).toBe('https://zoomguru.xyz/?ref=ABC12345');
   });
 
   it('returns null for null referral code', () => {
@@ -106,8 +106,8 @@ describe('buildReferralLink', () => {
   });
 
   it('uses custom base URL', () => {
-    expect(buildReferralLink('CODE1', 'https://staging.zoomguru.com')).toBe(
-      'https://staging.zoomguru.com/?ref=CODE1'
+    expect(buildReferralLink('CODE1', 'https://staging.zoomguru.xyz')).toBe(
+      'https://staging.zoomguru.xyz/?ref=CODE1'
     );
   });
 });

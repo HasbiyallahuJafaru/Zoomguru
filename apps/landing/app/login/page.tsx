@@ -18,7 +18,9 @@ function GoogleIcon() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/dashboard';
+  const rawCallback = searchParams.get('callbackUrl') || '/dashboard';
+  // Only allow same-origin relative paths to prevent open redirect
+  const callbackUrl = rawCallback.startsWith('/') && !rawCallback.startsWith('//') ? rawCallback : '/dashboard';
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');

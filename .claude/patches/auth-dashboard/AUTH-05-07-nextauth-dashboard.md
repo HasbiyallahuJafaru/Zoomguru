@@ -1,4 +1,4 @@
-# AUTH-05 — NextAuth Setup in Landing App
+﻿# AUTH-05 â€” NextAuth Setup in Landing App
 
 ## What This Does
 Installs and configures NextAuth v5 in the landing app.
@@ -9,7 +9,7 @@ Sets up session storage in Neon.
 - `apps/landing/` (new files + package.json)
 
 ## Risk Level
-🟡 MEDIUM — New auth layer. Test login/register after.
+ðŸŸ¡ MEDIUM â€” New auth layer. Test login/register after.
 
 ---
 
@@ -27,9 +27,9 @@ cd apps/landing
 npm install next-auth@beta @auth/core
 npm install @neondatabase/serverless
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 1 — Create apps/landing/auth.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 1 â€” Create apps/landing/auth.ts
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
@@ -144,16 +144,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
 });
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 2 — Create apps/landing/app/api/auth/[...nextauth]/route.ts
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 2 â€” Create apps/landing/app/api/auth/[...nextauth]/route.ts
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 import { handlers } from '../../../../auth';
 export const { GET, POST } = handlers;
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 3 — Add auth middleware
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 3 â€” Add auth middleware
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Create apps/landing/middleware.ts:
 
@@ -181,23 +181,23 @@ export const config = {
   matcher: ['/dashboard/:path*', '/login', '/register'],
 };
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-STEP 4 — Add to .env.local
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+STEP 4 â€” Add to .env.local
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 NEXTAUTH_SECRET=generate_64_chars_with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-NEXTAUTH_URL=https://zoomguru.com
+NEXTAUTH_URL=https://zoomguru.xyz
 DATABASE_URL=same_as_backend
 GOOGLE_CLIENT_ID=from_google_cloud
 GOOGLE_CLIENT_SECRET=from_google_cloud
-NEXT_PUBLIC_API_URL=https://api.zoomguru.com
+NEXT_PUBLIC_API_URL=https://api.zoomguru.xyz
 
 Show me all created files. Do not modify any existing files.
 ```
 
 ---
 
-# AUTH-06 — Login + Register Pages
+# AUTH-06 â€” Login + Register Pages
 
 ## Prompt
 
@@ -208,9 +208,9 @@ Create these two pages in apps/landing/app/.
 Match the existing landing page dark theme exactly.
 Use the same CSS variables and font (Syne).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 FILE 1: apps/landing/app/login/page.tsx
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 'use client';
 import { signIn } from 'next-auth/react';
@@ -230,9 +230,9 @@ Dark themed login page with:
   - Loading state on button while signing in
   - Centered card, dark background matching landing page
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 FILE 2: apps/landing/app/register/page.tsx
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 'use client';
 Registration page with:
@@ -262,7 +262,7 @@ Show me all created files.
 
 ---
 
-# AUTH-07 — User Dashboard Layout + Home Page
+# AUTH-07 â€” User Dashboard Layout + Home Page
 
 ## Prompt
 
@@ -271,21 +271,21 @@ Read .claude/patches/auth-dashboard/AUTH-DASHBOARD.md first.
 
 Create the dashboard layout and home page in apps/landing/app/dashboard/.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 FILE 1: apps/landing/app/dashboard/layout.tsx
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Dashboard shell with:
   Left sidebar (desktop) / bottom nav (mobile):
-    ├── ZoomGuru logo + username at top
-    ├── Navigation links:
-    │   Overview (/)
-    │   Subscription (/subscription)
-    │   Payments (/payments)
-    │   Sessions (/sessions)
-    │   Referrals (/referrals)
-    │   Settings (/settings)
-    └── Sign Out button at bottom
+    â”œâ”€â”€ ZoomGuru logo + username at top
+    â”œâ”€â”€ Navigation links:
+    â”‚   Overview (/)
+    â”‚   Subscription (/subscription)
+    â”‚   Payments (/payments)
+    â”‚   Sessions (/sessions)
+    â”‚   Referrals (/referrals)
+    â”‚   Settings (/settings)
+    â””â”€â”€ Sign Out button at bottom
 
   Main content area (children)
 
@@ -294,28 +294,28 @@ Sidebar collapses to icons on narrow screens.
 Active route highlighted.
 Uses next-auth session for user info.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 FILE 2: apps/landing/app/dashboard/page.tsx
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 Dashboard home showing:
 
-Row 1 — Status cards (4 cards):
-  ├── Plan: Free / Pro Monthly / Pro Lifetime
-  ├── Sessions used: X total
-  ├── Questions answered: X total
-  └── Referral earnings: ₦X pending
+Row 1 â€” Status cards (4 cards):
+  â”œâ”€â”€ Plan: Free / Pro Monthly / Pro Lifetime
+  â”œâ”€â”€ Sessions used: X total
+  â”œâ”€â”€ Questions answered: X total
+  â””â”€â”€ Referral earnings: â‚¦X pending
 
-Row 2 — Recent sessions list:
+Row 2 â€” Recent sessions list:
   Last 5 interview sessions
   Shows: date, duration, questions, interview type, summary snippet
   "View all sessions" link
 
-Row 3 — Quick actions:
-  ├── Download App button (if pro)
-  ├── Upgrade button (if free)
-  ├── Copy referral link button
-  └── View subscription button
+Row 3 â€” Quick actions:
+  â”œâ”€â”€ Download App button (if pro)
+  â”œâ”€â”€ Upgrade button (if free)
+  â”œâ”€â”€ Copy referral link button
+  â””â”€â”€ View subscription button
 
 All data fetched from:
   GET ${API_URL}/user/dashboard-summary
@@ -338,3 +338,4 @@ And in auth.service.ts, add getDashboardSummary() that queries:
 
 Show me all files created and the backend additions.
 ```
+

@@ -51,16 +51,22 @@ export class SessionService {
   async endSession(params: {
     userId: string;
     sessionId: string;
-    messages: Array<{ role: string; content: string }>;
     durationSeconds: number;
     totalQuestions: number;
   }): Promise<void> {
     const sql = getDB();
 
+    // Read messages from the server-side log — never trust client-supplied messages
+    const [row] = await sql`
+      SELECT messages FROM interview_sessions
+      WHERE id = ${params.sessionId} AND user_id = ${params.userId}
+    `;
+    const messages: Array<{ role: string; content: string }> = row?.messages || [];
+
     let summary = 'Session completed.';
 
-    if (params.messages.length > 0) {
-      const transcript = params.messages
+    if (messages.length > 0) {
+      const transcript = messages
         .map(m => `${m.role === 'user' ? 'Q' : 'A'}: ${m.content}`)
         .join('\n\n')
         .slice(0, 6000);
@@ -95,7 +101,6 @@ export class SessionService {
     await sql`
       UPDATE interview_sessions
       SET
-        messages = ${JSON.stringify(params.messages)}::jsonb,
         summary = ${summary},
         total_questions = ${params.totalQuestions},
         duration_seconds = ${params.durationSeconds},

@@ -32,18 +32,16 @@ export default function DashboardPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!user?.accessToken) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/dashboard-summary`, {
-      headers: { Authorization: `Bearer ${user.accessToken}` },
-    })
+    if (!session) return;
+    fetch('/api/proxy/auth/user/dashboard-summary')
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => { setError('Failed to load dashboard data'); setLoading(false); });
-  }, [user?.accessToken]);
+  }, [session]);
 
   function copyReferral() {
     if (!data?.referralCode) return;
-    navigator.clipboard.writeText(`https://zoomguru.com?ref=${data.referralCode}`);
+    navigator.clipboard.writeText(`https://zoomguru.xyz?ref=${data.referralCode}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

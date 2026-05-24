@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
-const MAC_URL = 'https://releases.zoomguru.com/ZoomGuru-1.0.0-arm64.dmg';
-const WIN_URL = 'https://releases.zoomguru.com/ZoomGuru-Setup-1.0.0.exe';
+const MAC_URL = 'https://releases.zoomguru.xyz/ZoomGuru-1.0.0-arm64.dmg';
+const WIN_URL = 'https://releases.zoomguru.xyz/ZoomGuru-Setup-1.0.0.exe';
 const VERSION = '1.0.0';
 
 export default function Download() {

@@ -1,15 +1,15 @@
-# PATCH-12 — Remember Overlay Position
+﻿# PATCH-12 â€” Remember Overlay Position
 
 ## Problem
 User carefully positions overlay on screen.
-Restarts app — overlay resets to default position.
+Restarts app â€” overlay resets to default position.
 Annoying for paid users who use app daily.
 
 ## Files Affected
 - `apps/electron/electron/main.ts`
 
 ## Risk Level
-🟢 LOW — Additive only. Uses existing electron-store.
+ðŸŸ¢ LOW â€” Additive only. Uses existing electron-store.
 
 ---
 
@@ -41,7 +41,7 @@ Replace those two lines with this block:
       savedPos.y >= 0 && savedPos.y < height - 100) {
     mainWindow.setPosition(savedPos.x, savedPos.y);
   } else {
-    // Default position — right side of screen
+    // Default position â€” right side of screen
     mainWindow.setPosition(width - 440, Math.floor(height / 2) - 300);
   }
 
@@ -77,3 +77,4 @@ npm run dev
 Restore original setPosition() call.
 Remove the moved event listener.
 Remove Store import if it was newly added.
+

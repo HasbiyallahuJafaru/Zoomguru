@@ -1,12 +1,12 @@
-# ZoomGuru — Electron App
+﻿# ZoomGuru â€” Electron App
 
 ## Stack
 - **Electron** (latest) + **Vite** + **React 18**
-- **electron-builder** — cross-platform packaging
-- **electron-wda** — Windows display affinity (screen share exclusion)
-- **@picovoice/porcupine-node** — local wake word detection
-- **whisper.js / onnxruntime-node** — local speech-to-text
-- **electron-store** — local encrypted storage (tokens, settings)
+- **electron-builder** â€” cross-platform packaging
+- **electron-wda** â€” Windows display affinity (screen share exclusion)
+- **@picovoice/porcupine-node** â€” local wake word detection
+- **whisper.js / onnxruntime-node** â€” local speech-to-text
+- **electron-store** â€” local encrypted storage (tokens, settings)
 
 ---
 
@@ -31,38 +31,38 @@ npm install -D concurrently wait-on
 
 ```
 apps/electron/
-├── electron/
-│   ├── main.ts           ← main process — window creation, hotkeys
-│   ├── preload.ts        ← context bridge — safe IPC
-│   ├── capture.ts        ← desktopCapturer — screenshot logic
-│   ├── speech.ts         ← Whisper STT + Porcupine wake word
-│   └── fingerprint.ts    ← device fingerprint generation
-├── src/
-│   ├── App.tsx           ← root component
-│   ├── overlay/
-│   │   ├── Overlay.tsx       ← main overlay UI
-│   │   ├── AnswerStream.tsx   ← streaming text display
-│   │   ├── ModeBar.tsx        ← behavioral/technical/coding switcher
-│   │   ├── HotkeyHint.tsx     ← hotkey reminder display
-│   │   └── PaywallModal.tsx   ← upgrade prompt
-│   ├── auth/
-│   │   ├── Login.tsx
-│   │   └── Register.tsx
-│   ├── setup/
-│   │   ├── CVUpload.tsx      ← pre-interview CV upload
-│   │   ├── JDInput.tsx       ← job description paste
-│   │   └── PreflightCheck.tsx← mic test + mode select
-│   └── store/
-│       ├── session.ts        ← interview session state
-│       └── auth.ts           ← token management
-├── package.json
-├── vite.config.ts
-└── electron-builder.config.js
+â”œâ”€â”€ electron/
+â”‚   â”œâ”€â”€ main.ts           â† main process â€” window creation, hotkeys
+â”‚   â”œâ”€â”€ preload.ts        â† context bridge â€” safe IPC
+â”‚   â”œâ”€â”€ capture.ts        â† desktopCapturer â€” screenshot logic
+â”‚   â”œâ”€â”€ speech.ts         â† Whisper STT + Porcupine wake word
+â”‚   â””â”€â”€ fingerprint.ts    â† device fingerprint generation
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ App.tsx           â† root component
+â”‚   â”œâ”€â”€ overlay/
+â”‚   â”‚   â”œâ”€â”€ Overlay.tsx       â† main overlay UI
+â”‚   â”‚   â”œâ”€â”€ AnswerStream.tsx   â† streaming text display
+â”‚   â”‚   â”œâ”€â”€ ModeBar.tsx        â† behavioral/technical/coding switcher
+â”‚   â”‚   â”œâ”€â”€ HotkeyHint.tsx     â† hotkey reminder display
+â”‚   â”‚   â””â”€â”€ PaywallModal.tsx   â† upgrade prompt
+â”‚   â”œâ”€â”€ auth/
+â”‚   â”‚   â”œâ”€â”€ Login.tsx
+â”‚   â”‚   â””â”€â”€ Register.tsx
+â”‚   â”œâ”€â”€ setup/
+â”‚   â”‚   â”œâ”€â”€ CVUpload.tsx      â† pre-interview CV upload
+â”‚   â”‚   â”œâ”€â”€ JDInput.tsx       â† job description paste
+â”‚   â”‚   â””â”€â”€ PreflightCheck.tsxâ† mic test + mode select
+â”‚   â””â”€â”€ store/
+â”‚       â”œâ”€â”€ session.ts        â† interview session state
+â”‚       â””â”€â”€ auth.ts           â† token management
+â”œâ”€â”€ package.json
+â”œâ”€â”€ vite.config.ts
+â””â”€â”€ electron-builder.config.js
 ```
 
 ---
 
-## main.ts — Window Creation + Screen Protection
+## main.ts â€” Window Creation + Screen Protection
 
 ```typescript
 import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron';
@@ -91,19 +91,19 @@ function createWindow() {
     },
   });
 
-  // ─── SCREEN SHARE EXCLUSION ───────────────────────────────
+  // â”€â”€â”€ SCREEN SHARE EXCLUSION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (process.platform === 'darwin') {
-    // macOS — built into Electron
+    // macOS â€” built into Electron
     mainWindow.setContentProtection(true);
   } else if (process.platform === 'win32') {
-    // Windows — via native addon
+    // Windows â€” via native addon
     const { setWindowDisplayAffinity } = require('electron-wda');
     mainWindow.once('ready-to-show', () => {
       setWindowDisplayAffinity(mainWindow!, 'WDA_EXCLUDEFROMCAPTURE');
     });
   }
 
-  // ─── ALWAYS ON TOP (above screen share UI) ────────────────
+  // â”€â”€â”€ ALWAYS ON TOP (above screen share UI) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
@@ -114,7 +114,7 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // Position — right side of screen by default
+  // Position â€” right side of screen by default
   const { screen } = require('electron');
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.workAreaSize;
@@ -166,7 +166,7 @@ app.on('will-quit', () => {
 
 ---
 
-## preload.ts — Context Bridge
+## preload.ts â€” Context Bridge
 
 ```typescript
 import { contextBridge, ipcRenderer } from 'electron';
@@ -201,7 +201,7 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
 ---
 
-## capture.ts — Screenshot
+## capture.ts â€” Screenshot
 
 ```typescript
 import { desktopCapturer, ipcMain, BrowserWindow } from 'electron';
@@ -222,7 +222,7 @@ export function initCapture(win: BrowserWindow) {
 
 ---
 
-## fingerprint.ts — Device Locking
+## fingerprint.ts â€” Device Locking
 
 ```typescript
 import os from 'os';
@@ -362,10 +362,10 @@ export function Overlay() {
           ZoomGuru
         </span>
         {isListening && (
-          <span style={{ color: '#22c55e', fontSize: 11 }}>● Listening...</span>
+          <span style={{ color: '#22c55e', fontSize: 11 }}>â— Listening...</span>
         )}
         {isStreaming && (
-          <span style={{ color: '#3b82f6', fontSize: 11 }}>● Thinking...</span>
+          <span style={{ color: '#3b82f6', fontSize: 11 }}>â— Thinking...</span>
         )}
       </div>
 
@@ -384,10 +384,10 @@ export function Overlay() {
         fontSize: 10,
         color: 'rgba(255,255,255,0.3)',
       }}>
-        <span>⌘⇧A Listen</span>
-        <span>⌘⇧S Screen</span>
-        <span>⌘⇧H Hide</span>
-        <span>⌘⇧R Retry</span>
+        <span>âŒ˜â‡§A Listen</span>
+        <span>âŒ˜â‡§S Screen</span>
+        <span>âŒ˜â‡§H Hide</span>
+        <span>âŒ˜â‡§R Retry</span>
       </div>
     </div>
   );
@@ -396,7 +396,7 @@ export function Overlay() {
 
 ---
 
-## electron-builder.config.js — Packaging
+## electron-builder.config.js â€” Packaging
 
 ```javascript
 module.exports = {
@@ -434,7 +434,8 @@ module.exports = {
 
 ```env
 # apps/electron/.env
-VITE_API_URL=https://api.zoomguru.com
+VITE_API_URL=https://api.zoomguru.xyz
 VITE_PAYSTACK_PUBLIC_KEY=pk_live_...
 VITE_APP_ENV=production
 ```
+

@@ -1,4 +1,4 @@
-# ZoomGuru — AI Layer
+﻿# ZoomGuru â€” AI Layer
 
 ## Models Used
 
@@ -60,32 +60,32 @@ Routes each transcript to the correct model and format:
 
 File: `apps/backend/src/ai/prompts.ts`
 
-Every prompt is personalized with the user's CV profile. The AI answers **as the candidate in first person** — it never fabricates experience, only references what's in the CV.
+Every prompt is personalized with the user's CV profile. The AI answers **as the candidate in first person** â€” it never fabricates experience, only references what's in the CV.
 
-**Answer length options:** `brief` (under 3 sentences) | `standard` (4–6 sentences) | `detailed` (full explanation)
+**Answer length options:** `brief` (under 3 sentences) | `standard` (4â€“6 sentences) | `detailed` (full explanation)
 
 **Format per question type:**
-- `behavioral` — STAR method (natural storytelling, no explicit labels)
-- `technical` — direct explanation with analogies
-- `coding` — approach → clean commented code → time/space complexity → edge cases
-- `systemdesign` — requirements → architecture → components → data model → bottlenecks
-- `math` — step-by-step working, stated assumptions, answer check
+- `behavioral` â€” STAR method (natural storytelling, no explicit labels)
+- `technical` â€” direct explanation with analogies
+- `coding` â€” approach â†’ clean commented code â†’ time/space complexity â†’ edge cases
+- `systemdesign` â€” requirements â†’ architecture â†’ components â†’ data model â†’ bottlenecks
+- `math` â€” step-by-step working, stated assumptions, answer check
 
 ---
 
 ## Streaming Flow (Voice/Text)
 
-File: `apps/backend/src/ai/ai.service.ts` — `streamAnswer()`
+File: `apps/backend/src/ai/ai.service.ts` â€” `streamAnswer()`
 
 ```
-Electron sends transcript → POST /ai/stream (SSE)
-        ↓
+Electron sends transcript â†’ POST /ai/stream (SSE)
+        â†“
 1. Check usage limits (free: 10 responses/session)
 2. Load session: CV profile + message history from DB
-3. Route question → model + format
+3. Route question â†’ model + format
 4. Build system prompt with CV context
 5. POST to DeepSeek with stream: true
-6. Stream SSE chunks → Electron (each word as it arrives)
+6. Stream SSE chunks â†’ Electron (each word as it arrives)
 7. Send { done: true } signal
 8. Save Q+A to session history, increment usage counter
 ```
@@ -96,21 +96,21 @@ First word arrives in **under 500ms**. Full answer streams word-by-word.
 
 ## Screenshot / Vision Flow
 
-File: `apps/backend/src/ai/ai.service.ts` — `streamScreenshot()`
+File: `apps/backend/src/ai/ai.service.ts` â€” `streamScreenshot()`
 
 ```
-Electron sends base64 screenshot → POST /ai/screenshot (SSE)
-        ↓
+Electron sends base64 screenshot â†’ POST /ai/screenshot (SSE)
+        â†“
 1. Check usage limits
-2. POST image to DeepSeek V3 (vision) → extracts screen content as text
+2. POST image to DeepSeek V3 (vision) â†’ extracts screen content as text
    (code, math problems, diagrams, LeetCode windows, etc.)
 3. Combine extracted content + optional voice context
 4. Route to correct model via question router
 5. POST to DeepSeek with stream: true
-6. Stream SSE chunks → Electron
+6. Stream SSE chunks â†’ Electron
 ```
 
-Screenshot mode is **Pro only** — free tier returns 403.
+Screenshot mode is **Pro only** â€” free tier returns 403.
 
 ---
 
@@ -127,6 +127,7 @@ Checked in `checkUsageLimit()` before every AI call. Pro users bypass all limits
 
 ## Session Memory
 
-Each `interview_session` row stores a `messages` JSONB array — the full conversation history.
+Each `interview_session` row stores a `messages` JSONB array â€” the full conversation history.
 
 Every AI call appends `{ role: 'user', content: transcript }` and `{ role: 'assistant', content: fullAnswer }` to the session. Follow-up questions get answers that build on everything said earlier in the session.
+

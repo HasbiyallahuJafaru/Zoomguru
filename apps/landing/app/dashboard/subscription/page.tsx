@@ -48,14 +48,12 @@ export default function SubscriptionPage() {
   const [paying, setPaying] = useState<string | null>(null);
 
   const fetchSub = useCallback(async () => {
-    if (!user?.accessToken) return;
+    if (!session) return;
     setLoading(true);
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/user/subscription`, {
-      headers: { Authorization: `Bearer ${user.accessToken}` },
-    });
+    const res = await fetch('/api/proxy/auth/user/subscription');
     if (res.ok) setSub(await res.json());
     setLoading(false);
-  }, [user?.accessToken]);
+  }, [session]);
 
   useEffect(() => { fetchSub(); }, [fetchSub]);
 
@@ -81,12 +79,9 @@ export default function SubscriptionPage() {
       metadata: { plan, userId: user.id, currency },
       onSuccess: async (t: { reference: string }) => {
         try {
-          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/paystack/verify-transaction`, {
+          await fetch('/api/proxy/paystack/verify-transaction', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${user.accessToken}`,
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reference: t.reference }),
           });
         } finally {

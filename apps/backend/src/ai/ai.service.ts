@@ -142,7 +142,18 @@ export class AiService {
     reply.write(`data: ${JSON.stringify({ chunk: '', done: true, fullAnswer })}\n\n`);
     reply.end();
 
-    // 9. Increment usage — messages are held in Zustand, written on session end
+    // 9. Append Q&A turn to server-side message log
+    await sql`
+      UPDATE interview_sessions
+      SET messages = COALESCE(messages, '[]'::jsonb) ||
+        ${JSON.stringify([
+          { role: 'user', content: transcript },
+          { role: 'assistant', content: fullAnswer },
+        ])}::jsonb
+      WHERE id = ${sessionId} AND user_id = ${userId}
+    `;
+
+    // 10. Increment usage
     await this.incrementUsage(userId);
   }
 
@@ -322,34 +333,44 @@ export class AiService {
     reply.write(`data: ${JSON.stringify({ chunk: '', done: true, fullAnswer })}\n\n`);
     reply.end();
 
-    // Increment usage — messages are held in Zustand, written on session end
+    // Append screenshot Q&A turn to server-side message log
+    const screenshotPrompt = voiceContext
+      ? `[Screenshot] ${voiceContext}`
+      : '[Screenshot analysis]';
+    await sql`
+      UPDATE interview_sessions
+      SET messages = COALESCE(messages, '[]'::jsonb) ||
+        ${JSON.stringify([
+          { role: 'user', content: screenshotPrompt },
+          { role: 'assistant', content: fullAnswer },
+        ])}::jsonb
+      WHERE id = ${sessionId} AND user_id = ${userId}
+    `;
+
+    // Increment usage
     await this.incrementUsage(userId);
   }
 
   async checkUsageLimit(userId: string): Promise<void> {
     const sql = getDB();
-    const [usage] = await sql`
-      SELECT u.is_pro, uu.sessions_used, uu.responses_used
-      FROM users u
-      LEFT JOIN user_usage uu ON uu.user_id = u.id
-      WHERE u.id = ${userId}
-    `;
+    const [user] = await sql`SELECT is_pro FROM users WHERE id = ${userId}`;
+    if (!user) throw new ForbiddenException('User not found');
+    if (user.is_pro) return;
 
-    if (!usage) throw new ForbiddenException('User not found');
-    if (usage.is_pro) return;
-
-    if ((usage.responses_used || 0) >= 10) {
-      throw new ForbiddenException('Free tier limit reached: 10 responses used this session. Upgrade to continue.');
-    }
-  }
-
-  async incrementUsage(userId: string): Promise<void> {
-    const sql = getDB();
-    await sql`
+    // Atomic increment-and-check: only succeeds if under the limit
+    const [row] = await sql`
       INSERT INTO user_usage (user_id, responses_used)
       VALUES (${userId}, 1)
       ON CONFLICT (user_id) DO UPDATE
       SET responses_used = user_usage.responses_used + 1
+      WHERE user_usage.responses_used < 10
+      RETURNING responses_used
     `;
+    if (!row) {
+      throw new ForbiddenException('Free tier limit reached: 10 responses used this session. Upgrade to continue.');
+    }
   }
+
+  // incrementUsage is now merged into checkUsageLimit above — kept as no-op for call-site compatibility
+  async incrementUsage(_userId: string): Promise<void> {}
 }

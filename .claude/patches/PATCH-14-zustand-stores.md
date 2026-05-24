@@ -1,4 +1,4 @@
-# PATCH-14 — Zustand State Management
+﻿# PATCH-14 â€” Zustand State Management
 
 ## Problem
 Auth state, session state, and UI state are scattered across
@@ -10,7 +10,7 @@ useState hooks with prop drilling. As overlay grows this breaks.
 - `apps/electron/src/store/ui.store.ts` (new)
 
 ## Risk Level
-🟡 MEDIUM — New files only. Existing components not touched yet.
+ðŸŸ¡ MEDIUM â€” New files only. Existing components not touched yet.
            Migrate components to use store gradually in next sessions.
 
 ---
@@ -24,12 +24,12 @@ Install Zustand:
 cd apps/electron && npm install zustand
 
 Create three new store files. Do not modify any existing
-component files in this patch — just create the stores.
+component files in this patch â€” just create the stores.
 Components will be migrated to use them in later sessions.
 
-━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 FILE 1: apps/electron/src/store/auth.store.ts
-━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -69,7 +69,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'zg-auth',
-      // Only persist tokens and user — not derived state
+      // Only persist tokens and user â€” not derived state
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
@@ -80,9 +80,9 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 FILE 2: apps/electron/src/store/session.store.ts
-━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 import { create } from 'zustand';
 
 export type InterviewMode = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
@@ -98,7 +98,7 @@ interface SessionState {
   sessionId: string | null;
   mode: InterviewMode;
   answerLength: AnswerLength;
-  messages: Message[];       // In-memory only — NOT persisted to DB mid-session
+  messages: Message[];       // In-memory only â€” NOT persisted to DB mid-session
   cvUploaded: boolean;
   jobDescription: string;
   totalQuestions: number;
@@ -156,9 +156,9 @@ export const useSessionStore = create<SessionState>((set) => ({
     }),
 }));
 
-━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 FILE 3: apps/electron/src/store/ui.store.ts
-━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -202,7 +202,7 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: 'zg-ui',
-      // Only persist user preferences — not transient state
+      // Only persist user preferences â€” not transient state
       partialize: (state) => ({
         opacity: state.opacity,
       }),
@@ -234,3 +234,4 @@ Migrate components to use stores in subsequent sessions.
 
 ## Rollback
 Delete all three store files. No existing code was changed.
+

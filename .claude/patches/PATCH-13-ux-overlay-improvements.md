@@ -1,19 +1,19 @@
-# PATCH-13 — UX: Copy Button + Network Status + Mic Permission + Opacity
+﻿# PATCH-13 â€” UX: Copy Button + Network Status + Mic Permission + Opacity
 
 ## Problem
 4 small UX issues that all live in the Electron renderer:
-1. No copy button on answers — stressful during live interview
-2. No network status indicator — users think app is broken when offline
-3. No mic permission error — silent failure when mic denied
-4. No opacity control — one size fits nobody
+1. No copy button on answers â€” stressful during live interview
+2. No network status indicator â€” users think app is broken when offline
+3. No mic permission error â€” silent failure when mic denied
+4. No opacity control â€” one size fits nobody
 
 ## Files Affected
 - `apps/electron/src/overlay/Overlay.tsx`
 - `apps/electron/src/overlay/AnswerStream.tsx`
-- `apps/electron/src/store/ui.ts` (if using Zustand — else useState)
+- `apps/electron/src/store/ui.ts` (if using Zustand â€” else useState)
 
 ## Risk Level
-🟡 MEDIUM — UI changes to overlay. Test overlay rendering after.
+ðŸŸ¡ MEDIUM â€” UI changes to overlay. Test overlay rendering after.
 
 ---
 
@@ -25,9 +25,9 @@ Read .claude/ELECTRON.md first.
 I need to add 4 small UX improvements to the Electron overlay.
 Apply each one independently. Do not refactor any existing logic.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 CHANGE 1: Copy Answer Button
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/electron/src/overlay/Overlay.tsx (or AnswerStream.tsx
 wherever the answer text is rendered):
 
@@ -58,14 +58,14 @@ Add this button in the UI, below the answer text:
     cursor: 'pointer',
     marginTop: 8,
   }}>
-    {copied ? '✓ Copied' : 'Copy'}
+    {copied ? 'âœ“ Copied' : 'Copy'}
   </button>
 
 Only show this button when answer is not empty.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 CHANGE 2: Network Status Indicator
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/electron/src/overlay/Overlay.tsx:
 
 Add network status state:
@@ -85,13 +85,13 @@ In the overlay header (the thin top bar), add this
 ONLY when offline:
   {!isOnline && (
     <span style={{ color: '#ef4444', fontSize: 10 }}>
-      ⚠ No connection
+      âš  No connection
     </span>
   )}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 CHANGE 3: Mic Permission Error
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/electron/src/overlay/Overlay.tsx,
 find the handleListen() function.
 
@@ -108,8 +108,8 @@ permission errors:
       
       if (!stream) {
         setAnswer(
-          '⚠ Microphone access denied.\n\n' +
-          'To fix: System Settings → Privacy → Microphone → Enable ZoomGuru'
+          'âš  Microphone access denied.\n\n' +
+          'To fix: System Settings â†’ Privacy â†’ Microphone â†’ Enable ZoomGuru'
         );
         setIsListening(false);
         return;
@@ -123,15 +123,15 @@ permission errors:
       if (transcript) streamAnswer(transcript);
     } catch {
       setIsListening(false);
-      setAnswer('⚠ Could not access microphone. Please check permissions.');
+      setAnswer('âš  Could not access microphone. Please check permissions.');
     }
   }
 
 Replace the existing handleListen() entirely with this version.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 CHANGE 4: Opacity Control
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 In apps/electron/src/overlay/Overlay.tsx:
 
 Add opacity state with persistence:
@@ -172,14 +172,15 @@ Apply each change one at a time and show me the diff.
 ```bash
 npm run dev
 
-# Test Copy: Get an answer → click Copy → paste somewhere
-# Test Network: Disconnect wifi → overlay shows ⚠ No connection
-# Test Mic: Deny mic in system settings → try listen mode
-#   → should show permission instructions
-# Test Opacity: Drag slider → overlay transparency should change
-#   → restart app → opacity should be remembered
+# Test Copy: Get an answer â†’ click Copy â†’ paste somewhere
+# Test Network: Disconnect wifi â†’ overlay shows âš  No connection
+# Test Mic: Deny mic in system settings â†’ try listen mode
+#   â†’ should show permission instructions
+# Test Opacity: Drag slider â†’ overlay transparency should change
+#   â†’ restart app â†’ opacity should be remembered
 ```
 
 ## Rollback
 Each change is isolated. Remove the specific addition for
 whichever change needs reverting without touching the others.
+

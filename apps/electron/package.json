@@ -2,7 +2,7 @@
   "name": "zoomguru",
   "version": "1.0.0",
   "description": "ZoomGuru — Your invisible AI interview copilot",
-  "author": "ZoomGuru <support@zoomguru.com>",
+  "author": "ZoomGuru <support@zoomguru.xyz>",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {

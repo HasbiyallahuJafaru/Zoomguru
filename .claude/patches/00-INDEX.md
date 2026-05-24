@@ -1,15 +1,15 @@
-# ZoomGuru — Deployment Patches Index
+﻿# ZoomGuru â€” Deployment Patches Index
 
 ## How To Use These Files
 
 Each patch file contains:
-1. **What it fixes** — the problem being solved
-2. **Files affected** — exactly which files to touch
-3. **Claude Code prompt** — paste this verbatim into Claude Code
-4. **Verification** — how to confirm it worked
+1. **What it fixes** â€” the problem being solved
+2. **Files affected** â€” exactly which files to touch
+3. **Claude Code prompt** â€” paste this verbatim into Claude Code
+4. **Verification** â€” how to confirm it worked
 
 Apply patches in ORDER. Each is self-contained and surgical.
-Never apply two patches simultaneously — do one, verify, then next.
+Never apply two patches simultaneously â€” do one, verify, then next.
 
 ---
 
@@ -100,3 +100,4 @@ unless the patch explicitly requires it.
 Make the smallest possible change that fixes the problem.
 After each change, tell me exactly what you changed and why.
 ```
+

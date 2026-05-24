@@ -1,4 +1,4 @@
-# AUTH-13 — Electron Auth Extensions
+﻿# AUTH-13 â€” Electron Auth Extensions
 
 ## What This Does
 - Adds username field to Electron register screen
@@ -14,11 +14,11 @@
 - `apps/electron/electron/preload.ts`
 
 ## Risk Level
-🟡 MEDIUM — Modifies auth UI. Test full login flow after.
+ðŸŸ¡ MEDIUM â€” Modifies auth UI. Test full login flow after.
 
 ---
 
-## STEP 1 Prompt — Deep link protocol handler
+## STEP 1 Prompt â€” Deep link protocol handler
 
 ```
 Read .claude/ELECTRON.md first.
@@ -80,7 +80,7 @@ CHANGE 4: In preload.ts, add to contextBridge:
   openGoogleAuth: () => {
     // Opens Google OAuth in system browser
     const apiUrl = process.env.VITE_API_URL ||
-      'https://api.zoomguru.com';
+      'https://api.zoomguru.xyz';
     shell.openExternal(apiUrl + '/auth/google/electron');
   },
 
@@ -90,7 +90,7 @@ Show me both file diffs.
 
 ---
 
-## STEP 2 Prompt — Login page update
+## STEP 2 Prompt â€” Login page update
 
 ```
 Read .claude/ELECTRON.md first.
@@ -178,7 +178,7 @@ Show me all diffs separately.
 
 ---
 
-## STEP 3 Prompt — Register page username field
+## STEP 3 Prompt â€” Register page username field
 
 ```
 In apps/electron/src/auth/Register.tsx, add a username
@@ -215,12 +215,12 @@ CHANGE 2: Add username input field AFTER the name field:
   />
   {usernameAvailable === true && (
     <span style={{ color: '#10b981', fontSize: 11 }}>
-      ✓ Available
+      âœ“ Available
     </span>
   )}
   {usernameAvailable === false && (
     <span style={{ color: '#ef4444', fontSize: 11 }}>
-      ✗ Already taken
+      âœ— Already taken
     </span>
   )}
 
@@ -238,3 +238,4 @@ Add to backend auth.controller.ts:
 
 Show me the register page diff and the new endpoint.
 ```
+

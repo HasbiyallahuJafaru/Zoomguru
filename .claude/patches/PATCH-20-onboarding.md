@@ -1,4 +1,4 @@
-# PATCH-20 — First Launch Onboarding Flow
+﻿# PATCH-20 â€” First Launch Onboarding Flow
 
 ## Problem
 User installs app, logs in, sees overlay with no guidance.
@@ -10,7 +10,7 @@ First 60 seconds determines whether they keep the app.
 - `apps/electron/src/App.tsx`
 
 ## Risk Level
-🟡 MEDIUM — New component + one-line change in App.tsx.
+ðŸŸ¡ MEDIUM â€” New component + one-line change in App.tsx.
 
 ---
 
@@ -36,37 +36,37 @@ interface OnboardingProps {
 const STEPS = [
   {
     title: 'Welcome to ZoomGuru',
-    body: 'Your invisible AI interview copilot. Only you can see this overlay — it\'s completely hidden from screen share on Zoom, Meet, and Teams.',
-    icon: '👻',
+    body: 'Your invisible AI interview copilot. Only you can see this overlay â€” it\'s completely hidden from screen share on Zoom, Meet, and Teams.',
+    icon: 'ðŸ‘»',
     action: 'Next',
   },
   {
     title: 'Upload Your CV First',
-    body: 'ZoomGuru personalizes every answer to your actual experience. Upload your CV now — it only takes a moment.',
-    icon: '📄',
+    body: 'ZoomGuru personalizes every answer to your actual experience. Upload your CV now â€” it only takes a moment.',
+    icon: 'ðŸ“„',
     action: 'Upload CV',
     isCVStep: true,
   },
   {
     title: 'Learn Your Hotkeys',
     body: null,   // rendered separately as hotkey grid
-    icon: '⌨️',
+    icon: 'âŒ¨ï¸',
     action: 'Got it',
   },
   {
     title: 'You\'re Ready',
-    body: 'Start your interview and press ⌘⇧A to listen or ⌘⇧S to capture your screen. Good luck — you\'ve got this.',
-    icon: '🎯',
+    body: 'Start your interview and press âŒ˜â‡§A to listen or âŒ˜â‡§S to capture your screen. Good luck â€” you\'ve got this.',
+    icon: 'ðŸŽ¯',
     action: 'Start Using ZoomGuru',
   },
 ];
 
 const HOTKEYS = [
-  { keys: '⌘⇧A', label: 'Listen & Answer' },
-  { keys: '⌘⇧S', label: 'Screenshot & Solve' },
-  { keys: '⌘⇧H', label: 'Hide / Show' },
-  { keys: '⌘⇧R', label: 'Regenerate Answer' },
-  { keys: '⌘⇧C', label: 'Clear / New Question' },
+  { keys: 'âŒ˜â‡§A', label: 'Listen & Answer' },
+  { keys: 'âŒ˜â‡§S', label: 'Screenshot & Solve' },
+  { keys: 'âŒ˜â‡§H', label: 'Hide / Show' },
+  { keys: 'âŒ˜â‡§R', label: 'Regenerate Answer' },
+  { keys: 'âŒ˜â‡§C', label: 'Clear / New Question' },
 ];
 
 export function Onboarding({ onComplete }: OnboardingProps) {
@@ -206,13 +206,14 @@ Show me both file diffs.
 npm run dev
 
 # 1. Clear localStorage: localStorage.removeItem('zg_onboarded')
-# 2. Reload → should see Welcome step
+# 2. Reload â†’ should see Welcome step
 # 3. Click through all 4 steps
-# 4. On completion → normal overlay appears
-# 5. Restart app → onboarding should NOT show again
-# 6. Set localStorage.setItem('zg_onboarded','1') → skip onboarding
+# 4. On completion â†’ normal overlay appears
+# 5. Restart app â†’ onboarding should NOT show again
+# 6. Set localStorage.setItem('zg_onboarded','1') â†’ skip onboarding
 ```
 
 ## Rollback
 Delete apps/electron/src/onboarding/Onboarding.tsx.
 Remove the onboarded state and showOnboarding conditional from App.tsx.
+

@@ -67,25 +67,31 @@ State assumptions clearly. Check your answer at the end.`,
   return formatInstructions[promptKey] || formatInstructions.technical;
 }
 
+// Strip embedded newlines from a field so CV content can't break out of its section
+function s(v: unknown, max = 120): string {
+  return String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, max);
+}
+
 export function buildCVContext(cv: CVProfile): string {
-  return `CANDIDATE PROFILE:
-Name: ${cv.name}
-Current Role: ${cv.currentRole}
-Years of Experience: ${cv.yearsExperience}
-Skills: ${(cv.skills || []).join(', ')}
+  return `<cv_profile>
+Name: ${s(cv.name, 80)}
+Current Role: ${s(cv.currentRole, 100)}
+Years of Experience: ${s(cv.yearsExperience, 4)}
+Skills: ${(cv.skills || []).map(sk => s(sk, 50)).slice(0, 30).join(', ')}
 
 Work History:
-${(cv.companies || []).map(c =>
-  `- ${c.role} at ${c.name} (${c.duration})\n  ${(c.achievements || []).join('\n  ')}`
+${(cv.companies || []).slice(0, 8).map(c =>
+  `- ${s(c.role, 80)} at ${s(c.name, 80)} (${s(c.duration, 40)})\n  ${(c.achievements || []).slice(0, 5).map(a => s(a, 200)).join('\n  ')}`
 ).join('\n')}
 
 Projects:
-${(cv.projects || []).map(p =>
-  `- ${p.name}: ${p.description} (Stack: ${(p.stack || []).join(', ')}) — ${p.impact}`
+${(cv.projects || []).slice(0, 6).map(p =>
+  `- ${s(p.name, 80)}: ${s(p.description, 200)} (Stack: ${(p.stack || []).map(t => s(t, 30)).join(', ')}) — ${s(p.impact, 150)}`
 ).join('\n')}
 
 Education:
-${(cv.education || []).map(e => `- ${e.degree} from ${e.institution} (${e.year})`).join('\n')}
+${(cv.education || []).slice(0, 4).map(e => `- ${s(e.degree, 100)} from ${s(e.institution, 100)} (${s(e.year, 10)})`).join('\n')}
 
-Certifications: ${(cv.certifications || []).join(', ')}`;
+Certifications: ${(cv.certifications || []).slice(0, 10).map(c => s(c, 80)).join(', ')}
+</cv_profile>`;
 }

@@ -1,4 +1,4 @@
-# PATCH-01 — Disable DevTools in Production Electron Build
+﻿# PATCH-01 â€” Disable DevTools in Production Electron Build
 
 ## Problem
 DevTools are accessible in production via F12 or Ctrl+Shift+I.
@@ -8,7 +8,7 @@ Users can inspect network requests, steal JWT tokens, and see your API URL.
 - `apps/electron/electron/main.ts`
 
 ## Risk Level
-🟢 LOW — Additive only. No existing logic changed.
+ðŸŸ¢ LOW â€” Additive only. No existing logic changed.
 
 ---
 
@@ -22,7 +22,7 @@ Read .claude/CLAUDE.md and .claude/ELECTRON.md first.
 In apps/electron/electron/main.ts, find the createWindow() function.
 
 After the line where mainWindow is created (new BrowserWindow(...)),
-add the following block EXACTLY as written — do not modify any
+add the following block EXACTLY as written â€” do not modify any
 surrounding code:
 
   // Block DevTools in production
@@ -66,3 +66,4 @@ cd apps/electron && npm run build
 
 ## Rollback
 Delete the added block. No other changes needed.
+

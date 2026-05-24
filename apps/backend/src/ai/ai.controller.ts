@@ -6,6 +6,25 @@ import { AiService } from './ai.service';
 import { sseManager } from './sse-manager';
 import { getDB } from '../database/db';
 
+const ALLOWED_SSE_ORIGINS = new Set([
+  'https://zoomguru.xyz',
+  'app://.',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:3001',
+]);
+
+function sseOrigin(req: any): string {
+  const origin: string = req.headers?.origin || '';
+  if (
+    ALLOWED_SSE_ORIGINS.has(origin) ||
+    /^https:\/\/zoomguru(-[a-z0-9]+)?\.vercel\.app$/.test(origin)
+  ) {
+    return origin;
+  }
+  return 'null';
+}
+
 @Controller('ai')
 @UseGuards(JwtAuthGuard, DeviceGuard)
 export class AiController {
@@ -21,7 +40,7 @@ export class AiController {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': sseOrigin(req),
     });
     sseManager.add(req.user.userId, reply.raw);
 
@@ -49,11 +68,31 @@ export class AiController {
     @Req() req: any,
     @Res() reply: FastifyReply
   ) {
+    // Reject oversized payloads before starting SSE (10 MB base64 ≈ 7.5 MB image)
+    const MAX_IMAGE_B64 = 10 * 1024 * 1024;
+    if (!body.image || body.image.length > MAX_IMAGE_B64) {
+      return reply.status(400).send({ error: 'Image missing or too large (max 10 MB)' });
+    }
+    // Strip optional data-URL prefix and validate MIME type
+    const dataUrlMatch = body.image.match(/^data:(image\/(?:png|jpeg|webp|gif));base64,/);
+    const imageData = dataUrlMatch
+      ? body.image.slice(dataUrlMatch[0].length)
+      : body.image;
+    // Sniff magic bytes to confirm image type (base64 decode first 8 bytes)
+    const magic = Buffer.from(imageData.slice(0, 12), 'base64');
+    const isPng  = magic[0] === 0x89 && magic[1] === 0x50;
+    const isJpeg = magic[0] === 0xff && magic[1] === 0xd8;
+    const isWebp = magic[8] === 0x57 && magic[9] === 0x45 && magic[10] === 0x42 && magic[11] === 0x50;
+    const isGif  = magic[0] === 0x47 && magic[1] === 0x49;
+    if (!isPng && !isJpeg && !isWebp && !isGif) {
+      return reply.status(400).send({ error: 'Image must be PNG, JPEG, WebP, or GIF' });
+    }
+
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': sseOrigin(req),
     });
     sseManager.add(req.user.userId, reply.raw);
 
@@ -61,7 +100,7 @@ export class AiController {
       await this.aiService.streamScreenshot({
         userId: req.user.userId,
         sessionId: body.sessionId,
-        image: body.image,
+        image: imageData,
         voiceContext: body.voiceContext,
         mode: body.mode,
         reply: reply.raw,

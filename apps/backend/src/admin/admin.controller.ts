@@ -59,7 +59,11 @@ export class AdminController {
   async toggleLicense(
     @Param('id') id: string,
     @Body() body: { active: boolean },
+    @Headers('x-admin-key') adminKey: string,
   ) {
+    if (adminKey !== process.env.ADMIN_SECRET_KEY) {
+      throw new ForbiddenException('Invalid admin key');
+    }
     return this.adminService.toggleUserLicense(id, body.active);
   }
 

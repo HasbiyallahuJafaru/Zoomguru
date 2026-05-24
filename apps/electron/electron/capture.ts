@@ -4,7 +4,7 @@ export function initCapture(win: BrowserWindow) {
   ipcMain.handle('capture:screen', async () => {
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: { width: 1920, height: 1080 },
+      thumbnailSize: { width: 1280, height: 720 },
     });
 
     const primaryScreen = sources[0];

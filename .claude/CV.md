@@ -1,4 +1,4 @@
-# ZoomGuru — CV Upload & Parsing
+﻿# ZoomGuru â€” CV Upload & Parsing
 
 ## Overview
 
@@ -136,7 +136,7 @@ Return this exact structure:
     {
       "name": "Company Name",
       "role": "Job Title",
-      "duration": "Jan 2022 – Present",
+      "duration": "Jan 2022 â€“ Present",
       "achievements": ["Achievement 1", "Achievement 2"]
     }
   ],
@@ -287,7 +287,7 @@ export function CVUpload({ onUploaded }: CVUploadProps) {
       {uploading ? (
         <p>Parsing your CV...</p>
       ) : filename ? (
-        <p>✓ {filename} — CV loaded</p>
+        <p>âœ“ {filename} â€” CV loaded</p>
       ) : (
         <>
           <p>Drop your CV here or click to upload</p>
@@ -305,17 +305,18 @@ export function CVUpload({ onUploaded }: CVUploadProps) {
 ## Pre-Interview Setup Flow (setup/PreflightCheck.tsx)
 
 ```
-Step 1: Upload CV (required — blocks Start button)
-         ↓
+Step 1: Upload CV (required â€” blocks Start button)
+         â†“
 Step 2: Paste Job Description (optional)
-         ↓
+         â†“
 Step 3: Select Interview Type
          [ Behavioral ] [ Technical ] [ Coding ] [ System Design ]
-         ↓
+         â†“
 Step 4: Select Answer Length
          [ Brief ] [ Standard ] [ Detailed ]
-         ↓
+         â†“
 Step 5: Test microphone (quick audio check)
-         ↓
-         [ Start Interview ]  ← enabled only after CV uploaded
+         â†“
+         [ Start Interview ]  â† enabled only after CV uploaded
 ```
+

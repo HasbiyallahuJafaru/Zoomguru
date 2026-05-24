@@ -1,5 +1,17 @@
 import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { getDB } from '../database/db';
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) {
+    // Still do a dummy comparison to prevent length-based timing leak
+    crypto.timingSafeEqual(ba, ba);
+    return false;
+  }
+  return crypto.timingSafeEqual(ba, bb);
+}
 
 @Injectable()
 export class DeviceGuard implements CanActivate {
@@ -25,7 +37,7 @@ export class DeviceGuard implements CanActivate {
     if (!deviceId) throw new ForbiddenException('Device not identified');
 
     // Pro user — fingerprint must match (allow empty fingerprint on first bind)
-    if (license.device_fingerprint && license.device_fingerprint !== deviceId) {
+    if (license.device_fingerprint && !timingSafeEqual(license.device_fingerprint, deviceId)) {
       throw new ForbiddenException('License bound to different device');
     }
 

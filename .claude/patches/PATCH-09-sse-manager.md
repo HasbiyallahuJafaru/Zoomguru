@@ -1,16 +1,16 @@
-# PATCH-09 — SSE Connection Manager
+﻿# PATCH-09 â€” SSE Connection Manager
 
 ## Problem
 At 500 concurrent users, SSE connections accumulate without cleanup.
 If a user disconnects mid-stream, the server keeps writing to a
-dead connection — memory leak and error spam in logs.
+dead connection â€” memory leak and error spam in logs.
 
 ## Files Affected
 - `apps/backend/src/ai/sse-manager.ts` (new file)
 - `apps/backend/src/ai/ai.controller.ts`
 
 ## Risk Level
-🟡 MEDIUM — New file + controller modification. Test streaming after.
+ðŸŸ¡ MEDIUM â€” New file + controller modification. Test streaming after.
 
 ---
 
@@ -19,7 +19,7 @@ dead connection — memory leak and error spam in logs.
 ```
 Read .claude/BACKEND.md and .claude/AI.md first.
 
-STEP 1 — Create a new file apps/backend/src/ai/sse-manager.ts
+STEP 1 â€” Create a new file apps/backend/src/ai/sse-manager.ts
 with exactly this content:
 
 import { ServerResponse } from 'http';
@@ -71,7 +71,7 @@ export class SSEManager {
 export const sseManager = new SSEManager();
 
 
-STEP 2 — In apps/backend/src/ai/ai.controller.ts,
+STEP 2 â€” In apps/backend/src/ai/ai.controller.ts,
 find the streamAnswer() method.
 
 Add these two lines:
@@ -97,10 +97,11 @@ Show me the exact lines added in the controller.
 npm run start:dev
 
 # Start a streaming request, then kill the client mid-stream
-# Check server logs — should not show write-after-close errors
+# Check server logs â€” should not show write-after-close errors
 # sseManager.size should drop back to 0 after disconnect
 ```
 
 ## Rollback
 Delete sse-manager.ts. Remove the two sseManager calls
 from ai.controller.ts. Remove the import.
+

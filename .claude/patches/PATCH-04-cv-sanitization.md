@@ -1,4 +1,4 @@
-# PATCH-04 — CV Text Sanitization Before Storage
+﻿# PATCH-04 â€” CV Text Sanitization Before Storage
 
 ## Problem
 Malicious PDF could inject prompt-manipulation text into the
@@ -9,7 +9,7 @@ is ever displayed in UI.
 - `apps/backend/src/cv/cv.service.ts`
 
 ## Risk Level
-🟢 LOW — Additive only. New function called before existing storage.
+ðŸŸ¢ LOW â€” Additive only. New function called before existing storage.
 
 ---
 
@@ -75,3 +75,4 @@ Show me the diff of exactly what changed.
 
 ## Rollback
 Remove sanitizeCVText() method and the call to it.
+

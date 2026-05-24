@@ -34,7 +34,7 @@ export default function PaymentsPage() {
   const LIMIT = 20;
 
   const fetchPayments = useCallback(async () => {
-    if (!user?.accessToken) return;
+    if (!session) return;
     setLoading(true);
     const params = new URLSearchParams({
       page: String(page),
@@ -43,13 +43,10 @@ export default function PaymentsPage() {
       ...(filterCurrency && { currency: filterCurrency }),
       ...(filterPlan && { plan: filterPlan }),
     });
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/auth/user/payments?${params}`,
-      { headers: { Authorization: `Bearer ${user.accessToken}` } }
-    );
+    const res = await fetch(`/api/proxy/auth/user/payments?${params}`);
     if (res.ok) setData(await res.json());
     setLoading(false);
-  }, [user?.accessToken, page, search, filterCurrency, filterPlan]);
+  }, [session, page, search, filterCurrency, filterPlan]);
 
   useEffect(() => { fetchPayments(); }, [fetchPayments]);
 

@@ -1,4 +1,4 @@
-# PATCH-02 — ASAR Packaging + Binary Obfuscation
+﻿# PATCH-02 â€” ASAR Packaging + Binary Obfuscation
 
 ## Problem
 Electron apps ship as unpacked files by default.
@@ -9,7 +9,7 @@ API URLs, and logic.
 - `apps/electron/electron-builder.config.js`
 
 ## Risk Level
-🟢 LOW — Config change only. No code changes.
+ðŸŸ¢ LOW â€” Config change only. No code changes.
 
 ---
 
@@ -19,7 +19,7 @@ API URLs, and logic.
 Read .claude/ELECTRON.md first.
 
 In apps/electron/electron-builder.config.js, make these
-two additions ONLY — do not change anything else:
+two additions ONLY â€” do not change anything else:
 
 1. Add asar: true at the top level of the config object
    (same level as appId, productName, etc.)
@@ -48,8 +48,9 @@ npm run dist:mac   # or dist:win
 
 # After build, check release/ folder
 # You should see .asar files instead of loose JS files
-# Try to open the .app bundle — source should not be readable
+# Try to open the .app bundle â€” source should not be readable
 ```
 
 ## Rollback
 Remove `asar: true` and `asarUnpack` lines.
+

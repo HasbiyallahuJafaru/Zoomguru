@@ -1,10 +1,10 @@
-# PATCH-10 — Free Trial Device Lock at Registration
+﻿# PATCH-10 â€” Free Trial Device Lock at Registration
 
 ## Problem
 User hits 3-session free trial limit.
 Creates new account with different email.
 Gets another free trial on same device.
-Repeat forever — never pays.
+Repeat forever â€” never pays.
 
 ## Rule
 One device fingerprint = one free account, ever.
@@ -14,7 +14,7 @@ Paid users can use any device (their license is fingerprint-bound on first login
 - `apps/backend/src/auth/auth.service.ts`
 
 ## Risk Level
-🟡 MEDIUM — Modifies registration logic. Test new user signup after.
+ðŸŸ¡ MEDIUM â€” Modifies registration logic. Test new user signup after.
 
 ---
 
@@ -89,8 +89,8 @@ Show me all changed files with diffs.
 ## Verification
 
 ```bash
-# Test 1: Register first account on device A → should succeed
-# Test 2: Register second account on device A → should fail with:
+# Test 1: Register first account on device A â†’ should succeed
+# Test 2: Register second account on device A â†’ should fail with:
 # "A free trial has already been used on this device"
 # Test 3: Paid user can still register/login normally
 
@@ -116,3 +116,4 @@ Remove device_fingerprint_trial column from CREATE TABLE.
 Remove the device check block from register().
 Revert register() signature to 3 params.
 Remove deviceId from controller.
+

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
-const MAC_URL = 'https://releases.zoomguru.com/ZoomGuru-1.0.0-arm64.dmg';
-const WIN_URL = 'https://releases.zoomguru.com/ZoomGuru-Setup-1.0.0.exe';
+const MAC_URL = 'https://releases.zoomguru.xyz/ZoomGuru-1.0.0-arm64.dmg';
+const WIN_URL = 'https://releases.zoomguru.xyz/ZoomGuru-Setup-1.0.0.exe';
 
 function DownloadContent() {
   const searchParams = useSearchParams();
@@ -137,8 +137,8 @@ function DownloadContent() {
 
         <p className="mt-6 text-zinc-500 text-sm">
           Need help?{' '}
-          <a href="mailto:support@zoomguru.com" className="text-blue-400 hover:underline">
-            support@zoomguru.com
+          <a href="mailto:support@zoomguru.xyz" className="text-blue-400 hover:underline">
+            support@zoomguru.xyz
           </a>
         </p>
       </div>

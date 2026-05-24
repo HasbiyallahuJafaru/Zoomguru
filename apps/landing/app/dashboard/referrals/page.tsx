@@ -44,13 +44,11 @@ export default function ReferralsPage() {
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutMsg, setPayoutMsg] = useState('');
 
-  const referralLink = data ? `https://zoomguru.com?ref=${data.referralCode}` : '';
+  const referralLink = data ? `https://zoomguru.xyz?ref=${data.referralCode}` : '';
 
   const fetchData = useCallback(async () => {
-    if (!user?.accessToken) return;
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/stats`, {
-      headers: { Authorization: `Bearer ${user.accessToken}` },
-    });
+    if (!session) return;
+    const res = await fetch('/api/proxy/referral/stats');
     if (res.ok) {
       const raw = await res.json();
       // Normalize backend shape { referralCode, balance: {...}, referrals: [...] }
@@ -74,16 +72,16 @@ export default function ReferralsPage() {
       });
     }
     setLoading(false);
-  }, [user?.accessToken]);
+  }, [session]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    if (!user?.accessToken) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/banks`, {
-      headers: { Authorization: `Bearer ${user.accessToken}` },
-    }).then(r => r.json()).then(d => { if (Array.isArray(d)) setBanks(d); });
-  }, [user?.accessToken]);
+    if (!session) return;
+    fetch('/api/proxy/referral/banks')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setBanks(d); });
+  }, [session]);
 
   function copy(text: string, key: string) {
     navigator.clipboard.writeText(text);
@@ -102,15 +100,15 @@ export default function ReferralsPage() {
   }
 
   async function verifyAccount() {
-    if (!user?.accessToken || !payoutForm.bankCode || payoutForm.accountNumber.length !== 10) return;
+    if (!session || !payoutForm.bankCode || payoutForm.accountNumber.length !== 10) return;
     setVerifying(true);
     setVerifyError('');
     setVerified(false);
     setPayoutForm(f => ({ ...f, accountName: '' }));
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/verify-account`, {
+    const res = await fetch('/api/proxy/referral/verify-account', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accountNumber: payoutForm.accountNumber, bankCode: payoutForm.bankCode }),
     });
     const result = await res.json();
@@ -126,12 +124,12 @@ export default function ReferralsPage() {
 
   async function requestPayout(e: React.FormEvent) {
     e.preventDefault();
-    if (!user?.accessToken || !verified) return;
+    if (!session || !verified) return;
     setPayoutLoading(true);
     setPayoutMsg('');
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/referral/payout`, {
+    const res = await fetch('/api/proxy/referral/payout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.accessToken}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         bankName: payoutForm.bankName,
         bankCode: payoutForm.bankCode,
@@ -214,7 +212,7 @@ export default function ReferralsPage() {
             background: 'rgba(0,0,0,0.006)', border: '1px solid rgba(0,0,0,0.1)',
             color: '#1a1a1a', fontFamily: 'monospace', wordBreak: 'break-all',
           }}>
-            {referralLink || `https://zoomguru.com?ref=${data?.referralCode}`}
+            {referralLink || `https://zoomguru.xyz?ref=${data?.referralCode}`}
           </code>
           <button onClick={() => copy(referralLink, 'link')} style={{
             padding: '10px 18px', borderRadius: '8px', border: 'none',

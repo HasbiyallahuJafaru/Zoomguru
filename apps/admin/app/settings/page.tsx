@@ -484,9 +484,9 @@ export default function SettingsPage() {
         {/* ── SECTION 3 — System Configuration ──────────────────────────── */}
         <SectionCard title="System Configuration" subtitle="Read-only. Modify via environment variables and deployment config.">
           <div style={{ borderTop: '1px solid #f1f5f9' }}>
-            <InfoRow label="Backend API" value="api.zoomguru.com" />
-            <InfoRow label="Landing page" value="zoomguru.com" />
-            <InfoRow label="Admin dashboard" value="admin.zoomguru.com" />
+            <InfoRow label="Backend API" value="api.zoomguru.xyz" />
+            <InfoRow label="Landing page" value="zoomguru.xyz" />
+            <InfoRow label="Admin dashboard" value="admin.zoomguru.xyz" />
             <InfoRow label="Database" value="Neon PostgreSQL (serverless)" />
             <InfoRow label="AI — conversational" value="DeepSeek V3 (deepseek-chat)" />
             <InfoRow label="AI — reasoning" value="DeepSeek R1 (deepseek-reasoner)" />

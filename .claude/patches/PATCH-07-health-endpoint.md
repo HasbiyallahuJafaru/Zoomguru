@@ -1,4 +1,4 @@
-# PATCH-07 — Health Check Endpoint
+﻿# PATCH-07 â€” Health Check Endpoint
 
 ## Problem
 No way to monitor if backend is alive.
@@ -10,7 +10,7 @@ UptimeRobot needs an endpoint to ping.
 - `apps/backend/src/app.module.ts`
 
 ## Risk Level
-🟢 LOW — Purely additive. New endpoint only.
+ðŸŸ¢ LOW â€” Purely additive. New endpoint only.
 
 ---
 
@@ -46,7 +46,7 @@ export class AppController {
 Step 2: In apps/backend/src/app.module.ts, ensure
 AppController is in the controllers array of @Module().
 If it's already there, do nothing.
-If it's missing, add it — import AppController at the top
+If it's missing, add it â€” import AppController at the top
 and add it to controllers: [AppController, ...existing].
 
 Do not remove or change any existing controllers or imports.
@@ -67,9 +67,9 @@ curl http://localhost:3000/health
 
 ## UptimeRobot Setup (After Deployment)
 ```
-Go to uptimerobot.com → Add New Monitor
+Go to uptimerobot.com â†’ Add New Monitor
 Type: HTTP(s)
-URL: https://api.zoomguru.com/health
+URL: https://api.zoomguru.xyz/health
 Interval: 5 minutes
 Alert: Email notification to your inbox
 ```
@@ -83,3 +83,4 @@ Health Check Path: /health
 ## Rollback
 Remove the @Get('health') method. Remove AppController
 from app.module.ts if it was newly added.
+

@@ -1,4 +1,4 @@
-# PATCH-03 — Request Timeout on All AI API Calls
+﻿# PATCH-03 â€” Request Timeout on All AI API Calls
 
 ## Problem
 If DeepSeek or Qwen API hangs, SSE connections hang forever.
@@ -8,7 +8,7 @@ Server memory leaks. Users see frozen overlay with no feedback.
 - `apps/backend/src/ai/ai.service.ts`
 
 ## Risk Level
-🟡 MEDIUM — Modifies existing fetch calls. Test streaming after.
+ðŸŸ¡ MEDIUM â€” Modifies existing fetch calls. Test streaming after.
 
 ---
 
@@ -82,3 +82,4 @@ Show me each change separately with its location in the file.
 
 ## Rollback
 Remove AbortController blocks, restore original fetch calls.
+

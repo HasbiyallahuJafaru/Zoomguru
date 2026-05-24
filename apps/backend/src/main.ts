@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/node';
 
 Sentry.init({
-  dsn: process.env.GLITCHTIP_DSN || 'https://41222b9dc9e94a93b69db9367b692e76@app.glitchtip.com/23688',
+  dsn: process.env.GLITCHTIP_DSN,
   environment: process.env.NODE_ENV || 'production',
   release: '1.0.0',
   tracesSampleRate: 0.01,
@@ -22,6 +22,8 @@ async function bootstrap() {
     'PAYSTACK_SECRET_KEY',
     'PAYSTACK_WEBHOOK_SECRET',
     'ADMIN_SECRET_KEY',
+    'ELECTRON_OAUTH_SECRET',
+    'GLITCHTIP_DSN',
   ];
 
   const missing = REQUIRED_ENV.filter(key => !process.env[key]);
@@ -59,7 +61,7 @@ async function bootstrap() {
   await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
 
   const ALLOWED_ORIGINS = [
-    'https://zoomguru.com',
+    'https://zoomguru.xyz',
     'app://.',
     'http://localhost:5173',
     'http://localhost:3000',
@@ -68,10 +70,13 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // server-to-server / curl
+      // Reject missing origins — null-origin requests (sandboxed iframes, file://, data:)
+      // must not bypass the allowlist. Server-to-server callers use API key auth instead.
+      if (!origin) return callback(new Error('CORS: origin required'), false);
       if (
         ALLOWED_ORIGINS.includes(origin) ||
-        /\.vercel\.app$/.test(origin)        // all vercel preview + production URLs
+        // Only allow our own Vercel project previews, not all *.vercel.app
+        /^https:\/\/zoomguru(-[a-z0-9]+)?\.vercel\.app$/.test(origin)
       ) {
         return callback(null, true);
       }

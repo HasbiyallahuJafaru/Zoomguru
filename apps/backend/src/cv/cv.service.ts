@@ -155,18 +155,22 @@ ${rawText.slice(0, 6000)}`;
 
   private sanitizeCVText(raw: string): string {
     return raw
+      // Hard cap to prevent runaway context injection
+      .slice(0, 15_000)
       // Remove HTML/XML tags
       .replace(/<[^>]*>/g, ' ')
       // Remove null bytes
       .replace(/\0/g, '')
       // Remove non-printable characters (keep newlines, tabs)
       .replace(/[^\x09\x0A\x0D\x20-\x7E -￿]/g, ' ')
-      // Remove prompt injection patterns
-      .replace(/ignore (previous|above|all) instructions?/gi, '')
-      .replace(/you are now/gi, '')
-      .replace(/system:/gi, '')
-      .replace(/assistant:/gi, '')
-      .replace(/human:/gi, '')
+      // Strip known prompt injection patterns
+      .replace(/ignore (previous|above|all) instructions?/gi, '[redacted]')
+      .replace(/you are now/gi, '[redacted]')
+      .replace(/system:/gi, '[redacted]')
+      .replace(/assistant:/gi, '[redacted]')
+      .replace(/human:/gi, '[redacted]')
+      .replace(/<\/?s?ystem>/gi, '[redacted]')
+      .replace(/\[INST\]/gi, '[redacted]')
       // Collapse excessive whitespace
       .replace(/\s{4,}/g, '\n\n')
       // Trim

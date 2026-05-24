@@ -140,8 +140,8 @@ export default function TermsPage() {
           <h2 className="text-white font-bold text-lg mb-3">13. Contact</h2>
           <p>
             For questions about these Terms, contact us at{' '}
-            <a href="mailto:support@zoomguru.com" className="text-white underline underline-offset-2 hover:text-white/80">
-              support@zoomguru.com
+            <a href="mailto:support@zoomguru.xyz" className="text-white underline underline-offset-2 hover:text-white/80">
+              support@zoomguru.xyz
             </a>.
           </p>
         </section>

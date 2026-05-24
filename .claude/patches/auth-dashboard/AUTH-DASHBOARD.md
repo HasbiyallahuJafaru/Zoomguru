@@ -1,13 +1,13 @@
-# ZoomGuru — Auth & Dashboard Context
+﻿# ZoomGuru â€” Auth & Dashboard Context
 
 ## What This Module Covers
 
 Full authentication system (username/password + Google OAuth)
 across three surfaces:
 
-1. Landing + User Dashboard (zoomguru.com) — Next.js, Netlify
-2. Admin Dashboard (admin.zoomguru.com) — separate Next.js, Netlify
-3. Electron App — username login + device fingerprint display
+1. Landing + User Dashboard (zoomguru.xyz) â€” Next.js, Netlify
+2. Admin Dashboard (admin.zoomguru.xyz) â€” separate Next.js, Netlify
+3. Electron App â€” username login + device fingerprint display
 
 ---
 
@@ -15,27 +15,27 @@ across three surfaces:
 
 ```
 Web Auth (NextAuth.js v5)
-    ├── Credentials provider — username OR email + password
-    ├── Google OAuth provider — Google Cloud OAuth 2.0
-    ├── Sessions stored in Neon (database sessions strategy)
-    ├── JWT for API calls to backend
-    └── Shared auth logic between landing app and admin app
+    â”œâ”€â”€ Credentials provider â€” username OR email + password
+    â”œâ”€â”€ Google OAuth provider â€” Google Cloud OAuth 2.0
+    â”œâ”€â”€ Sessions stored in Neon (database sessions strategy)
+    â”œâ”€â”€ JWT for API calls to backend
+    â””â”€â”€ Shared auth logic between landing app and admin app
 
-Electron Auth (existing JWT system — extended)
-    ├── Login accepts username OR email
-    ├── Device fingerprint sent on every request
-    ├── Token stored in electron-store (encrypted)
-    └── Deep link callback for Google OAuth in Electron
+Electron Auth (existing JWT system â€” extended)
+    â”œâ”€â”€ Login accepts username OR email
+    â”œâ”€â”€ Device fingerprint sent on every request
+    â”œâ”€â”€ Token stored in electron-store (encrypted)
+    â””â”€â”€ Deep link callback for Google OAuth in Electron
 ```
 
 ---
 
-## User Dashboard Routes (zoomguru.com)
+## User Dashboard Routes (zoomguru.xyz)
 
 ```
 /login                    Email or username + password, Google button
 /register                 Username + email + password + Google
-/dashboard                Home — subscription status, quick stats
+/dashboard                Home â€” subscription status, quick stats
 /dashboard/subscription   Plan details, upgrade, cancel
 /dashboard/payments       Full transaction history
 /dashboard/sessions       Interview session summaries
@@ -45,17 +45,17 @@ Electron Auth (existing JWT system — extended)
 
 ---
 
-## Admin Dashboard Routes (admin.zoomguru.com)
+## Admin Dashboard Routes (admin.zoomguru.xyz)
 
 ```
-/login                    Admin credentials only — no Google
-/                         Overview — revenue, users, health, errors
-/users                    All users table — search, filter, sort
-/users/[id]               Single user — full profile, actions
+/login                    Admin credentials only â€” no Google
+/                         Overview â€” revenue, users, health, errors
+/users                    All users table â€” search, filter, sort
+/users/[id]               Single user â€” full profile, actions
 /revenue                  MRR, ARR, churn, LTV, cohort charts
 /sessions                 Interview analytics, usage patterns
 /referrals                Referral funnel, top referrers
-/payouts                  Pending payout requests — approve/reject
+/payouts                  Pending payout requests â€” approve/reject
 /errors                   Error log viewer, filtered by severity
 /settings                 Admin account management
 ```
@@ -65,7 +65,7 @@ Electron Auth (existing JWT system — extended)
 ## DB Schema Additions
 
 ```sql
--- users table — new columns
+-- users table â€” new columns
 username              TEXT UNIQUE NOT NULL
 google_id             TEXT UNIQUE
 avatar_url            TEXT
@@ -111,18 +111,18 @@ CREATE TABLE nextauth_verification_tokens (
 ```
 Web:
   User clicks "Continue with Google"
-  → Redirect to Google consent screen
-  → Google redirects to zoomguru.com/api/auth/callback/google
-  → NextAuth creates/updates user in Neon
-  → Redirect to /dashboard
+  â†’ Redirect to Google consent screen
+  â†’ Google redirects to zoomguru.xyz/api/auth/callback/google
+  â†’ NextAuth creates/updates user in Neon
+  â†’ Redirect to /dashboard
 
 Electron:
   User clicks "Continue with Google" in app
-  → Opens system browser to zoomguru.com/auth/google/electron
-  → After Google consent, backend generates short-lived token
-  → Redirects to deep link: zoomguru://auth?token=xxx
-  → Electron intercepts deep link, exchanges token for JWT
-  → User logged in
+  â†’ Opens system browser to zoomguru.xyz/auth/google/electron
+  â†’ After Google consent, backend generates short-lived token
+  â†’ Redirects to deep link: zoomguru://auth?token=xxx
+  â†’ Electron intercepts deep link, exchanges token for JWT
+  â†’ User logged in
 ```
 
 ---
@@ -131,8 +131,8 @@ Electron:
 
 ```
 users.role column:
-  'user'   — default, accesses user dashboard only
-  'admin'  — accesses admin dashboard + all admin endpoints
+  'user'   â€” default, accesses user dashboard only
+  'admin'  â€” accesses admin dashboard + all admin endpoints
 
 Granting admin:
   Via backend endpoint: PATCH /admin/users/:id/role
@@ -142,7 +142,7 @@ Granting admin:
 Admin middleware checks:
   1. Valid JWT
   2. users.role = 'admin'
-  3. Request comes from admin.zoomguru.com origin
+  3. Request comes from admin.zoomguru.xyz origin
 ```
 
 ---
@@ -151,17 +151,17 @@ Admin middleware checks:
 
 ```
 Free tier protection on all domains:
-  zoomguru.com          → proxied to Netlify
-  admin.zoomguru.com    → proxied to Netlify (admin app)
-  api.zoomguru.com      → proxied to Render backend
+  zoomguru.xyz          â†’ proxied to Netlify
+  admin.zoomguru.xyz    â†’ proxied to Netlify (admin app)
+  api.zoomguru.xyz      â†’ proxied to Render backend
 
 WAF rules (free):
   Block requests from known bad IPs
-  Rate limit: /api/auth/* → 10 requests per minute per IP
-  Rate limit: /api/paystack/webhook → 100/min (Paystack IPs only)
+  Rate limit: /api/auth/* â†’ 10 requests per minute per IP
+  Rate limit: /api/paystack/webhook â†’ 100/min (Paystack IPs only)
   Bot fight mode: ON
 
-SSL: Full (strict) — Cloudflare handles certs
+SSL: Full (strict) â€” Cloudflare handles certs
 ```
 
 ---
@@ -175,12 +175,12 @@ No external analytics service needed
 All data already in your DB
 
 Chart types used:
-  Line chart   — revenue over time, signups over time
-  Bar chart    — sessions per day, questions per type
-  Area chart   — MRR growth
-  Pie chart    — plan breakdown, currency split
-  Table        — users, payouts, errors
-  Stat cards   — KPI numbers at top of each page
+  Line chart   â€” revenue over time, signups over time
+  Bar chart    â€” sessions per day, questions per type
+  Area chart   â€” MRR growth
+  Pie chart    â€” plan breakdown, currency split
+  Table        â€” users, payouts, errors
+  Stat cards   â€” KPI numbers at top of each page
 ```
 
 ---
@@ -195,7 +195,7 @@ User Dashboard:
   Colors: Same CSS variables as landing
 
 Admin Dashboard:
-  Pure light theme — white backgrounds
+  Pure light theme â€” white backgrounds
   Clean, data-focused, readable
   Font: Inter (clarity for data tables)
   Colors:
@@ -211,13 +211,13 @@ Admin Dashboard:
 
 ---
 
-## Environment Variables — New Additions
+## Environment Variables â€” New Additions
 
 ```env
 # Both apps
 NEXTAUTH_SECRET=random_64_char_string
-NEXTAUTH_URL=https://zoomguru.com          # landing app
-NEXTAUTH_URL=https://admin.zoomguru.com   # admin app
+NEXTAUTH_URL=https://zoomguru.xyz          # landing app
+NEXTAUTH_URL=https://admin.zoomguru.xyz   # admin app
 
 # Google OAuth
 GOOGLE_CLIENT_ID=your_google_client_id
@@ -229,7 +229,7 @@ GOOGLE_CLIENT_SECRET=same_as_above
 ELECTRON_OAUTH_SECRET=random_32_char_string  # for deep link token
 
 # Admin app
-NEXT_PUBLIC_API_URL=https://api.zoomguru.com
+NEXT_PUBLIC_API_URL=https://api.zoomguru.xyz
 ADMIN_APP_SECRET=random_32_char_string       # extra admin app auth
 ```
 
@@ -261,3 +261,4 @@ AUTH-20   Admin referrals + payouts
 AUTH-21   Admin error log viewer
 AUTH-22   Admin settings
 ```
+

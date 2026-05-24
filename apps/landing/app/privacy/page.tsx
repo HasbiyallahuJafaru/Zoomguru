@@ -128,8 +128,8 @@ export default function PrivacyPage() {
           </ul>
           <p className="mt-3">
             To exercise any of these rights, email{' '}
-            <a href="mailto:support@zoomguru.com" className="text-white underline underline-offset-2 hover:text-white/80">
-              support@zoomguru.com
+            <a href="mailto:support@zoomguru.xyz" className="text-white underline underline-offset-2 hover:text-white/80">
+              support@zoomguru.xyz
             </a>.
           </p>
         </section>
@@ -155,8 +155,8 @@ export default function PrivacyPage() {
           <h2 className="text-white font-bold text-lg mb-3">10. Contact</h2>
           <p>
             For privacy-related questions or requests, contact us at{' '}
-            <a href="mailto:support@zoomguru.com" className="text-white underline underline-offset-2 hover:text-white/80">
-              support@zoomguru.com
+            <a href="mailto:support@zoomguru.xyz" className="text-white underline underline-offset-2 hover:text-white/80">
+              support@zoomguru.xyz
             </a>.
           </p>
         </section>

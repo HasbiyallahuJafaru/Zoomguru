@@ -57,19 +57,16 @@ export default function SessionsPage() {
   const LIMIT = 20;
 
   const fetchSessions = useCallback(async () => {
-    if (!user?.accessToken) return;
+    if (!session) return;
     setLoading(true);
     const params = new URLSearchParams({
       page: String(page), limit: String(LIMIT),
       type: typeFilter, sort,
     });
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/auth/user/sessions?${params}`,
-      { headers: { Authorization: `Bearer ${user.accessToken}` } }
-    );
+    const res = await fetch(`/api/proxy/auth/user/sessions?${params}`);
     if (res.ok) setData(await res.json());
     setLoading(false);
-  }, [user?.accessToken, page, typeFilter, sort]);
+  }, [session, page, typeFilter, sort]);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
   useEffect(() => { setPage(1); }, [typeFilter, sort]);

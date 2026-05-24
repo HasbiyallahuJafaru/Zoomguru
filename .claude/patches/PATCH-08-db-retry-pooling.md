@@ -1,7 +1,7 @@
-# PATCH-08 — DB Connection Retry + Connection Pooling
+﻿# PATCH-08 â€” DB Connection Retry + Connection Pooling
 
 ## Problem
-1. Neon goes cold occasionally — first query fails without retry
+1. Neon goes cold occasionally â€” first query fails without retry
 2. At 500 concurrent users, 20 connection limit exhausted fast
 3. No pooling = each request opens/closes a connection
 
@@ -10,7 +10,7 @@
 - `apps/backend/src/database/init.ts`
 
 ## Risk Level
-🟡 MEDIUM — Changes DB client. Test all endpoints after.
+ðŸŸ¡ MEDIUM â€” Changes DB client. Test all endpoints after.
 
 ---
 
@@ -22,7 +22,7 @@ Read .claude/DATABASE.md and .claude/BACKEND.md first.
 I need to upgrade the database layer for connection pooling
 and retry logic. Make these changes surgically:
 
-STEP 1 — Replace apps/backend/src/database/db.ts entirely
+STEP 1 â€” Replace apps/backend/src/database/db.ts entirely
 with this new version:
 
 import { neon, neonConfig, Pool } from '@neondatabase/serverless';
@@ -45,7 +45,7 @@ export function getPool(): Pool {
   return _pool;
 }
 
-// Keep getDB() for backward compatibility — 
+// Keep getDB() for backward compatibility â€” 
 // existing code using sql`` tagged templates still works
 let _sql: ReturnType<typeof neon> | null = null;
 
@@ -56,7 +56,7 @@ export function getDB(): ReturnType<typeof neon> {
   return _sql;
 }
 
-STEP 2 — In apps/backend/src/database/init.ts,
+STEP 2 â€” In apps/backend/src/database/init.ts,
 find the initDB() export function.
 Wrap the entire body of initDB() in a retry loop:
 
@@ -79,7 +79,7 @@ export async function initDB(): Promise<void> {
 Keep ALL existing CREATE TABLE statements exactly as they are.
 Only wrap them in the retry loop.
 
-Do not change any service files — getDB() signature is unchanged.
+Do not change any service files â€” getDB() signature is unchanged.
 Show me both files after changes.
 ```
 
@@ -100,3 +100,4 @@ curl -X POST http://localhost:3000/auth/login \
 ## Rollback
 Restore original db.ts (remove Pool export, remove neonConfig line).
 Remove retry wrapper from init.ts (keep inner content unchanged).
+

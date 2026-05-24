@@ -152,9 +152,6 @@ export async function initDB(): Promise<void> {
       await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS metadata JSONB`;
       await sql`ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
 
-      // payout_requests — add bank_code for Paystack transfers
-      await sql`ALTER TABLE payout_requests ADD COLUMN IF NOT EXISTS bank_code TEXT`;
-
       // ── Indexes for performance ──────────────────────────────────────────
       await sql`CREATE INDEX IF NOT EXISTS idx_licenses_user ON licenses(user_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_licenses_fingerprint ON licenses(device_fingerprint)`;
@@ -201,6 +198,9 @@ export async function initDB(): Promise<void> {
           processed_at TIMESTAMPTZ
         )
       `;
+
+      // payout_requests — add bank_code for Paystack transfers (must run after CREATE TABLE above)
+      await sql`ALTER TABLE payout_requests ADD COLUMN IF NOT EXISTS bank_code TEXT`;
 
       await sql`CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id)`;
       await sql`CREATE INDEX IF NOT EXISTS idx_referrals_code ON users(referral_code)`;

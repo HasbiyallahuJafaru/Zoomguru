@@ -1,12 +1,12 @@
-# ZoomGuru — Auth & License
+﻿# ZoomGuru â€” Auth & License
 
 ## Auth Flow
 
 ```
-Register → Login → Access Token (15min) + Refresh Token (30 days)
-         → Every request: Bearer access token + X-Device-ID header
-         → Access expired → refresh endpoint rotates tokens
-         → License check on every protected request
+Register â†’ Login â†’ Access Token (15min) + Refresh Token (30 days)
+         â†’ Every request: Bearer access token + X-Device-ID header
+         â†’ Access expired â†’ refresh endpoint rotates tokens
+         â†’ License check on every protected request
 ```
 
 ---
@@ -14,7 +14,7 @@ Register → Login → Access Token (15min) + Refresh Token (30 days)
 ## JWT Tokens
 
 ```typescript
-// Access token — short lived
+// Access token â€” short lived
 {
   sub: userId,
   email: userEmail,
@@ -22,7 +22,7 @@ Register → Login → Access Token (15min) + Refresh Token (30 days)
   exp: now + 15min
 }
 
-// Refresh token — long lived, stored hashed in DB
+// Refresh token â€” long lived, stored hashed in DB
 {
   sub: userId,
   type: 'refresh',
@@ -124,7 +124,7 @@ export class AuthService {
 
     if (!stored) throw new UnauthorizedException('Refresh token expired or revoked');
 
-    // Rotate — delete old, issue new
+    // Rotate â€” delete old, issue new
     await sql`DELETE FROM refresh_tokens WHERE id = ${stored.id}`;
 
     const [user] = await sql`
@@ -199,7 +199,7 @@ export class LicenseService {
       return { valid: true, isPro: false, plan: 'free' };
     }
 
-    // Pro user — verify device fingerprint
+    // Pro user â€” verify device fingerprint
     const [license] = await sql`
       SELECT device_fingerprint, plan, expires_at, status
       FROM licenses
@@ -213,7 +213,7 @@ export class LicenseService {
       return { valid: true, isPro: false, plan: 'free' };
     }
 
-    // Check expiry (monthly plans only — lifetime has null expires_at)
+    // Check expiry (monthly plans only â€” lifetime has null expires_at)
     if (license.expires_at && new Date(license.expires_at) < new Date()) {
       await sql`
         UPDATE users SET is_pro = false WHERE id = ${userId}
@@ -261,7 +261,7 @@ store.set('user', tokens.user);
 // On every API request
 const token = store.get('access_token') as string;
 
-// On 401 — auto refresh
+// On 401 â€” auto refresh
 async function refreshIfNeeded() {
   const refresh = store.get('refresh_token') as string;
   const deviceId = getDeviceFingerprint();
@@ -288,3 +288,4 @@ Authorization: Bearer {accessToken}
 X-Device-ID: {sha256DeviceFingerprint}
 Content-Type: application/json
 ```
+

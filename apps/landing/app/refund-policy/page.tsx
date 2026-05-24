@@ -78,8 +78,8 @@ export default function RefundPolicyPage() {
           <p>
             If you believe you were charged incorrectly (e.g. charged twice for the same plan), please
             contact us at{' '}
-            <a href="mailto:support@zoomguru.com" className="text-white underline underline-offset-2 hover:text-white/80">
-              support@zoomguru.com
+            <a href="mailto:support@zoomguru.xyz" className="text-white underline underline-offset-2 hover:text-white/80">
+              support@zoomguru.xyz
             </a>{' '}
             within 7 days of the charge with your payment reference. Verified billing errors will be
             corrected promptly. This is the only circumstance under which a payment may be reversed.
@@ -100,8 +100,8 @@ export default function RefundPolicyPage() {
           <h2 className="text-white font-bold text-lg mb-3">6. Contact</h2>
           <p>
             If you have a billing question or believe there has been an error, contact us at{' '}
-            <a href="mailto:support@zoomguru.com" className="text-white underline underline-offset-2 hover:text-white/80">
-              support@zoomguru.com
+            <a href="mailto:support@zoomguru.xyz" className="text-white underline underline-offset-2 hover:text-white/80">
+              support@zoomguru.xyz
             </a>. Please include your payment reference number and the email address used at checkout.
           </p>
         </section>
