@@ -144,6 +144,17 @@ export async function initDB(): Promise<void> {
       await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS currency TEXT`;
       await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0`;
       await sql`ALTER TABLE licenses ADD COLUMN IF NOT EXISTS paystack_reference TEXT`;
+      // Ensure the unique constraint exists — the ADD COLUMN above may have added it without one
+      await sql`
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'licenses_paystack_reference_key'
+          ) THEN
+            ALTER TABLE licenses ADD CONSTRAINT licenses_paystack_reference_key UNIQUE (paystack_reference);
+          END IF;
+        END $$
+      `;
       // device_fingerprint is bound on login, not at payment time — must be nullable
       await sql`ALTER TABLE licenses ALTER COLUMN device_fingerprint DROP NOT NULL`;
 

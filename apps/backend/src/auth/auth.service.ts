@@ -125,14 +125,16 @@ export class AuthService {
       AND expires_at < NOW()
     `;
 
-    // Downgrade user if no active licenses remain
-    const [activeLicense] = await sql`
-      SELECT id FROM licenses
-      WHERE user_id = ${user.id} AND status = 'active'
-      LIMIT 1
+    // Downgrade user only if they have at least one license row but none are active
+    // (avoids stripping pro from users whose webhook hasn't fired yet)
+    const licenses = await sql`
+      SELECT id, status FROM licenses
+      WHERE user_id = ${user.id}
     `;
+    const hasAnyLicense = licenses.length > 0;
+    const hasActiveLicense = licenses.some((l: any) => l.status === 'active');
 
-    if (!activeLicense && user.is_pro) {
+    if (hasAnyLicense && !hasActiveLicense && user.is_pro) {
       await sql`UPDATE users SET is_pro = false, plan = 'free' WHERE id = ${user.id}`;
       user.is_pro = false;
     }
