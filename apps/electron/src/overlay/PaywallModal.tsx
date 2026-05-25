@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'https://zoomguru-backend.onrender.com';
+  'https://zoomguru.onrender.com';
 
 interface Props {
   onClose: () => void;

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-const API_URL: string = (import.meta as any).env?.VITE_API_URL ?? 'https://zoomguru-backend.onrender.com';
+const API_URL: string = (import.meta as any).env?.VITE_API_URL ?? 'https://zoomguru.onrender.com';
 
 contextBridge.exposeInMainWorld('zoomguru', {
   onTrigger: (event: string, callback: (...args: any[]) => void) => {

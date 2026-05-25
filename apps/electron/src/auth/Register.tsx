@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'https://zoomguru-backend.onrender.com';
+  'https://zoomguru.onrender.com';
 
 interface Props {
   onRegistered: () => void;
@@ -32,10 +32,12 @@ export function Register({ onRegistered, onBack }: Props) {
         body: JSON.stringify({ name, username, email, password, deviceId }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { /* non-JSON response */ }
 
       if (!res.ok) {
-        throw new Error(data.message || 'Registration failed');
+        throw new Error(data.message || `Server error (${res.status}): ${text.slice(0, 120)}`);
       }
 
       localStorage.setItem('access_token', data.accessToken);
@@ -87,11 +89,13 @@ export function Register({ onRegistered, onBack }: Props) {
               }}
               onBlur={async () => {
                 if (username.length >= 3) {
-                  const res = await fetch(
-                    `${API_URL}/auth/check-username?username=${username}`
-                  );
-                  const data = await res.json();
-                  setUsernameAvailable(data.available);
+                  try {
+                    const res = await fetch(
+                      `${API_URL}/auth/check-username?username=${username}`
+                    );
+                    const text = await res.text();
+                    try { setUsernameAvailable(JSON.parse(text).available ?? null); } catch { /* ignore */ }
+                  } catch { /* ignore network errors on blur */ }
                 }
               }}
               required

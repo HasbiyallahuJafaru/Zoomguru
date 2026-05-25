@@ -1,6 +1,6 @@
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'https://zoomguru-backend.onrender.com';
+  'https://zoomguru.onrender.com';
 
 export function getAccessToken(): string | null {
   return localStorage.getItem('access_token');

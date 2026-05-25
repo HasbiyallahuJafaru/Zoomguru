@@ -3,7 +3,7 @@ import { Register } from './Register';
 
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'https://zoomguru-backend.onrender.com';
+  'https://zoomguru.onrender.com';
 
 interface Props {
   onLogin: (user?: any) => void;
@@ -60,10 +60,12 @@ export function Login({ onLogin }: Props) {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { /* non-JSON response */ }
 
       if (!res.ok) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.message || `Server error (${res.status}): ${text.slice(0, 120)}`);
       }
 
       localStorage.setItem('access_token', data.accessToken);

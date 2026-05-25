@@ -74,9 +74,8 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Reject missing origins — null-origin requests (sandboxed iframes, file://, data:)
-      // must not bypass the allowlist. Server-to-server callers use API key auth instead.
-      if (!origin) return callback(new Error('CORS: origin required'), false);
+      // Allow requests with no Origin header (Electron app, server-to-server)
+      if (!origin) return callback(null, true);
       if (
         ALLOWED_ORIGINS.includes(origin) ||
         // Only allow our own Vercel project previews, not all *.vercel.app

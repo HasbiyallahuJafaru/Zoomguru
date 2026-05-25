@@ -5,7 +5,7 @@ import { PaywallModal } from './PaywallModal';
 
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'https://zoomguru-backend.onrender.com';
+  'https://zoomguru.onrender.com';
 
 type Mode = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
 type ProtectionStatus = 'checking' | 'protected' | 'exposed';

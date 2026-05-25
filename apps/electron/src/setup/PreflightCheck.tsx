@@ -4,7 +4,7 @@ import { JDInput } from './JDInput';
 
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'https://zoomguru-backend.onrender.com';
+  'https://zoomguru.onrender.com';
 
 type InterviewType = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
 type AnswerLength = 'brief' | 'standard' | 'detailed';
