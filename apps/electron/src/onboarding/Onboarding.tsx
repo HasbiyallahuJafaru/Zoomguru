@@ -42,14 +42,10 @@ const HOTKEYS = [
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
-  const [cvDone, setCVDone] = useState(false);
   const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
 
   function handleAction() {
-    if (current.isCVStep) {
-      setCVDone(true);
-    }
     if (isLast) {
       localStorage.setItem('zg_onboarded', '1');
       onComplete();
@@ -57,8 +53,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       setStep(s => s + 1);
     }
   }
-
-  void cvDone; // used for future CV upload state
 
   return (
     <div style={{
@@ -70,7 +64,6 @@ export function Onboarding({ onComplete }: OnboardingProps) {
       alignItems: 'center', justifyContent: 'center',
       padding: 32, gap: 24, textAlign: 'center',
     }}>
-      {/* Step indicator */}
       <div style={{ display: 'flex', gap: 6 }}>
         {STEPS.map((_, i) => (
           <div key={i} style={{
@@ -82,23 +75,18 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         ))}
       </div>
 
-      {/* Icon */}
       <div style={{ fontSize: 48 }}>{current.icon}</div>
 
-      {/* Title */}
       <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0 }}>
         {current.title}
       </h2>
 
-      {/* Body */}
       {current.body && (
-        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14,
-          lineHeight: 1.6, maxWidth: 320, margin: 0 }}>
+        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.6, maxWidth: 320, margin: 0 }}>
           {current.body}
         </p>
       )}
 
-      {/* Hotkeys grid (step 2 only) */}
       {step === 2 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
           {HOTKEYS.map(hk => (
@@ -108,27 +96,22 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               background: 'rgba(255,255,255,0.05)',
               borderRadius: 8, alignItems: 'center',
             }}>
-              <span style={{ color: '#3b82f6', fontSize: 13, fontFamily: 'monospace',
-                fontWeight: 700 }}>{hk.keys}</span>
+              <span style={{ color: '#3b82f6', fontSize: 13, fontFamily: 'monospace', fontWeight: 700 }}>{hk.keys}</span>
               <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{hk.label}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Action button */}
       <button onClick={handleAction} style={{
-        background: '#3b82f6',
-        color: '#fff', border: 'none',
+        background: '#3b82f6', color: '#fff', border: 'none',
         borderRadius: 10, padding: '12px 28px',
-        fontSize: 14, fontWeight: 600,
-        cursor: 'pointer', width: '100%',
-        marginTop: 8,
+        fontSize: 14, fontWeight: 600, cursor: 'pointer',
+        width: '100%', marginTop: 8,
       }}>
         {current.action}
       </button>
 
-      {/* Skip (not on last step or CV step) */}
       {!isLast && step !== 1 && (
         <button onClick={() => {
           localStorage.setItem('zg_onboarded', '1');

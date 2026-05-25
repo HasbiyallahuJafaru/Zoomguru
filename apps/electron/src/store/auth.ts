@@ -57,9 +57,6 @@ export async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-/**
- * Fetch wrapper that auto-refreshes the access token on 401.
- */
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAccessToken();
   const deviceId = await window.zoomguru.getDeviceId();

@@ -1,11 +1,9 @@
-/* Reset */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-/* Transparent body — window is frameless */
 html, body {
   background: transparent !important;
   overflow: hidden;
@@ -22,7 +20,6 @@ html, body {
   height: 100%;
 }
 
-/* Scrollbar styling for overlay */
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -40,25 +37,21 @@ html, body {
   background: rgba(255, 255, 255, 0.25);
 }
 
-/* Blinking cursor for streaming */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
 
-/* Listening / status pulse */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
 
-/* Fade in for modals and auth screens */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Auth screens */
 .auth-container {
   min-height: 100vh;
   display: flex;

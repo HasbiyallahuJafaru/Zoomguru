@@ -52,9 +52,7 @@ export default function App() {
   if (state === 'login') {
     return (
       <Suspense fallback={loadingFallback}>
-        <Login
-          onLogin={() => setState('setup')}
-        />
+        <Login onLogin={() => setState('setup')} />
       </Suspense>
     );
   }
@@ -62,9 +60,7 @@ export default function App() {
   if (state === 'setup') {
     return (
       <Suspense fallback={loadingFallback}>
-        <PreflightCheck
-          onComplete={() => setState('overlay')}
-        />
+        <PreflightCheck onComplete={() => setState('overlay')} />
       </Suspense>
     );
   }

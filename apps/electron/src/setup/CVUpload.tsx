@@ -11,13 +11,6 @@ export function CVUpload({ onUploaded }: CVUploadProps) {
 
   const handleFile = useCallback(async (file: File) => {
     if (!file) return;
-
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!['pdf', 'doc', 'docx'].includes(ext || '')) {
-      setError('Only PDF and Word documents are supported');
-      return;
-    }
-
     setUploading(true);
     setError('');
 
@@ -58,9 +51,9 @@ export function CVUpload({ onUploaded }: CVUploadProps) {
   const openPicker = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.pdf,.doc,.docx';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+    input.accept = '.pdf,.doc,.docx,.txt';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
       if (file) handleFile(file);
     };
     input.click();
@@ -72,50 +65,43 @@ export function CVUpload({ onUploaded }: CVUploadProps) {
         Upload Your CV
       </h3>
       <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginBottom: 16 }}>
-        We'll personalise every answer based on your experience.
+        ZoomGuru personalizes every answer using your real experience.
       </p>
 
       <div
         onDrop={onDrop}
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={e => e.preventDefault()}
         onClick={openPicker}
         style={{
-          border: `2px dashed ${filename ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.2)'}`,
+          border: '2px dashed rgba(255,255,255,0.15)',
           borderRadius: 12,
-          padding: '28px 20px',
+          padding: '32px 20px',
           textAlign: 'center',
           cursor: 'pointer',
+          background: 'rgba(255,255,255,0.03)',
           transition: 'border-color 0.2s',
-          background: filename ? 'rgba(34,197,94,0.05)' : 'rgba(255,255,255,0.02)',
         }}
       >
         {uploading ? (
-          <div>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
-              Parsing your CV with AI...
-            </p>
-          </div>
+          <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Uploading...</span>
         ) : filename ? (
-          <div>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
-            <p style={{ color: '#22c55e', fontSize: 13, fontWeight: 500 }}>
-              {filename}
-            </p>
-            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 4 }}>
-              CV loaded — click to replace
-            </p>
-          </div>
+          <>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+            <div style={{ color: '#22c55e', fontSize: 13, fontWeight: 600 }}>{filename}</div>
+            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 4 }}>
+              Click to replace
+            </div>
+          </>
         ) : (
-          <div>
+          <>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
-            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
-              Drop your CV here or click to upload
-            </p>
-            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 4 }}>
-              PDF or Word document (.pdf, .doc, .docx)
-            </p>
-          </div>
+            <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
+              Click or drag your CV here
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, marginTop: 4 }}>
+              PDF, DOC, DOCX, TXT
+            </div>
+          </>
         )}
       </div>
 

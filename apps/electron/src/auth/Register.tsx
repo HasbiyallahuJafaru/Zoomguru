@@ -38,7 +38,6 @@ export function Register({ onRegistered, onBack }: Props) {
         throw new Error(data.message || 'Registration failed');
       }
 
-      // Store tokens
       localStorage.setItem('access_token', data.accessToken);
       localStorage.setItem('refresh_token', data.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.user));

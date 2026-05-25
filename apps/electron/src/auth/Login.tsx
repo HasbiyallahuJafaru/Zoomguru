@@ -18,14 +18,11 @@ export function Login({ onLogin }: Props) {
 
   useEffect(() => {
     window.zoomguru.onGoogleAuth(async ({ token }) => {
-      const res = await fetch(
-        `${API_URL}/auth/google/electron/exchange`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
-        }
-      );
+      const res = await fetch(`${API_URL}/auth/google/electron/exchange`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
       if (res.ok) {
         const data = await res.json();
         localStorage.setItem('access_token', data.accessToken);
@@ -69,12 +66,10 @@ export function Login({ onLogin }: Props) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Store tokens
       localStorage.setItem('access_token', data.accessToken);
       localStorage.setItem('refresh_token', data.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      // Also persist in encrypted electron-store
       await window.zoomguru.store.set('access_token', data.accessToken);
       await window.zoomguru.store.set('refresh_token', data.refreshToken);
       await window.zoomguru.store.set('user', data.user);
@@ -90,7 +85,6 @@ export function Login({ onLogin }: Props) {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        {/* Close / quit button — window has no frame so this is the only way out */}
         <button
           onClick={() => window.zoomguru.hideWindow()}
           title="Close"

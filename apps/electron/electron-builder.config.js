@@ -23,7 +23,6 @@ module.exports = {
   mac: {
     target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
     category: 'public.app-category.productivity',
-    // Create assets/icon.icns before building on macOS
     icon: 'assets/tray-icon.png',
   },
   win: {

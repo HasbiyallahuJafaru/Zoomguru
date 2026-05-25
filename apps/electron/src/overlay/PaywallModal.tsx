@@ -71,11 +71,8 @@ export function PaywallModal({ onClose }: Props) {
       }
 
       const { authorizationUrl } = await res.json();
-
-      // Open payment page in system browser
       await window.zoomguru.openExternal(authorizationUrl);
 
-      // Poll for license activation (every 3s for up to 60s)
       setPolling(true);
       pollLicenseActivation();
     } catch (e: any) {
@@ -162,7 +159,6 @@ export function PaywallModal({ onClose }: Props) {
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>Upgrade to Pro</h2>
@@ -173,19 +169,13 @@ export function PaywallModal({ onClose }: Props) {
           <button
             onClick={onClose}
             style={{
-              background: 'none',
-              border: 'none',
+              background: 'none', border: 'none',
               color: 'rgba(255,255,255,0.4)',
-              cursor: 'pointer',
-              fontSize: 18,
-              padding: 4,
+              cursor: 'pointer', fontSize: 18, padding: 4,
             }}
-          >
-            ✕
-          </button>
+          >✕</button>
         </div>
 
-        {/* Currency Toggle */}
         <div style={{
           display: 'flex',
           background: 'rgba(255,255,255,0.06)',
@@ -215,7 +205,6 @@ export function PaywallModal({ onClose }: Props) {
           ))}
         </div>
 
-        {/* Plan Cards */}
         {(['monthly', 'lifetime'] as Plan[]).map(plan => {
           const info = PLANS[currency][plan];
           return (
@@ -231,15 +220,11 @@ export function PaywallModal({ onClose }: Props) {
                     {plan === 'monthly' ? 'Monthly' : 'Lifetime'}
                     {plan === 'lifetime' && (
                       <span style={{
-                        marginLeft: 8,
-                        fontSize: 10,
+                        marginLeft: 8, fontSize: 10,
                         background: 'rgba(234,179,8,0.2)',
                         color: '#eab308',
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                      }}>
-                        BEST VALUE
-                      </span>
+                        padding: '2px 6px', borderRadius: 4,
+                      }}>BEST VALUE</span>
                     )}
                   </div>
                   <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, marginTop: 2 }}>
@@ -255,15 +240,11 @@ export function PaywallModal({ onClose }: Props) {
         })}
 
         {error && (
-          <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
-            {error}
-          </p>
+          <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8, textAlign: 'center' }}>{error}</p>
         )}
 
-        {/* Features list */}
         <div style={{
-          marginTop: 16,
-          padding: '12px',
+          marginTop: 16, padding: '12px',
           background: 'rgba(255,255,255,0.03)',
           borderRadius: 8,
           border: '1px solid rgba(255,255,255,0.06)',
@@ -276,12 +257,9 @@ export function PaywallModal({ onClose }: Props) {
             'Session transcript export',
           ].map(feature => (
             <div key={feature} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
+              display: 'flex', alignItems: 'center', gap: 8,
               padding: '4px 0',
-              color: 'rgba(255,255,255,0.6)',
-              fontSize: 12,
+              color: 'rgba(255,255,255,0.6)', fontSize: 12,
             }}>
               <span style={{ color: '#22c55e', fontSize: 10 }}>✓</span>
               {feature}

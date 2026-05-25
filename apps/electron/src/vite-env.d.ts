@@ -15,7 +15,7 @@ interface Window {
     };
     openExternal: (url: string) => Promise<void>;
     onGoogleAuth: (callback: (data: { token: string }) => void) => void;
-    offGoogleAuth: () => void;
+    offGoogleAuth?: () => void;
     openGoogleAuth: () => Promise<void>;
     hideWindow: () => Promise<void>;
   };

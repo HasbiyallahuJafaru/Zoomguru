@@ -5,18 +5,11 @@ import { PaywallModal } from './PaywallModal';
 
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'http://localhost:3000';
-if (!import.meta.env.VITE_API_URL) {
-  console.warn(
-    '[ZoomGuru] VITE_API_URL not set in .env — ' +
-    'falling back to http://localhost:3000'
-  );
-}
+  'https://zoomguru-backend.onrender.com';
 
 type Mode = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
 type ProtectionStatus = 'checking' | 'protected' | 'exposed';
 
-// Refresh the access token using the stored refresh token. Returns the new token or null on failure.
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem('refresh_token');
   if (!refreshToken) return null;
@@ -37,7 +30,6 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-// Fetch wrapper that auto-refreshes on 401 and reloads to login on second failure.
 async function apiFetch(url: string, options: RequestInit): Promise<Response> {
   let res = await fetch(url, options);
   if (res.status === 401) {
@@ -70,7 +62,6 @@ export function Overlay() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [protection, setProtection] = useState<ProtectionStatus>('checking');
 
-  // Session tracking for /session/end
   const sessionStartRef = useRef<number>(Date.now());
   const sessionMessagesRef = useRef<Array<{ role: string; content: string }>>([]);
   const sessionQuestionsRef = useRef<number>(0);
@@ -79,14 +70,12 @@ export function Overlay() {
     return saved ? parseFloat(saved) : 0.20;
   });
 
-  // Refs that always point to the latest handler — prevents stale closures in IPC registrations
   const handleListenRef = useRef<() => void>(() => {});
   const handleScreenshotRef = useRef<() => void>(() => {});
   const handleRegenerateRef = useRef<() => void>(() => {});
   const handleClearRef = useRef<() => void>(() => {});
 
   useEffect(() => {
-    // Register hotkey triggers from Electron main process (once, via stable ref dispatchers)
     window.zoomguru.onTrigger('listen', () => handleListenRef.current());
     window.zoomguru.onTrigger('screenshot', () => handleScreenshotRef.current());
     window.zoomguru.onTrigger('regenerate', () => handleRegenerateRef.current());
@@ -113,7 +102,6 @@ export function Overlay() {
   async function handleListen() {
     if (isStreaming || isListening) return;
 
-    // Check mic permission first
     const stream = await navigator.mediaDevices
       .getUserMedia({ audio: true })
       .catch(() => null);
@@ -127,7 +115,6 @@ export function Overlay() {
     }
     stream.getTracks().forEach(t => t.stop());
 
-    // Use Web Speech API (available in Electron's Chromium)
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -209,7 +196,6 @@ export function Overlay() {
     setLastImage('');
   }
 
-  // Keep refs in sync with latest handlers on every render
   handleListenRef.current = handleListen;
   handleScreenshotRef.current = handleScreenshot;
   handleRegenerateRef.current = handleRegenerate;
@@ -230,17 +216,12 @@ export function Overlay() {
           'Authorization': `Bearer ${token || ''}`,
           'X-Device-ID': await window.zoomguru.getDeviceId(),
         },
-        body: JSON.stringify({
-          transcript,
-          sessionId: sessionId || '',
-          mode,
-        }),
+        body: JSON.stringify({ transcript, sessionId: sessionId || '', mode }),
       });
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        if (response.status === 403 &&
-            (err as any)?.message?.includes('limit')) {
+        if (response.status === 403 && (err as any)?.message?.includes('limit')) {
           setShowPaywall(true);
         } else {
           setAnswer('⚠ Request failed. Please try again.');
@@ -324,17 +305,12 @@ export function Overlay() {
           'Authorization': `Bearer ${token || ''}`,
           'X-Device-ID': await window.zoomguru.getDeviceId(),
         },
-        body: JSON.stringify({
-          image: imageBase64,
-          sessionId: sessionId || '',
-          mode,
-        }),
+        body: JSON.stringify({ image: imageBase64, sessionId: sessionId || '', mode }),
       });
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        if (response.status === 403 &&
-            (err as any)?.message?.includes('limit')) {
+        if (response.status === 403 && (err as any)?.message?.includes('limit')) {
           setShowPaywall(true);
         } else {
           setAnswer('⚠ Screenshot request failed. Please try again.');
@@ -404,10 +380,7 @@ export function Overlay() {
     <>
       <div style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        top: 0, left: 0, right: 0, bottom: 0,
         background: '#fff',
         borderRadius: '20px',
         border: '1.5px solid #e5e5e5',
@@ -418,7 +391,7 @@ export function Overlay() {
         boxShadow: '0 8px 40px rgba(0,0,0,0.12)',
         opacity,
       }}>
-        {/* Header bar — matches hero demo card */}
+        {/* Header */}
         <div style={{
           padding: '12px 16px',
           background: '#f5f5f3',
@@ -437,18 +410,10 @@ export function Overlay() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isListening && (
-              <span style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>● Listening...</span>
-            )}
-            {isStreaming && (
-              <span style={{ color: '#2563eb', fontSize: 11, fontWeight: 600 }}>● Thinking...</span>
-            )}
-            {!isListening && !isStreaming && (
-              <span style={{ color: '#bbb', fontSize: 10 }}>Ready</span>
-            )}
-            {!isOnline && (
-              <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 600 }}>⚠ Offline</span>
-            )}
+            {isListening && <span style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>● Listening...</span>}
+            {isStreaming && <span style={{ color: '#2563eb', fontSize: 11, fontWeight: 600 }}>● Thinking...</span>}
+            {!isListening && !isStreaming && <span style={{ color: '#bbb', fontSize: 10 }}>Ready</span>}
+            {!isOnline && <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 600 }}>⚠ Offline</span>}
 
             {protection === 'checking' && (
               <span style={{ fontSize: 9, color: '#bbb', letterSpacing: '0.05em' }}>checking...</span>
@@ -466,7 +431,6 @@ export function Overlay() {
               </span>
             )}
 
-            {/* New session */}
             <button
               onClick={async () => {
                 const sessionId = localStorage.getItem('session_id');
@@ -497,65 +461,42 @@ export function Overlay() {
               }}
               title="Start a new interview session"
               style={{
-                padding: '3px 8px',
-                borderRadius: 5,
+                padding: '3px 8px', borderRadius: 5,
                 border: '1px solid #e5e5e5',
-                background: 'transparent',
-                color: '#666',
-                fontSize: 10,
-                cursor: 'pointer',
+                background: 'transparent', color: '#666',
+                fontSize: 10, cursor: 'pointer',
                 WebkitAppRegion: 'no-drag',
               } as React.CSSProperties & { WebkitAppRegion: string }}
-            >
-              New
-            </button>
+            >New</button>
 
-            {/* Hide to tray */}
             <button
               onClick={() => window.zoomguru.hideWindow()}
               title="Hide to tray (Ctrl+Shift+H)"
               style={{
-                padding: '3px 8px',
-                borderRadius: 5,
+                padding: '3px 8px', borderRadius: 5,
                 border: '1px solid #e5e5e5',
-                background: 'transparent',
-                color: '#999',
-                fontSize: 12,
-                lineHeight: 1,
-                cursor: 'pointer',
+                background: 'transparent', color: '#999',
+                fontSize: 12, lineHeight: 1, cursor: 'pointer',
                 WebkitAppRegion: 'no-drag',
               } as React.CSSProperties & { WebkitAppRegion: string }}
-            >
-              ✕
-            </button>
+            >✕</button>
 
-            {/* Upgrade button */}
             <button
               onClick={() => setShowPaywall(true)}
               style={{
-                padding: '3px 8px',
-                borderRadius: 5,
+                padding: '3px 8px', borderRadius: 5,
                 border: '1.5px solid #111',
-                background: '#111',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 700,
-                cursor: 'pointer',
+                background: '#111', color: '#fff',
+                fontSize: 10, fontWeight: 700, cursor: 'pointer',
                 WebkitAppRegion: 'no-drag',
               } as React.CSSProperties & { WebkitAppRegion: string }}
-            >
-              Pro
-            </button>
+            >Pro</button>
           </div>
         </div>
 
-        {/* Mode Switcher */}
         <ModeBar mode={mode} onModeChange={setMode} />
-
-        {/* Streaming Answer */}
         <AnswerStream answer={answer} isStreaming={isStreaming} />
 
-        {/* Copy button — only shown when there's an answer */}
         {answer && !isStreaming && (
           <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
             <button onClick={copyAnswer} style={{
@@ -563,26 +504,20 @@ export function Overlay() {
               border: '1px solid #e5e5e5',
               borderRadius: 6,
               color: copied ? '#16a34a' : '#666',
-              fontSize: 11,
-              fontWeight: copied ? 600 : 400,
-              padding: '4px 10px',
-              cursor: 'pointer',
+              fontSize: 11, fontWeight: copied ? 600 : 400,
+              padding: '4px 10px', cursor: 'pointer',
             }}>
               {copied ? '✓ Copied' : 'Copy'}
             </button>
           </div>
         )}
 
-        {/* Footer */}
         <div style={{
           padding: '8px 16px',
           borderTop: '1px solid #e5e5e5',
           background: '#fafaf8',
-          display: 'flex',
-          gap: 10,
-          fontSize: 10,
-          color: '#bbb',
-          flexShrink: 0,
+          display: 'flex', gap: 10,
+          fontSize: 10, color: '#bbb', flexShrink: 0,
         }}>
           {(() => {
             const mod = navigator.platform.includes('Mac') ? '⌘⇧' : 'Ctrl+';
@@ -596,9 +531,7 @@ export function Overlay() {
           })()}
           <input
             type="range"
-            min={0.1}
-            max={0.95}
-            step={0.05}
+            min={0.1} max={0.95} step={0.05}
             value={opacity}
             onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
             style={{ width: 60, cursor: 'pointer', accentColor: '#111', marginLeft: 'auto' }}
@@ -607,9 +540,7 @@ export function Overlay() {
         </div>
       </div>
 
-      {showPaywall && (
-        <PaywallModal onClose={() => setShowPaywall(false)} />
-      )}
+      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
     </>
   );
 }
