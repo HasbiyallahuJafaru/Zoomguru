@@ -19,8 +19,10 @@
   "dependencies": {
     "electron-store": "^8.2.0",
     "electron-updater": "^6.1.8",
-    "wgc-exclude": "file:./native/wgc-exclude",
     "zustand": "^4.5.2"
+  },
+  "optionalDependencies": {
+    "wgc-exclude": "file:./native/wgc-exclude"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
