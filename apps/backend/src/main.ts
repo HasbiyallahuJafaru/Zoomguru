@@ -25,6 +25,9 @@ async function bootstrap() {
     'PAYSTACK_WEBHOOK_SECRET',
     'ADMIN_SECRET_KEY',
     'ELECTRON_OAUTH_SECRET',
+    'GOOGLE_CLIENT_ID',
+    'GOOGLE_CLIENT_SECRET',
+    'BACKEND_URL',
   ];
 
   const missing = REQUIRED_ENV.filter(key => !process.env[key]);
