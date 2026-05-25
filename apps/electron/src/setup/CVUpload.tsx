@@ -27,7 +27,8 @@ export function CVUpload({ onUploaded }: CVUploadProps) {
 
       const token = localStorage.getItem('access_token');
       const deviceId = await window.zoomguru.getDeviceId();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/cv/upload`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://zoomguru-backend.onrender.com';
+      const res = await fetch(`${apiUrl}/cv/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'X-Device-ID': deviceId },
         body: formData,

@@ -3,13 +3,7 @@ import { Register } from './Register';
 
 const API_URL: string =
   import.meta.env.VITE_API_URL ||
-  'http://localhost:3000';
-if (!import.meta.env.VITE_API_URL) {
-  console.warn(
-    '[ZoomGuru] VITE_API_URL not set in .env — ' +
-    'falling back to http://localhost:3000'
-  );
-}
+  'https://zoomguru-backend.onrender.com';
 
 interface Props {
   onLogin: (user?: any) => void;
