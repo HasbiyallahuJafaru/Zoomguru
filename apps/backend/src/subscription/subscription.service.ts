@@ -53,13 +53,16 @@ interface PaystackVerifyCustomer {
 }
 
 interface PaystackVerifyPlan {
-  interval: string;
+  interval?: string;
 }
 
 interface PaystackVerifyData {
   status: string;
   amount: number;
-  plan: PaystackVerifyPlan | null;
+  // Paystack returns plan as a string (plan code) for subscription transactions
+  // or as an object with interval for some flows, or null for one-time charges.
+  plan: PaystackVerifyPlan | string | null;
+  plan_object?: { interval?: string } | null;
   customer: PaystackVerifyCustomer;
 }
 
@@ -120,8 +123,14 @@ export class SubscriptionService {
     }
 
     const txData = body.data;
-    const interval = txData.plan?.interval;
-    const isLifetime = !interval || interval.trim() === '';
+    // plan can be a string (plan code), an object with interval, or null.
+    // A non-empty plan string or a plan_object with an interval means subscription.
+    const planCode = typeof txData.plan === 'string' ? txData.plan.trim() : '';
+    const planInterval =
+      typeof txData.plan === 'object' && txData.plan !== null
+        ? (txData.plan.interval ?? '').trim()
+        : (txData.plan_object?.interval ?? '').trim();
+    const isLifetime = !planCode && !planInterval;
     if (isLifetime && txData.amount < 100_000_000) {
       throw new BadRequestException('Invalid payment amount for lifetime plan');
     }

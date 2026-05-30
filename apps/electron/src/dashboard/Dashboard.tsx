@@ -1,5 +1,7 @@
 import { useState, useEffect, type CSSProperties } from 'react';
 
+type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
+
 interface DashboardProps {
   onContinue: () => void;
   onLogout: () => void;
@@ -316,7 +318,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   );
 }
 
-const s: Record<string, CSSProperties> = {
+const s: Record<string, ElectronStyle> = {
   root: {
     width: '100vw',
     height: '100vh',
@@ -328,6 +330,7 @@ const s: Record<string, CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     fontFamily: SANS,
+    WebkitAppRegion: 'drag',
   },
   closeBtn: {
     position: 'absolute',
@@ -342,6 +345,7 @@ const s: Record<string, CSSProperties> = {
     padding: '2px 4px',
     transition: 'color 120ms ease',
     fontFamily: SANS,
+    WebkitAppRegion: 'no-drag',
   },
   content: {
     width: '100%',
@@ -350,6 +354,7 @@ const s: Record<string, CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'stretch',
     gap: '16px',
+    WebkitAppRegion: 'no-drag',
   },
   brand: {
     display: 'flex',

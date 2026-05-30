@@ -1,5 +1,7 @@
 import { useState, type FormEvent, type CSSProperties } from 'react';
 
+type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
+
 interface RegisterProps {
   onRegistered: () => void;
   onShowLogin: () => void;
@@ -112,7 +114,7 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
   );
 }
 
-const s: Record<string, CSSProperties> = {
+const s: Record<string, ElectronStyle> = {
   root: {
     width: '100vw',
     height: '100vh',
@@ -124,6 +126,7 @@ const s: Record<string, CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     fontFamily: SANS,
+    WebkitAppRegion: 'drag',
   },
   closeBtn: {
     position: 'absolute',
@@ -138,6 +141,7 @@ const s: Record<string, CSSProperties> = {
     padding: '2px 4px',
     transition: 'color 120ms ease',
     fontFamily: SANS,
+    WebkitAppRegion: 'no-drag',
   },
   content: {
     width: '100%',
@@ -145,6 +149,7 @@ const s: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    WebkitAppRegion: 'no-drag',
     gap: '32px',
   },
   brand: {
