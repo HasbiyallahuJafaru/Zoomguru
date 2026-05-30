@@ -9,8 +9,6 @@ function truncateAtWord(text: string, max: number): string {
   return cut > 0 ? text.slice(0, cut) : text.slice(0, max);
 }
 
-// Strip the most common prompt injection markers.
-// Cannot prevent all attacks but removes the obvious role-spoofing patterns.
 function stripInjection(text: string): string {
   return text
     .replace(/<\|im_start\|>/gi, '')
@@ -70,6 +68,29 @@ interface GroqChunk {
 
 @Injectable()
 export class AiService {
+  private readonly deepseekKeys: string[];
+  private deepseekKeyIndex = 0;
+
+  constructor() {
+    this.deepseekKeys = [
+      process.env['DEEPSEEK_API_KEY'],
+      process.env['DEEPSEEK_API_KEY_2'],
+      process.env['DEEPSEEK_API_KEY_3'],
+      process.env['DEEPSEEK_API_KEY_4'],
+      process.env['DEEPSEEK_API_KEY_5'],
+    ].filter((k): k is string => typeof k === 'string' && k.length > 0);
+
+    if (this.deepseekKeys.length === 0) {
+      throw new Error('No DeepSeek API keys configured');
+    }
+  }
+
+  private nextDeepSeekKey(): string {
+    const key = this.deepseekKeys[this.deepseekKeyIndex % this.deepseekKeys.length];
+    this.deepseekKeyIndex = (this.deepseekKeyIndex + 1) % this.deepseekKeys.length;
+    return key;
+  }
+
   private routeModel(text: string): 'deepseek-chat' | 'deepseek-reasoner' {
     const lower = text.toLowerCase();
     const keywords = [
@@ -108,6 +129,22 @@ export class AiService {
     return base;
   }
 
+  private async fetchDeepSeek(
+    key: string,
+    body: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    return fetch(DEEPSEEK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+  }
+
   private async streamToDeepSeek(params: {
     model: 'deepseek-chat' | 'deepseek-reasoner';
     transcript: string;
@@ -118,17 +155,22 @@ export class AiService {
     const { model, transcript, reply, cvText, jdText } = params;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
+    const body = this.buildBody(model, transcript, cvText, jdText);
 
     try {
-      const response = await fetch(DEEPSEEK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY ?? ''}`,
-        },
-        body: JSON.stringify(this.buildBody(model, transcript, cvText, jdText)),
-        signal: controller.signal,
-      });
+      let response = await this.fetchDeepSeek(this.nextDeepSeekKey(), body, controller.signal);
+
+      // On rate limit, retry once with the next key in rotation
+      if (response.status === 429) {
+        response = await this.fetchDeepSeek(this.nextDeepSeekKey(), body, controller.signal);
+      }
+
+      if (response.status === 429) {
+        reply.write(`data: ${JSON.stringify({ chunk: 'AI is busy. Please try again in a moment.', done: false })}\n\n`);
+        reply.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        reply.end();
+        return;
+      }
 
       if (!response.body) {
         reply.write(`data: ${JSON.stringify({ chunk: 'No response from AI.', done: false })}\n\n`);
@@ -204,7 +246,7 @@ export class AiService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.GROQ_API_KEY ?? ''}`,
+          Authorization: `Bearer ${process.env['GROQ_API_KEY'] ?? ''}`,
         },
         body: JSON.stringify({
           model: GROQ_VISION_MODEL,
@@ -329,7 +371,7 @@ export class AiService {
     const response = await fetch(GROQ_TRANSCRIBE_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY ?? ''}`,
+        Authorization: `Bearer ${process.env['GROQ_API_KEY'] ?? ''}`,
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       body: formData as any,

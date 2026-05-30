@@ -9,7 +9,7 @@ export function getDB(): Pool {
     }
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 3,
+      max: 20,
     });
   }
   return _pool;
