@@ -19,7 +19,7 @@ interface SubscriptionRow {
 
 interface SubscriptionCreateData {
   subscription_code: string;
-  created_at: string;
+  createdAt: string;
   next_payment_date: string;
   plan: { interval: string };
   customer: { customer_code: string };
@@ -186,7 +186,7 @@ export class SubscriptionService {
         [
           plan,
           data.subscription_code,
-          new Date(data.created_at).toISOString(),
+          new Date(data.createdAt).toISOString(),
           new Date(data.next_payment_date).toISOString(),
           data.customer.customer_code,
         ],
