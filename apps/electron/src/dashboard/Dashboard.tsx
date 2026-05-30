@@ -66,6 +66,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   const [loadingSub, setLoadingSub] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'lifetime'>('monthly');
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
 
     if (!email) return;
 
+    setVerifyError(false);
     setCheckingOut(true);
 
     try {
@@ -133,7 +135,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
               body: JSON.stringify({ reference: response.reference }),
             });
             if (res.status === 401) { onLogout(); return; }
-            if (!res.ok) return;
+            if (!res.ok) { setVerifyError(true); return; }
             const statusRes = await fetch(`${API_URL}/subscription/status`, {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -284,6 +286,12 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
           >
             {subscribeLabel()}
           </button>
+
+          {verifyError && (
+            <p style={s.verifyErrorMsg}>
+              Payment received but confirmation failed. Please contact support.
+            </p>
+          )}
 
           {/* Continue to app */}
           <div style={s.actions}>
@@ -491,5 +499,13 @@ const s: Record<string, CSSProperties> = {
     transition: 'color 120ms ease',
     letterSpacing: '0.1px',
     textAlign: 'center' as const,
+  },
+  verifyErrorMsg: {
+    margin: 0,
+    fontSize: '10px',
+    color: 'rgba(248,113,113,0.85)',
+    textAlign: 'center' as const,
+    fontFamily: SANS,
+    letterSpacing: '0.1px',
   },
 };
