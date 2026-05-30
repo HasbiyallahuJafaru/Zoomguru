@@ -58,6 +58,7 @@ interface PaystackVerifyPlan {
 
 interface PaystackVerifyData {
   status: string;
+  amount: number;
   plan: PaystackVerifyPlan | null;
   customer: PaystackVerifyCustomer;
 }
@@ -119,7 +120,11 @@ export class SubscriptionService {
     }
 
     const txData = body.data;
-    const isLifetime = txData.plan === null;
+    const interval = txData.plan?.interval;
+    const isLifetime = !interval || interval.trim() === '';
+    if (isLifetime && txData.amount < 100_000_000) {
+      throw new BadRequestException('Invalid payment amount for lifetime plan');
+    }
     const plan: 'monthly' | 'lifetime' = isLifetime ? 'lifetime' : 'monthly';
     const pool = getDB();
 
@@ -136,15 +141,18 @@ export class SubscriptionService {
         [userId, txData.customer.customer_code, plan, '2099-12-31T23:59:59.000Z'],
       );
     } else {
+      const provisionalEnd = new Date();
+      provisionalEnd.setDate(provisionalEnd.getDate() + 30);
       await pool.query(
-        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, updated_at)
-         VALUES ($1, $2, 'active', $3, NOW())
+        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, updated_at)
+         VALUES ($1, $2, 'active', $3, $4, NOW())
          ON CONFLICT (user_id) DO UPDATE SET
            paystack_customer_code = $2,
            status = 'active',
            plan = $3,
+           current_period_end = $4,
            updated_at = NOW()`,
-        [userId, txData.customer.customer_code, plan],
+        [userId, txData.customer.customer_code, plan, provisionalEnd.toISOString()],
       );
     }
 
@@ -165,8 +173,8 @@ export class SubscriptionService {
 
     if (event.event === 'subscription.create') {
       const data = event.data as SubscriptionCreateData;
-      const plan = data.plan.interval === 'monthly' ? 'monthly' : 'annual';
-      await pool.query(
+      const plan = 'monthly';
+      const updateResult = await pool.query(
         `UPDATE subscriptions SET
            status = 'active',
            plan = $1,
@@ -183,6 +191,9 @@ export class SubscriptionService {
           data.customer.customer_code,
         ],
       );
+      if ((updateResult.rowCount ?? 0) === 0) {
+        throw new BadRequestException('Subscription row not found; Paystack will retry');
+      }
     } else if (
       event.event === 'subscription.disable' ||
       event.event === 'subscription.not_renew'

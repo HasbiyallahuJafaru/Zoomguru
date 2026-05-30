@@ -40,6 +40,16 @@ export async function initDB(): Promise<void> {
         )
       `);
 
+      // Drop the UNIQUE constraint on paystack_customer_code if it still exists
+      // from a previous schema version. The column only needs a plain index for
+      // webhook lookups; enforcing uniqueness here causes the upsert in verify()
+      // to crash with a unique_violation when two ZoomGuru accounts share one
+      // Paystack customer (e.g. same email used for both).
+      await pool.query(`
+        ALTER TABLE subscriptions
+          DROP CONSTRAINT IF EXISTS subscriptions_paystack_customer_code_key
+      `);
+
       await Promise.all([
         pool.query(`
           CREATE INDEX IF NOT EXISTS idx_subscriptions_status
@@ -49,6 +59,11 @@ export async function initDB(): Promise<void> {
           CREATE INDEX IF NOT EXISTS idx_subscriptions_period_end
             ON subscriptions(current_period_end)
             WHERE current_period_end IS NOT NULL
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_subscriptions_customer_code
+            ON subscriptions(paystack_customer_code)
+            WHERE paystack_customer_code IS NOT NULL
         `),
       ]);
 
