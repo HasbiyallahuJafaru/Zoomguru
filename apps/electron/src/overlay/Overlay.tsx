@@ -6,7 +6,7 @@ type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
-const SESSION_CAP = 40;
+const CAP_MONTHLY = 50;
 const VAD_THRESHOLD = 0.015;
 const SILENCE_MS = 1500;
 const MIN_SPEECH_MS = 2500;
@@ -38,11 +38,12 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   const [cvText, setCvText] = useState('');
   const [jdText, setJdText] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
+  const [sessionCap, setSessionCap] = useState(CAP_MONTHLY);
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [isAutoListening, setIsAutoListening] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
 
-  const sessionCapped = questionCount >= SESSION_CAP;
+  const sessionCapped = questionCount >= sessionCap;
 
   // --- refs (manual listen) ---
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -54,6 +55,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
 
   // --- refs (auto VAD) ---
   const questionCountRef = useRef(0);
+  const sessionCapRef = useRef(CAP_MONTHLY);
   const isAutoModeRef = useRef(false);
   const vadStateRef = useRef<'idle' | 'recording' | 'processing'>('idle');
   const speechStartRef = useRef(0);
@@ -68,6 +70,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   const processSegmentRef = useRef<(mimeType: string) => Promise<void>>(async () => {});
 
   useEffect(() => { questionCountRef.current = questionCount; }, [questionCount]);
+  useEffect(() => { sessionCapRef.current = sessionCap; }, [sessionCap]);
 
   // --- streaming ---
 
@@ -235,14 +238,14 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
         return;
       }
 
-      if (questionCountRef.current >= SESSION_CAP) {
+      if (questionCountRef.current >= sessionCapRef.current) {
         stopAutoMode();
         return;
       }
 
       await streamAnswer(transcript);
 
-      if (questionCountRef.current >= SESSION_CAP) {
+      if (questionCountRef.current >= sessionCapRef.current) {
         stopAutoMode();
       }
     } catch {
@@ -456,6 +459,23 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     void getCachedDeviceId();
 
+    void (async () => {
+      const token = localStorage.getItem('access_token') || '';
+      const deviceId = await getCachedDeviceId();
+      try {
+        const res = await fetch(`${API_URL}/subscription/status`, {
+          headers: { Authorization: `Bearer ${token}`, 'X-Device-ID': deviceId },
+        });
+        if (res.ok) {
+          const data = await res.json() as { plan: 'monthly' | 'lifetime' | null };
+          if (data.plan === 'lifetime') {
+            setSessionCap(Infinity);
+            sessionCapRef.current = Infinity;
+          }
+        }
+      } catch { /* keep default cap */ }
+    })();
+
     void window.zoomguru.loadCV().then((stored) => {
       if (stored) setCvText(stored.text);
     });
@@ -546,7 +566,9 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
             {!micGranted && <span style={s.statusWarn}>no mic</span>}
             {!isOnline && <span style={s.statusWarn}>offline</span>}
             {questionCount > 0 && !sessionCapped && (
-              <span style={s.sessionCount}>{questionCount}/{SESSION_CAP}</span>
+              <span style={s.sessionCount}>
+                {sessionCap === Infinity ? questionCount : `${questionCount}/${sessionCap}`}
+              </span>
             )}
 
             {/* Buttons */}
@@ -572,7 +594,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
         {/* ── Content ── */}
         {sessionCapped ? (
           <div style={s.capNotice}>
-            <span style={s.capCount}>40 / 40</span>
+            <span style={s.capCount}>{sessionCap} / {sessionCap}</span>
             <p style={s.capMessage}>Session complete</p>
             <p style={s.capSub}>Start a new session to continue.</p>
             <button style={s.newSessionBtn} onClick={() => handleClearRef.current()}>
