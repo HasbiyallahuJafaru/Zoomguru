@@ -295,15 +295,17 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
             </p>
           )}
 
-          {/* Continue to app */}
+          {/* Continue to app — only shown when subscription is active */}
           <div style={s.actions}>
-            <button
-              className="zg-primary"
-              style={s.continueBtn}
-              onClick={onContinue}
-            >
-              Continue →
-            </button>
+            {sub?.status === 'active' && (
+              <button
+                className="zg-primary"
+                style={s.continueBtn}
+                onClick={onContinue}
+              >
+                Continue →
+              </button>
+            )}
             <button
               className="zg-ghost"
               style={s.logoutBtn}
