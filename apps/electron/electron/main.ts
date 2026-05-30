@@ -45,6 +45,8 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
+  let contentProtected = false;
+
   app.on('second-instance', () => {
     if (mainWindow) {
       if (!mainWindow.isVisible()) mainWindow.show();
@@ -84,11 +86,21 @@ if (!gotLock) {
       },
     });
 
-    mainWindow.setContentProtection(true);
+    try {
+      mainWindow.setContentProtection(true);
+      contentProtected = true;
+    } catch {
+      contentProtected = false;
+    }
 
     if (process.platform === 'win32') {
       mainWindow.once('show', () => {
-        mainWindow?.setContentProtection(true);
+        try {
+          mainWindow?.setContentProtection(true);
+          contentProtected = true;
+        } catch {
+          contentProtected = false;
+        }
       });
     }
 
@@ -290,6 +302,8 @@ if (!gotLock) {
     ipcMain.handle('open-external', (_event, url: string) => {
       void shell.openExternal(url);
     });
+
+    ipcMain.handle('protection:status', () => contentProtected);
   }
 
   void app.whenReady().then(() => {

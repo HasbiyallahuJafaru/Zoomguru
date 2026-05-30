@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type CSSProperties } from 'react';
+import { useState, useEffect, type FormEvent, type CSSProperties } from 'react';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -22,6 +22,11 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isProtected, setIsProtected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void window.zoomguru.getProtectionStatus().then(setIsProtected);
+  }, []);
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -71,6 +76,15 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
       `}</style>
 
       <div style={s.root}>
+        {isProtected !== null && (
+          <div style={{
+            ...s.protectionBanner,
+            background: isProtected ? '#10b981' : '#f43f5e',
+          }}>
+            {isProtected ? 'You are good to go' : 'Do not use'}
+          </div>
+        )}
+
         <button className="zg-close" style={s.closeBtn}
           onClick={() => { void window.zoomguru.quitApp(); }} aria-label="Close">
           ×
@@ -111,6 +125,23 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
 }
 
 const s: Record<string, ElectronStyle> = {
+  protectionBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '10px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+    fontFamily: SANS,
+    borderRadius: '16px 16px 0 0',
+  },
   root: {
     width: '100vw',
     height: '100vh',
