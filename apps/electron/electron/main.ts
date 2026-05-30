@@ -312,7 +312,7 @@ if (!gotLock) {
               "script-src 'self' 'unsafe-inline' https://js.paystack.co",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' http://localhost:3000 http://localhost:5173 https://api.deepseek.com https://api.groq.com https://*.paystack.co https://*.paystack.com",
+              "connect-src 'self' https://zoomguru.onrender.com http://localhost:5173 https://api.deepseek.com https://api.groq.com https://*.paystack.co https://*.paystack.com",
               "img-src 'self' data: blob: https://*.paystack.co https://*.paystack.com",
               "media-src 'self' blob:",
               "frame-src https://checkout.paystack.com",

@@ -8,8 +8,6 @@
     "start": "node dist/main"
   },
   "dependencies": {
-    "@fastify/raw-body": "^3.3.0",
-    "@fastify/static": "^8.0.0",
     "@neondatabase/serverless": "^0.10.4",
     "@nestjs/common": "^10.0.0",
     "@nestjs/core": "^10.0.0",

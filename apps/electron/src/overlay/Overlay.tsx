@@ -3,7 +3,7 @@ import AnswerStream from './AnswerStream';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 const SESSION_CAP = 40;

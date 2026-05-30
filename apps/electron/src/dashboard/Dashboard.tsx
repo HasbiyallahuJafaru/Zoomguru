@@ -36,7 +36,7 @@ interface PaystackPopInterface {
   setup(config: PaystackSetupConfig): PaystackHandler;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 
@@ -93,12 +93,10 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   async function handleSubscribe(): Promise<void> {
     const token = localStorage.getItem('access_token') || '';
     const email = getEmailFromJwt(token);
-    const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string;
+    const pubKey = 'pk_test_9fc5efff85fb2037c3c58421e97ed10b0aa611ac';
     const isLifetime = selectedPlan === 'lifetime';
-    const planCode = isLifetime ? null : (import.meta.env.VITE_PAYSTACK_PLAN_MONTHLY as string);
 
-    if (!pubKey || !email) return;
-    if (!isLifetime && !planCode) return;
+    if (!email) return;
 
     setCheckingOut(true);
 
@@ -156,7 +154,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     if (isLifetime) {
       payConfig.amount = 100_000_000;
     } else {
-      payConfig.plan = planCode as string;
+      payConfig.plan = 'PLN_npr2z91c2wg3r0j';
     }
 
     pop.setup(payConfig).openIframe();
