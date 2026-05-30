@@ -1,5 +1,18 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/gs, '$1')   // **bold**
+    .replace(/__(.*?)__/gs, '$1')        // __bold__
+    .replace(/^#{1,6} /gm, '')           // ## headers
+    .replace(/^[-*+] /gm, '')            // - bullet points
+    .replace(/^\d+\. /gm, '')            // 1. numbered lists
+    .replace(/^```[\w]*\n?/gm, '')       // opening code fences
+    .replace(/^```$/gm, '')              // closing code fences
+    .replace(/^---+$/gm, '')             // horizontal rules
+    .replace(/`([^`]+)`/g, '$1');        // `inline code`
+}
+
 interface AnswerStreamProps {
   answer: string;
   isStreaming: boolean;
@@ -77,13 +90,13 @@ export default function AnswerStream({ answer, isStreaming }: AnswerStreamProps)
         onScroll={handleScroll}
       >
         {isEmpty ? (
-          <p style={s.empty}>Press ⌘⇧A to listen · ⌘⇧S for screenshot</p>
+          <p style={s.empty}>Press ⌘⇧L to listen · ⌘⇧S for screenshot</p>
         ) : (
           <p style={s.answer}>
             {isStreaming && !answer
               ? <span style={s.cursor} aria-hidden="true">|</span>
               : <>
-                  {answer}
+                  {stripMarkdown(answer)}
                   {isStreaming && <span style={s.cursor} aria-hidden="true">|</span>}
                 </>
             }
