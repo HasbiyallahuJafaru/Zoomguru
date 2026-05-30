@@ -94,6 +94,10 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
         }),
       });
       if (response.status === 401) { onLogout(); return; }
+      if (response.status === 403) {
+        setAnswer('Subscription is locked to another device.');
+        return;
+      }
       if (response.status === 429) {
         const data = await response.json() as { retryAfter?: number };
         setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
@@ -145,6 +149,10 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
         }),
       });
       if (response.status === 401) { onLogout(); return; }
+      if (response.status === 403) {
+        setAnswer('Subscription is locked to another device.');
+        return;
+      }
       if (response.status === 429) {
         const data = await response.json() as { retryAfter?: number };
         setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
@@ -407,6 +415,10 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
             body: JSON.stringify({ audio: base64 }),
           });
           if (res.status === 401) { onLogout(); return; }
+          if (res.status === 403) {
+            setAnswer('Subscription is locked to another device.');
+            return;
+          }
           if (!res.ok) {
             setAnswer('Transcription failed. Check backend logs.');
             return;

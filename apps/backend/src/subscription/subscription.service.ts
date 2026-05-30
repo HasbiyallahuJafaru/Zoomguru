@@ -106,7 +106,21 @@ export class SubscriptionService {
     };
   }
 
-  async verify(userId: string, reference: string): Promise<{ success: boolean }> {
+  async checkDevice(userId: string, deviceId: string | undefined): Promise<boolean> {
+    if (!deviceId || !/^[a-f0-9]{64}$/.test(deviceId)) return true;
+    const pool = getDB();
+    const result = await pool.query<{ status: string; locked_device_id: string | null }>(
+      `SELECT status, locked_device_id FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    if (result.rows.length === 0) return true;
+    const row = result.rows[0];
+    if (row.status !== 'active') return true;
+    if (!row.locked_device_id) return true;
+    return row.locked_device_id === deviceId;
+  }
+
+  async verify(userId: string, reference: string, deviceId?: string): Promise<{ success: boolean }> {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
@@ -137,31 +151,35 @@ export class SubscriptionService {
     const plan: 'monthly' | 'lifetime' = isLifetime ? 'lifetime' : 'monthly';
     const pool = getDB();
 
+    const lockedDeviceId = (deviceId && /^[a-f0-9]{64}$/.test(deviceId)) ? deviceId : null;
+
     if (isLifetime) {
       await pool.query(
-        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, updated_at)
-         VALUES ($1, $2, 'active', $3, $4, NOW())
+        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, locked_device_id, updated_at)
+         VALUES ($1, $2, 'active', $3, $4, $5, NOW())
          ON CONFLICT (user_id) DO UPDATE SET
            paystack_customer_code = $2,
            status = 'active',
            plan = $3,
            current_period_end = $4,
+           locked_device_id = $5,
            updated_at = NOW()`,
-        [userId, txData.customer.customer_code, plan, '2099-12-31T23:59:59.000Z'],
+        [userId, txData.customer.customer_code, plan, '2099-12-31T23:59:59.000Z', lockedDeviceId],
       );
     } else {
       const provisionalEnd = new Date();
       provisionalEnd.setDate(provisionalEnd.getDate() + 30);
       await pool.query(
-        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, updated_at)
-         VALUES ($1, $2, 'active', $3, $4, NOW())
+        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, locked_device_id, updated_at)
+         VALUES ($1, $2, 'active', $3, $4, $5, NOW())
          ON CONFLICT (user_id) DO UPDATE SET
            paystack_customer_code = $2,
            status = 'active',
            plan = $3,
            current_period_end = $4,
+           locked_device_id = $5,
            updated_at = NOW()`,
-        [userId, txData.customer.customer_code, plan, provisionalEnd.toISOString()],
+        [userId, txData.customer.customer_code, plan, provisionalEnd.toISOString(), lockedDeviceId],
       );
     }
 

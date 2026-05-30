@@ -1,7 +1,8 @@
-import { Controller, Post, Body, Res, Req, UseGuards, HttpCode, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Res, Req, Headers, UseGuards, HttpCode, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AiService } from './ai.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -57,7 +58,10 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter: number 
 
 @Controller('ai')
 export class AiController {
-  constructor(private aiService: AiService) {}
+  constructor(
+    private aiService: AiService,
+    private subscriptionService: SubscriptionService,
+  ) {}
 
   @UseGuards(AuthGuard('jwt'))
   @Post('stream')
@@ -65,9 +69,15 @@ export class AiController {
     @Req() req: AuthenticatedRequest,
     @Body() body: { transcript: string; sessionId?: string; cvText?: string; jdText?: string },
     @Res() reply: FastifyReply,
+    @Headers('x-device-id') deviceId: string | undefined,
   ): Promise<void> {
     if (!body.transcript || body.transcript.length > 4000) {
       throw new BadRequestException('Invalid transcript');
+    }
+    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, deviceId);
+    if (!deviceAllowed) {
+      await reply.code(403).send({ error: 'device_locked' });
+      return;
     }
     const { allowed, retryAfter } = checkRateLimit(req.user.userId);
     if (!allowed) {
@@ -92,9 +102,15 @@ export class AiController {
     @Req() req: AuthenticatedRequest,
     @Body() body: { image: string; sessionId?: string; cvText?: string; jdText?: string },
     @Res() reply: FastifyReply,
+    @Headers('x-device-id') deviceId: string | undefined,
   ): Promise<void> {
     if (!body.image || body.image.length > 10_000_000) {
       throw new BadRequestException('Invalid image');
+    }
+    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, deviceId);
+    if (!deviceAllowed) {
+      await reply.code(403).send({ error: 'device_locked' });
+      return;
     }
     const { allowed, retryAfter } = checkRateLimit(req.user.userId);
     if (!allowed) {
@@ -119,9 +135,14 @@ export class AiController {
   async transcribe(
     @Req() req: AuthenticatedRequest,
     @Body() body: { audio: string },
+    @Headers('x-device-id') deviceId: string | undefined,
   ): Promise<{ transcript: string }> {
     if (!body.audio || body.audio.length > 5_000_000) {
       throw new BadRequestException('Invalid audio');
+    }
+    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, deviceId);
+    if (!deviceAllowed) {
+      throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
     }
     const { allowed, retryAfter } = checkRateLimit(req.user.userId);
     if (!allowed) {

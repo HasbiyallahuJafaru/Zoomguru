@@ -35,9 +35,14 @@ export async function initDB(): Promise<void> {
           current_period_end          TIMESTAMPTZ,
           paystack_customer_code      TEXT UNIQUE,
           paystack_subscription_code  TEXT UNIQUE,
+          locked_device_id            TEXT,
           created_at                  TIMESTAMPTZ DEFAULT NOW(),
           updated_at                  TIMESTAMPTZ DEFAULT NOW()
         )
+      `);
+
+      await pool.query(`
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_device_id TEXT
       `);
 
       // Drop the UNIQUE constraint on paystack_customer_code if it still exists

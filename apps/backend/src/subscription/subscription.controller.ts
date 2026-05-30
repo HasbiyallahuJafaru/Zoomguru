@@ -36,11 +36,12 @@ export class SubscriptionController {
   async verify(
     @Req() req: AuthRequest,
     @Body() body: { reference: string },
+    @Headers('x-device-id') deviceId: string | undefined,
   ) {
     if (!body.reference || typeof body.reference !== 'string') {
       throw new BadRequestException('reference is required');
     }
-    return this.subscriptionService.verify(req.user.userId, body.reference);
+    return this.subscriptionService.verify(req.user.userId, body.reference, deviceId);
   }
 
   @Post('webhook')
