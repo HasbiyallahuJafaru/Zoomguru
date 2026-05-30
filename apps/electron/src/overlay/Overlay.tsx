@@ -636,7 +636,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
             aria-label={isListening ? 'Stop recording' : 'Start listening'}
           >
             <span style={s.btnLabel}>{isListening ? 'Stop' : 'Listen'}</span>
-            <span style={s.btnHint}>⌘⇧A</span>
+            <span style={s.btnHint}>⌘⇧L</span>
           </button>
 
           <button

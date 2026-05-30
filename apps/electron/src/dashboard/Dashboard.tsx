@@ -96,7 +96,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   async function handleSubscribe(): Promise<void> {
     const token = localStorage.getItem('access_token') || '';
     const email = getEmailFromJwt(token);
-    const pubKey = 'pk_test_9fc5efff85fb2037c3c58421e97ed10b0aa611ac';
+    const pubKey = 'pk_live_5187e2c64d0f6e607ae278857461ee7a0e5c8d55';
     const isLifetime = selectedPlan === 'lifetime';
 
     if (!email) return;

@@ -33,6 +33,11 @@ let isQuitting = false;
 const fingerprint = getDeviceFingerprint();
 const store = new Store<WindowStore>();
 
+// Suppress AMD VideoProcessorGetOutputExtension DirectComposition error on Windows.
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-features', 'UseSkiaRenderer');
+}
+
 // Prevent multiple instances from competing for global hotkeys.
 // Secondary instances show the existing window and quit.
 const gotLock = app.requestSingleInstanceLock();
@@ -169,7 +174,7 @@ if (!gotLock) {
 
   function registerHotkeys(): void {
     tryRegister(
-      'CommandOrControl+Shift+A', 'CommandOrControl+Alt+A',
+      'CommandOrControl+Shift+L', 'CommandOrControl+Alt+L',
       () => mainWindow?.webContents.send('trigger:listen'),
       'Listen',
     );
