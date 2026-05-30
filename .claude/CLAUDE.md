@@ -1,127 +1,203 @@
-﻿# ZoomGuru â€” Master Context
-
-## What Is ZoomGuru
-
-ZoomGuru is an AI-powered interview copilot delivered as a cross-platform desktop app (Windows + macOS). It sits as a transparent, always-on-top overlay that is **completely invisible to screen share software** (Zoom, Google Meet, Teams, Webex). It listens to interview audio, captures screenshots on demand, and streams personalized AI answers in real time â€” all based on the user's uploaded CV.
-
-**Tagline:** Your invisible edge in every interview.
-
-**Domain:** zoomguru.xyz (placeholder)
+# ZoomGuru MVP — Local Deployment
+# Master Context File
+# Read this before every session. No exceptions.
 
 ---
 
-## Core Value Proposition
+## What ZoomGuru Is
 
-- Invisible to screen share (OS-level window exclusion)
-- Personalized answers from uploaded CV â€” not generic
-- Streams answers word by word (<500ms first token)
-- Listens via mic, captures screenshots, solves code/math/system design
-- Device-locked license â€” one payment, one machine
-- Works on Windows and macOS
+A desktop Electron app that sits as a transparent overlay
+on the user's screen during job interviews. It listens to
+questions via microphone, captures screenshots on demand,
+and streams AI-generated answers in real time.
+
+The overlay is invisible to screen share software.
+The user sees it. The interviewer does not.
 
 ---
 
-## Monorepo Structure
+## Current Phase
+
+LOCAL MVP — runs entirely on the developer's machine.
+No cloud hosting. No SSL. No Cloudflare. No auto-updater.
+Goal: get the four core flows working reliably before
+adding any infrastructure complexity.
+
+---
+
+## The Four Core Flows (Nothing Else Matters Yet)
+
+```
+FLOW 1: Window
+    App launches → transparent overlay appears
+    Open Zoom → overlay is invisible to screen share
+    ✅ Gate: hidden from screen share confirmed
+
+FLOW 2: Login
+    User enters email + password
+    POST localhost:3000/auth/login
+    Token stored → overlay unlocks
+    ✅ Gate: can log in and see blank overlay
+
+FLOW 3: Listen
+    Press Cmd/Ctrl+Shift+A
+    Speak a question
+    Answer streams word by word in overlay
+    ✅ Gate: text flows end to end
+
+FLOW 4: Screenshot
+    Press Cmd/Ctrl+Shift+S
+    Screen captured → AI reads it → answer streams
+    ✅ Gate: image flows end to end
+```
+
+---
+
+## Monorepo Structure (MVP scope only)
 
 ```
 zoomguru/
-â”œâ”€â”€ .claude/                  â† all documentation lives here
-â”‚   â”œâ”€â”€ CLAUDE.md             â† this file (master context)
-â”‚   â”œâ”€â”€ ARCHITECTURE.md       â† system design + data flow
-â”‚   â”œâ”€â”€ BACKEND.md            â† NestJS + Neon + Fastify details
-â”‚   â”œâ”€â”€ ELECTRON.md           â† Electron app, overlay, hotkeys
-â”‚   â”œâ”€â”€ LANDING.md            â† Next.js landing page
-â”‚   â”œâ”€â”€ AI.md                 â† DeepSeek + Qwen VL integration
-â”‚   â”œâ”€â”€ AUTH.md               â† JWT, device fingerprint, license
-â”‚   â”œâ”€â”€ PAYMENTS.md           â† Paystack â‚¦ + $ integration
-â”‚   â”œâ”€â”€ DATABASE.md           â† Neon raw SQL schema + queries
-â”‚   â””â”€â”€ COMMANDS.md           â† all dev commands
-â”œâ”€â”€ apps/
-â”‚   â”œâ”€â”€ electron/             â† desktop overlay app
-â”‚   â”œâ”€â”€ landing/              â† Next.js landing page
-â”‚   â””â”€â”€ backend/              â† NestJS API server
-â””â”€â”€ package.json              â† monorepo root (npm workspaces)
+├── .claude/
+│   ├── CLAUDE.md          ← this file
+│   ├── BIBLE.md           ← code generation law
+│   ├── ELECTRON.md        ← electron app spec
+│   ├── BACKEND.md         ← backend spec
+│   └── DATABASE.md        ← neon schema
+├── apps/
+│   ├── electron/          ← desktop overlay app
+│   └── backend/           ← nestjs local server
+└── package.json
 ```
 
 ---
 
-## Tech Stack â€” Final Confirmed
+## Tech Stack — MVP Only
 
-### Desktop App
-- **Electron** â€” cross-platform desktop (Windows + macOS)
-- **Vite** â€” fast bundler, minimal build output
-- **React** â€” overlay UI
-- **electron-builder** â€” packaging .exe (Windows) + .dmg (macOS)
+```
+Electron App
+    ├── Electron (latest)
+    ├── Vite + React 18
+    ├── TypeScript strict
+    └── No external UI library — plain inline styles
 
-### Landing Page
-- **Next.js 16** â€” App Router
-- **React 19**
-- **Tailwind CSS** â€” styling
-- **Vercel** â€” hosting + deploy
+Backend (runs locally on port 3000)
+    ├── NestJS + Fastify adapter
+    ├── @neondatabase/serverless (Neon PostgreSQL)
+    ├── @nestjs/jwt (simple JWT, long expiry)
+    └── No Redis, no Prisma, no ORMs
 
-### Backend
-- **NestJS** with **Fastify adapter** â€” fast, scalable API
-- **@neondatabase/serverless** â€” direct SQL, no ORM
-- **Render** â€” hosting
+AI
+    ├── DeepSeek V3 (deepseek-chat) — text questions
+    ├── DeepSeek R1 (deepseek-reasoner) — coding/math
+    └── Qwen VL (qwen-vl-max) — screenshot vision
 
-### Database
-- **Neon PostgreSQL** â€” all data, session state, rate limiting
-- **Raw SQL only** â€” no Prisma, no ORM
-- **Tables auto-created on backend boot**
-
-### AI Layer
-- **DeepSeek V3** (`deepseek-chat`) â€” behavioral, conversational, technical definitions, screenshot vision
-- **DeepSeek R1** (`deepseek-reasoner`) â€” coding, system design, math, reasoning
-- **Whisper (local, tiny model)** â€” speech-to-text transcription via ONNX in Electron
-- **Porcupine** â€” local wake word detection ("Hey ZoomGuru")
-
-### Payments
-- **Paystack** â€” NGN only (â‚¦)
-- Inline JS on landing page + hosted page via Electron
-- Webhook hits backend, activates license in DB
-- No Paystack plan codes â€” expiry tracked in our DB
-
-### Security
-- No external monitoring tools
-- Certificate pinning in Electron production build
-- API keys server-side only â€” never in Electron binary
-- Device fingerprint SHA256 â€” hardware-locked license
+Database
+    └── Neon PostgreSQL — direct SQL, @neondatabase/serverless
+```
 
 ---
 
-## Pricing Model
+## Paystack Integration (Inline.js — current approach)
 
-| Plan | NGN | Notes |
-|------|-----|-------|
-| Free | â€” | 3 sessions, 10 responses each |
-| Monthly | â‚¦15,000 | One-time charge, expires in 30 days |
-| Lifetime | â‚¦100,000 | One-time charge, never expires |
+Paystack uses the inline.js script tag injected at runtime.
+No redirect, no popup mode, no server-side checkout session.
 
-**Free tier limits:**
-- 3 interview sessions total
-- 10 AI responses per session
-- No screenshot mode
-- No wake word
+```
+Monthly plan  → pop.setup({ plan: VITE_PAYSTACK_PLAN_MONTHLY })
+                Paystack subscription — recurring ₦50,000/month
+                Plan code (PLN_xxx) must be created in Paystack dashboard
 
-**Pro (paid) â€” unlimited everything:**
-- Unlimited sessions
-- Unlimited responses
-- Screenshot + vision
-- Wake word ("Hey ZoomGuru")
-- Session transcript export
+Lifetime plan → pop.setup({ amount: 100_000_000 })
+                One-time payment — ₦1,000,000 (amount in kobo)
+                No plan code needed — hardcoded in Dashboard.tsx
+
+After payment → POST /subscription/verify { reference }
+                Backend calls Paystack API to confirm
+                Monthly: no period_end set (webhook sets it later)
+                Lifetime: current_period_end set to 2099-12-31
+```
+
+Note: VITE_PAYSTACK_PLAN_ANNUAL has been removed.
+The second plan is now lifetime (one-time), not annual (recurring).
 
 ---
 
-## Standing Rules for Claude Code Sessions
+## What Is Deliberately CUT From MVP
 
-1. Always fetch latest package versions â€” never assume from training data
-2. Run `initDB()` schema check on every backend boot â€” tables self-create
-3. API keys only in `.env` files â€” never hardcoded
-4. All DeepSeek/Qwen calls go through backend proxy â€” Electron never calls AI directly
-5. Device fingerprint sent on every app launch â€” verified server-side
-6. Streaming via SSE â€” never buffer full response before sending
-7. CV profile injected into every AI system prompt â€” personalization is non-negotiable
-8. Direct SQL only â€” if Prisma appears anywhere, remove it
-9. Question type auto-detected â€” routes to correct model automatically
-10. Both Windows and macOS must work â€” test platform-specific code paths
+These exist in the full spec but are NOT built yet.
+Do not reference or implement them in MVP sessions.
 
+```
+DEFERRED (build after core works):
+    ├── Google OAuth — email/password only for now
+    ├── Wake word (Porcupine) — hotkeys only
+    ├── Auto-updater — not needed locally
+    ├── Protection self-test — trust setContentProtection
+    ├── Paywall / free tier limits — everyone unlimited
+    ├── Session summary saving — no DB writes during session
+    ├── Referral system — post-launch
+    ├── Onboarding flow — skip to overlay directly
+    ├── Zustand state management — plain useState
+    ├── CV upload — system prompt uses generic base prompt
+    ├── Mode switching UI — one smart mode, auto-detected
+    ├── ModeBar component — removed
+    ├── Opacity slider — hardcoded 20%
+    ├── Admin dashboard — post-launch
+    ├── User dashboard — post-launch
+    ├── Landing page payments — post-launch
+    ├── Device fingerprint locking — post-launch
+    ├── Cloudflare protection — post-launch
+    └── Rate limiting — post-launch
+```
+
+---
+
+## Local Environment
+
+```
+Backend URL:     http://localhost:3000
+Frontend URL:    http://localhost:5173 (Vite dev server)
+Database:        Neon PostgreSQL (cloud, always accessible)
+AI APIs:         DeepSeek + Qwen (cloud, need internet)
+
+Start backend:   cd apps/backend && npm run start:dev
+Start electron:  cd apps/electron && npm run dev
+
+Both must be running simultaneously for the app to work.
+```
+
+---
+
+## Universal Rules (Active Every Session)
+
+1. Run graphify claude install once per machine (done)
+2. Always read BIBLE.md before generating any code
+3. Complete files only — never patches or partial output
+4. tsc --noEmit must pass before any file is considered done
+5. One file at a time — verify before moving to next
+6. IPC channels must exist in all four places:
+   main.ts + preload.ts + type definition + renderer call
+7. API calls must match endpoint method + path + headers + body
+8. No TODO comments in generated code
+9. No placeholder functions
+10. No assumed APIs — only use what exists in this codebase
+
+---
+
+## Andrej Karpathy Coding Guidelines (forrestchang/andrej-karpathy-skills)
+
+### 1. Think Before Coding
+Don't assume. Don't hide confusion. Surface tradeoffs.
+Before implementing: state assumptions, present multiple interpretations if they exist, push back when a simpler approach exists, stop and ask if something is unclear.
+
+### 2. Simplicity First
+Minimum code that solves the problem. Nothing speculative.
+No features beyond what was asked. No abstractions for single-use code. No "flexibility" that wasn't requested. No error handling for impossible scenarios. If 200 lines could be 50, rewrite it.
+
+### 3. Surgical Changes
+Touch only what you must. Clean up only your own mess.
+Don't "improve" adjacent code, comments, or formatting. Don't refactor things that aren't broken. Match existing style. Remove imports/variables/functions that YOUR changes made unused — don't touch pre-existing dead code unless asked.
+
+### 4. Goal-Driven Execution
+Define success criteria. Loop until verified.
+Transform tasks into verifiable goals. For multi-step tasks, state a brief plan with verify steps before starting.

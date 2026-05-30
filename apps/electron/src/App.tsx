@@ -1,73 +1,55 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
-const Login = lazy(() => import('./auth/Login').then(m => ({ default: m.Login })));
-const PreflightCheck = lazy(() => import('./setup/PreflightCheck').then(m => ({ default: m.PreflightCheck })));
-const Overlay = lazy(() => import('./overlay/Overlay').then(m => ({ default: m.Overlay })));
-const Onboarding = lazy(() => import('./onboarding/Onboarding').then(m => ({ default: m.Onboarding })));
+import { useState } from 'react';
+import Login from './auth/Login';
+import Register from './auth/Register';
+import Dashboard from './dashboard/Dashboard';
+import CvSetup from './onboarding/CvSetup';
+import Overlay from './overlay/Overlay';
 
-type AppState = 'loading' | 'login' | 'setup' | 'overlay';
+type Step = 'login' | 'register' | 'dashboard' | 'cv' | 'overlay';
 
-export default function App() {
-  const [state, setState] = useState<AppState>('loading');
-  const [showOnboarding, setShowOnboarding] = useState(
-    () => localStorage.getItem('zg_onboarded') !== '1'
+const App = () => {
+  const [step, setStep] = useState<Step>(() =>
+    localStorage.getItem('access_token') ? 'dashboard' : 'login'
   );
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    const sessionId = localStorage.getItem('session_id');
+  function handleLogout(): void {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('session_id');
+    setStep('login');
+  }
 
-    if (!token) {
-      setState('login');
-    } else if (!sessionId) {
-      setState('setup');
-    } else {
-      setState('overlay');
-    }
-  }, []);
-
-  const loadingFallback = (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      background: 'rgba(10,10,15,0.9)',
-    }}>
-      <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>Loading...</span>
-    </div>
-  );
-
-  if (showOnboarding) {
+  if (step === 'login') {
     return (
-      <Suspense fallback={loadingFallback}>
-        <Onboarding onComplete={() => setShowOnboarding(false)} />
-      </Suspense>
+      <Login
+        onLogin={() => setStep('dashboard')}
+        onShowRegister={() => setStep('register')}
+      />
     );
   }
 
-  if (state === 'loading') {
-    return loadingFallback;
-  }
-
-  if (state === 'login') {
+  if (step === 'register') {
     return (
-      <Suspense fallback={loadingFallback}>
-        <Login onLogin={() => setState('setup')} />
-      </Suspense>
+      <Register
+        onRegistered={() => setStep('dashboard')}
+        onShowLogin={() => setStep('login')}
+      />
     );
   }
 
-  if (state === 'setup') {
+  if (step === 'dashboard') {
     return (
-      <Suspense fallback={loadingFallback}>
-        <PreflightCheck onComplete={() => setState('overlay')} />
-      </Suspense>
+      <Dashboard
+        onContinue={() => setStep('cv')}
+        onLogout={handleLogout}
+      />
     );
   }
 
-  return (
-    <Suspense fallback={loadingFallback}>
-      <Overlay />
-    </Suspense>
-  );
-}
+  if (step === 'cv') {
+    return <CvSetup onDone={() => setStep('overlay')} />;
+  }
+
+  return <Overlay onLogout={handleLogout} />;
+};
+
+export default App;

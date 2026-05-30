@@ -1,47 +1,48 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-const API_URL: string = (import.meta as any).env?.VITE_API_URL ?? 'https://zoomguru.onrender.com';
-
 contextBridge.exposeInMainWorld('zoomguru', {
-  onTrigger: (event: string, callback: (...args: any[]) => void) => {
+  onTrigger: (event: string, callback: (...args: any[]) => void): void => {
     const channel = `trigger:${event}`;
     ipcRenderer.removeAllListeners(channel);
     ipcRenderer.on(channel, (_e, ...args) => callback(...args));
   },
 
-  onEvent: (channel: string, callback: (...args: any[]) => void) => {
-    ipcRenderer.removeAllListeners(channel);
-    ipcRenderer.on(channel, (_e, ...args) => callback(...args));
-  },
+  captureScreen: (): Promise<string> =>
+    ipcRenderer.invoke('capture:screen'),
 
-  captureScreen: (): Promise<string> => ipcRenderer.invoke('capture:screen'),
-
-  startListening: (): Promise<string> => ipcRenderer.invoke('speech:start'),
-  stopListening: (): Promise<void> => ipcRenderer.invoke('speech:stop'),
-
-  getDeviceId: (): Promise<string> => ipcRenderer.invoke('device:fingerprint'),
-
-  store: {
-    get: (key: string): Promise<unknown> => ipcRenderer.invoke('store:get', key),
-    set: (key: string, value: unknown): Promise<void> =>
-      ipcRenderer.invoke('store:set', key, value),
-    delete: (key: string): Promise<void> => ipcRenderer.invoke('store:delete', key),
-  },
-
-  openExternal: (url: string): Promise<void> =>
-    ipcRenderer.invoke('shell:openExternal', url),
-
-  onGoogleAuth: (callback: (data: { token: string }) => void) => {
-    ipcRenderer.removeAllListeners('auth:google-callback');
-    ipcRenderer.on('auth:google-callback', (_e, data) => callback(data));
-  },
-  offGoogleAuth: () => {
-    ipcRenderer.removeAllListeners('auth:google-callback');
-  },
-
-  openGoogleAuth: (): Promise<void> =>
-    ipcRenderer.invoke('shell:openExternal', API_URL + '/auth/google/electron'),
+  getDeviceId: (): Promise<string> =>
+    ipcRenderer.invoke('device:fingerprint'),
 
   hideWindow: (): Promise<void> =>
     ipcRenderer.invoke('window:hide'),
+
+  quitApp: (): Promise<void> =>
+    ipcRenderer.invoke('window:quit'),
+
+  requestMicPermission: (): Promise<boolean> =>
+    ipcRenderer.invoke('permissions:request-mic'),
+
+  parseCV: (): Promise<{ text: string; filename: string } | { error: string } | null> =>
+    ipcRenderer.invoke('cv:parse'),
+
+  loadCV: (): Promise<{ text: string; filename: string } | null> =>
+    ipcRenderer.invoke('cv:load'),
+
+  clearCV: (): Promise<void> =>
+    ipcRenderer.invoke('cv:clear'),
+
+  getSystemAudioSourceId: (): Promise<string> =>
+    ipcRenderer.invoke('capture:audio-source-id'),
+
+  saveJD: (text: string): Promise<void> =>
+    ipcRenderer.invoke('jd:save', text),
+
+  loadJD: (): Promise<string | null> =>
+    ipcRenderer.invoke('jd:load'),
+
+  clearJD: (): Promise<void> =>
+    ipcRenderer.invoke('jd:clear'),
+
+  openExternal: (url: string): Promise<void> =>
+    ipcRenderer.invoke('open-external', url),
 });

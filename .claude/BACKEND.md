@@ -1,344 +1,190 @@
-﻿# ZoomGuru â€” Backend
+# ZoomGuru MVP — Backend
 
-## Stack
-- **NestJS** with **Fastify adapter** (not Express)
-- **@neondatabase/serverless** â€” direct SQL, no ORM, no Prisma
-- **Render** â€” hosting (free tier to start, upgrade as needed)
-- **Node.js 20+**
+## Purpose
+Local NestJS server that handles auth, proxies AI calls,
+and streams responses back to the Electron app.
+Runs on http://localhost:3000 during development.
 
 ---
 
-## Project Bootstrap
+## File Structure (MVP — nothing else)
 
-```bash
-npm i -g @nestjs/cli
-nest new backend --package-manager npm
-cd backend
-
-# Switch to Fastify
-npm install @nestjs/platform-fastify
-
-# Neon driver
-npm install @neondatabase/serverless
-
-# Auth
-npm install @nestjs/jwt @nestjs/passport passport passport-jwt bcryptjs
-npm install -D @types/bcryptjs @types/passport-jwt
-
-# Paystack webhook verification
-npm install crypto
-
-# CV parsing
-npm install pdf-parse mammoth
-
-# Multipart file upload
-npm install @fastify/multipart
-
-# Environment
-npm install @nestjs/config
+```
+apps/backend/
+├── src/
+│   ├── main.ts                    ← bootstrap, port 3000
+│   ├── app.module.ts              ← root module
+│   ├── database/
+│   │   ├── db.ts                  ← neon client singleton
+│   │   └── init.ts                ← CREATE TABLE IF NOT EXISTS
+│   ├── auth/
+│   │   ├── auth.module.ts
+│   │   ├── auth.controller.ts     ← POST /auth/login only
+│   │   ├── auth.service.ts        ← login logic + JWT
+│   │   └── jwt.strategy.ts        ← passport JWT
+│   └── ai/
+│       ├── ai.module.ts
+│       ├── ai.controller.ts       ← POST /ai/stream + /ai/screenshot
+│       └── ai.service.ts          ← DeepSeek + Qwen calls
+├── .env                           ← secrets (never commit)
+├── tsconfig.json
+└── package.json
 ```
 
 ---
 
-## main.ts
+## The Three Endpoints (MVP — nothing else)
+
+```
+POST /auth/login
+    Headers: X-Device-ID: <fingerprint>
+    Body: { email: string, password: string }
+    Returns: {
+      accessToken: string,
+      user: { id, email, name, username }
+    }
+    Auth: none (this IS the auth endpoint)
+
+POST /ai/stream
+    Headers: Authorization: Bearer <token>
+             X-Device-ID: <fingerprint>
+    Body: { transcript: string, sessionId?: string }
+    Returns: text/event-stream
+    Chunks: data: {"chunk":"word "}\n\n
+    Final:  data: {"done":true}\n\n
+    Auth: JwtAuthGuard
+
+POST /ai/screenshot
+    Headers: Authorization: Bearer <token>
+             X-Device-ID: <fingerprint>
+    Body: { image: string (base64), sessionId?: string }
+    Returns: text/event-stream
+    Same chunk format as /ai/stream
+    Auth: JwtAuthGuard
+```
+
+---
+
+## Database (Neon — direct SQL)
+
+Driver: @neondatabase/serverless
+No ORM. No Prisma. Raw SQL only.
 
 ```typescript
-import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
-import { AppModule } from './app.module';
-import multipart from '@fastify/multipart';
-
-async function bootstrap() {
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    new FastifyAdapter({ logger: false })
-  );
-
-  // Multipart for CV uploads
-  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
-
-  app.enableCors({
-    origin: [
-      'https://zoomguru.xyz',
-      'app://.',           // Electron production
-      'http://localhost:5173' // Electron dev
-    ],
-    credentials: true,
-  });
-
-  // Init DB tables on startup
-  const { initDB } = await import('./database/init');
-  await initDB();
-
-  await app.listen(process.env.PORT || 3000, '0.0.0.0');
-  console.log(`ZoomGuru backend running on port ${process.env.PORT || 3000}`);
-}
-bootstrap();
-```
-
----
-
-## Module Structure
-
-```
-src/
-â”œâ”€â”€ main.ts
-â”œâ”€â”€ app.module.ts
-â”œâ”€â”€ database/
-â”‚   â”œâ”€â”€ db.ts              â† neon client singleton
-â”‚   â””â”€â”€ init.ts            â† CREATE TABLE IF NOT EXISTS
-â”œâ”€â”€ auth/
-â”‚   â”œâ”€â”€ auth.module.ts
-â”‚   â”œâ”€â”€ auth.controller.ts
-â”‚   â”œâ”€â”€ auth.service.ts
-â”‚   â””â”€â”€ jwt.strategy.ts
-â”œâ”€â”€ license/
-â”‚   â”œâ”€â”€ license.module.ts
-â”‚   â”œâ”€â”€ license.controller.ts
-â”‚   â””â”€â”€ license.service.ts
-â”œâ”€â”€ ai/
-â”‚   â”œâ”€â”€ ai.module.ts
-â”‚   â”œâ”€â”€ ai.controller.ts
-â”‚   â”œâ”€â”€ ai.service.ts
-â”‚   â””â”€â”€ question-router.ts
-â”œâ”€â”€ cv/
-â”‚   â”œâ”€â”€ cv.module.ts
-â”‚   â”œâ”€â”€ cv.controller.ts
-â”‚   â””â”€â”€ cv.service.ts
-â”œâ”€â”€ session/
-â”‚   â”œâ”€â”€ session.module.ts
-â”‚   â”œâ”€â”€ session.controller.ts
-â”‚   â””â”€â”€ session.service.ts
-â””â”€â”€ paystack/
-    â”œâ”€â”€ paystack.module.ts
-    â”œâ”€â”€ paystack.controller.ts
-    â””â”€â”€ paystack.service.ts
-```
-
----
-
-## database/db.ts
-
-```typescript
+// database/db.ts
 import { neon } from '@neondatabase/serverless';
-
 let _sql: ReturnType<typeof neon> | null = null;
-
 export function getDB() {
-  if (!_sql) {
-    _sql = neon(process.env.DATABASE_URL!);
-  }
+  if (!_sql) _sql = neon(process.env.DATABASE_URL!);
   return _sql;
 }
 ```
 
----
-
-## API Endpoints
-
-### Auth
-```
-POST /auth/register         â†’ create account
-POST /auth/login            â†’ returns access_token + refresh_token
-POST /auth/refresh          â†’ rotate refresh token
-POST /auth/logout           â†’ invalidate refresh token
-```
-
-### License
-```
-GET  /license/verify        â†’ check device fingerprint + pro status
-POST /license/bind          â†’ bind license to device on first login
+Tables needed for MVP:
+```sql
+-- users table (minimal)
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  name TEXT,
+  username TEXT UNIQUE,
+  is_pro BOOLEAN DEFAULT true,  -- everyone is pro locally
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 ```
 
-### AI
-```
-POST /ai/stream             â†’ SSE stream â€” text question answer
-POST /ai/screenshot         â†’ SSE stream â€” screenshot + optional voice
-POST /ai/session/start      â†’ create new interview session
-POST /ai/session/end        â†’ close session, save transcript
-```
-
-### CV
-```
-POST /cv/upload             â†’ upload + parse CV (PDF or DOCX)
-GET  /cv/profile            â†’ get parsed CV profile for user
-DELETE /cv/profile          â†’ remove CV
-```
-
-### Paystack
-```
-POST /paystack/webhook      â†’ Paystack event handler (public, HMAC verified)
-POST /paystack/initialize   â†’ create payment link for in-app payment
-GET  /paystack/plans        â†’ return pricing plans with Paystack plan codes
-```
-
-### Session
-```
-GET  /session/history       â†’ list past interview sessions
-GET  /session/:id           â†’ get session transcript
-DELETE /session/:id         â†’ delete a session
-```
+That is the only table needed for local MVP.
+Sessions, payments, referrals — all deferred.
 
 ---
 
-## JWT Strategy
+## Auth (JWT — simple, long expiry for local)
 
 ```typescript
-// auth/jwt.strategy.ts
-import { Injectable } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-
-@Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET,
-    });
-  }
-
-  async validate(payload: any) {
-    return { userId: payload.sub, email: payload.email };
-  }
+// JWT config for local development
+{
+  secret: process.env.JWT_SECRET,
+  expiresIn: '30d',  // long expiry, no refresh token needed locally
 }
+
+// Token payload
+{
+  sub: userId,
+  email: userEmail,
+}
+```
+
+No refresh tokens for local MVP.
+No device fingerprint binding.
+Just: valid JWT = access granted.
+
+---
+
+## AI Service — Model Routing
+
+```
+Question type detection (simple keyword matching):
+    coding/algorithm keywords  → deepseek-reasoner (R1)
+    system design keywords     → deepseek-reasoner (R1)
+    math/calculate keywords    → deepseek-reasoner (R1)
+    everything else            → deepseek-chat (V3)
+
+Screenshot:
+    Step 1: Qwen VL reads the image → text description
+    Step 2: deepseek-reasoner solves it (always R1 for screenshots)
 ```
 
 ---
 
-## Device Fingerprint Guard
+## System Prompt (Generic — no CV for MVP)
 
-Applied to every protected endpoint:
-
-```typescript
-// guards/device.guard.ts
-import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
-import { getDB } from '../database/db';
-
-@Injectable()
-export class DeviceGuard implements CanActivate {
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const deviceId = request.headers['x-device-id'];
-    const userId = request.user?.userId;
-
-    if (!deviceId || !userId) throw new ForbiddenException('Device not identified');
-
-    const sql = getDB();
-    const [license] = await sql`
-      SELECT device_fingerprint FROM licenses
-      WHERE user_id = ${userId}
-      AND status = 'active'
-      LIMIT 1
-    `;
-
-    // New user â€” no license yet (free tier)
-    if (!license) return true;
-
-    // Pro user â€” fingerprint must match
-    if (license.device_fingerprint !== deviceId) {
-      throw new ForbiddenException('License bound to different device');
-    }
-
-    return true;
-  }
-}
+```
+You are ZoomGuru, an AI interview assistant.
+Answer the following interview question clearly and confidently,
+as if the user is speaking directly to the interviewer.
+Be concise, specific, and professional.
+For coding questions: show your approach first, then the code.
+For behavioral questions: use the STAR format naturally.
+For system design: structure your answer with components.
+Keep answers focused — 3 to 6 sentences for most questions.
 ```
 
 ---
 
-## SSE Streaming (ai.controller.ts)
+## SSE Streaming Format
 
-```typescript
-import { Controller, Post, Body, Res, UseGuards, Req } from '@nestjs/common';
-import { FastifyReply } from 'fastify';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { DeviceGuard } from '../guards/device.guard';
-import { AiService } from './ai.service';
+Every streaming endpoint writes this exact format:
 
-@Controller('ai')
-@UseGuards(JwtAuthGuard, DeviceGuard)
-export class AiController {
-  constructor(private readonly aiService: AiService) {}
-
-  @Post('stream')
-  async streamAnswer(
-    @Body() body: { sessionId: string; transcript: string },
-    @Req() req: any,
-    @Res() reply: FastifyReply
-  ) {
-    reply.raw.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-    });
-
-    await this.aiService.streamAnswer({
-      userId: req.user.userId,
-      sessionId: body.sessionId,
-      transcript: body.transcript,
-      reply: reply.raw,
-    });
-  }
-
-  @Post('screenshot')
-  async streamScreenshot(
-    @Body() body: { sessionId: string; image: string; voiceContext?: string },
-    @Req() req: any,
-    @Res() reply: FastifyReply
-  ) {
-    reply.raw.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    });
-
-    await this.aiService.streamScreenshot({
-      userId: req.user.userId,
-      sessionId: body.sessionId,
-      image: body.image,
-      voiceContext: body.voiceContext,
-      reply: reply.raw,
-    });
-  }
-}
 ```
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+Access-Control-Allow-Origin: *
+
+data: {"chunk":"First ","done":false}\n\n
+data: {"chunk":"word ","done":false}\n\n
+data: {"chunk":"arrives.","done":false}\n\n
+data: {"done":true,"fullAnswer":"First word arrives."}\n\n
+```
+
+The renderer splits on `\n`, looks for lines starting with
+`data: `, parses the JSON, appends chunk to answer state.
 
 ---
 
-## Rate Limiting (Free Tier â€” Postgres Only)
+## CORS Configuration
 
+For local development, allow everything:
 ```typescript
-// ai.service.ts â€” before every AI call
-async checkUsageLimit(userId: string): Promise<void> {
-  const sql = getDB();
-
-  const [user] = await sql`
-    SELECT u.is_pro, uu.sessions_used, uu.responses_used
-    FROM users u
-    LEFT JOIN user_usage uu ON uu.user_id = u.id
-    WHERE u.id = ${userId}
-  `;
-
-  // Pro users â€” skip all checks
-  if (user.is_pro) return;
-
-  // Free tier limits
-  if (user.responses_used >= 10) {
-    throw new ForbiddenException('Free tier limit reached. Upgrade to continue.');
-  }
-}
-
-async incrementUsage(userId: string): Promise<void> {
-  const sql = getDB();
-  await sql`
-    UPDATE user_usage
-    SET responses_used = responses_used + 1
-    WHERE user_id = ${userId}
-  `;
-}
+app.enableCors({
+  origin: [
+    'http://localhost:5173',  // Vite dev server
+    'app://.',                // Electron production
+  ],
+  credentials: true,
+});
 ```
 
 ---
@@ -346,42 +192,56 @@ async incrementUsage(userId: string): Promise<void> {
 ## Environment Variables
 
 ```env
-# .env (never commit this)
-DATABASE_URL=postgresql://...neon.tech/zoomguru
-JWT_SECRET=super_secret_jwt_key_change_this
-JWT_REFRESH_SECRET=super_secret_refresh_key_change_this
-DEEPSEEK_API_KEY=sk-...
-QWEN_API_KEY=...
-PAYSTACK_SECRET_KEY=sk_live_...
-PAYSTACK_WEBHOOK_SECRET=...
+# apps/backend/.env
+DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/zoomguru?sslmode=require
+JWT_SECRET=any_long_random_string_for_local_dev
+DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
+QWEN_API_KEY=sk-xxxxxxxxxxxxxxxx
 PORT=3000
-NODE_ENV=production
+NODE_ENV=development
+```
+
+Validation on startup:
+```typescript
+const REQUIRED = ['DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'QWEN_API_KEY'];
+const missing = REQUIRED.filter(k => !process.env[k]);
+if (missing.length) {
+  console.error('Missing env vars:', missing);
+  process.exit(1);
+}
 ```
 
 ---
 
-## Render Deployment
+## main.ts (Local MVP)
 
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: zoomguru-backend
-    env: node
-    buildCommand: npm install && npm run build
-    startCommand: node dist/main.js
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: DEEPSEEK_API_KEY
-        sync: false
-      - key: QWEN_API_KEY
-        sync: false
-      - key: PAYSTACK_SECRET_KEY
-        sync: false
-      - key: PAYSTACK_WEBHOOK_SECRET
-        sync: false
+```typescript
+// Runs on port 3000
+// Fastify adapter for speed
+// No SSL locally
+// CORS open for localhost
+
+async function bootstrap() {
+  // env validation first
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter({ logger: false })
+  );
+  app.enableCors({ origin: true, credentials: true });
+  await initDB();
+  await app.listen(process.env.PORT || 3000, '0.0.0.0');
+  console.log('ZoomGuru backend running on http://localhost:3000');
+}
 ```
 
+---
+
+## Compiler Verification
+
+After every generated file:
+```bash
+cd apps/backend
+npx tsc --noEmit
+```
+
+Zero errors = ready.

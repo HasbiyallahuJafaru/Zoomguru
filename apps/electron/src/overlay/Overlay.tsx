@@ -1,546 +1,869 @@
-import { useState, useEffect, useRef } from 'react';
-import { AnswerStream } from './AnswerStream';
-import { ModeBar } from './ModeBar';
-import { PaywallModal } from './PaywallModal';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import AnswerStream from './AnswerStream';
 
-const API_URL: string =
-  import.meta.env.VITE_API_URL ||
-  'https://zoomguru.onrender.com';
+type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
-type Mode = 'behavioral' | 'technical' | 'coding' | 'systemdesign';
-type ProtectionStatus = 'checking' | 'protected' | 'exposed';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
+const SESSION_CAP = 40;
+const VAD_THRESHOLD = 0.015;
+const SILENCE_MS = 1500;
+const MIN_SPEECH_MS = 2500;
+const MIN_BLOB_BYTES = 25_000;
+const MIN_WORDS = 4;
 
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = localStorage.getItem('refresh_token');
-  if (!refreshToken) return null;
-  try {
-    const deviceId = await window.zoomguru.getDeviceId();
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    localStorage.setItem('access_token', data.accessToken);
-    if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
-    return data.accessToken;
-  } catch {
-    return null;
-  }
+let _deviceId: string | null = null;
+async function getCachedDeviceId(): Promise<string> {
+  if (!_deviceId) _deviceId = await window.zoomguru.getDeviceId();
+  return _deviceId;
 }
 
-async function apiFetch(url: string, options: RequestInit): Promise<Response> {
-  let res = await fetch(url, options);
-  if (res.status === 401) {
-    const newToken = await refreshAccessToken();
-    if (newToken) {
-      const headers = new Headers(options.headers);
-      headers.set('Authorization', `Bearer ${newToken}`);
-      res = await fetch(url, { ...options, headers });
-    }
-    if (res.status === 401) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('session_id');
-      window.location.reload();
-    }
-  }
-  return res;
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
-export function Overlay() {
+export default function Overlay({ onLogout }: { onLogout: () => void }) {
+  // --- state ---
   const [answer, setAnswer] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [mode, setMode] = useState<Mode>('behavioral');
-  const [visible, setVisible] = useState(true);
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [lastTranscript, setLastTranscript] = useState('');
-  const [lastImage, setLastImage] = useState('');
-  const [copied, setCopied] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [protection, setProtection] = useState<ProtectionStatus>('checking');
+  const [micGranted, setMicGranted] = useState(true);
+  const [cvText, setCvText] = useState('');
+  const [jdText, setJdText] = useState('');
+  const [questionCount, setQuestionCount] = useState(0);
+  const [isAutoMode, setIsAutoMode] = useState(false);
+  const [isAutoListening, setIsAutoListening] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
 
-  const sessionStartRef = useRef<number>(Date.now());
-  const sessionMessagesRef = useRef<Array<{ role: string; content: string }>>([]);
-  const sessionQuestionsRef = useRef<number>(0);
-  const [opacity, setOpacity] = useState<number>(() => {
-    const saved = localStorage.getItem('zg_opacity');
-    return saved ? parseFloat(saved) : 0.20;
-  });
+  const sessionCapped = questionCount >= SESSION_CAP;
 
+  // --- refs (manual listen) ---
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
   const handleListenRef = useRef<() => void>(() => {});
   const handleScreenshotRef = useRef<() => void>(() => {});
-  const handleRegenerateRef = useRef<() => void>(() => {});
   const handleClearRef = useRef<() => void>(() => {});
+  const handleAutoRef = useRef<() => void>(() => {});
+
+  // --- refs (auto VAD) ---
+  const questionCountRef = useRef(0);
+  const isAutoModeRef = useRef(false);
+  const vadStateRef = useRef<'idle' | 'recording' | 'processing'>('idle');
+  const speechStartRef = useRef(0);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoStreamRef = useRef<MediaStream | null>(null);
+  const autoContextRef = useRef<AudioContext | null>(null);
+  const autoAnalyserRef = useRef<AnalyserNode | null>(null);
+  const autoRecorderRef = useRef<MediaRecorder | null>(null);
+  const autoChunksRef = useRef<BlobPart[]>([]);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startSegmentRef = useRef<() => void>(() => {});
+  const processSegmentRef = useRef<(mimeType: string) => Promise<void>>(async () => {});
+
+  useEffect(() => { questionCountRef.current = questionCount; }, [questionCount]);
+
+  // --- streaming ---
+
+  async function streamAnswer(transcript: string): Promise<void> {
+    setAnswer('');
+    setIsStreaming(true);
+    try {
+      const token = localStorage.getItem('access_token') || '';
+      const deviceId = await getCachedDeviceId();
+      const response = await fetch(`${API_URL}/ai/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Device-ID': deviceId,
+        },
+        body: JSON.stringify({
+          transcript,
+          ...(cvText ? { cvText } : {}),
+          ...(jdText ? { jdText } : {}),
+        }),
+      });
+      if (response.status === 401) { onLogout(); return; }
+      if (response.status === 429) {
+        const data = await response.json() as { retryAfter?: number };
+        setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
+        return;
+      }
+      setQuestionCount((prev) => prev + 1);
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw || raw === '[DONE]') continue;
+          const data: { chunk?: string; done?: boolean } = JSON.parse(raw);
+          if (data.done) return;
+          if (data.chunk) setAnswer((prev) => prev + data.chunk);
+        }
+      }
+    } catch {
+      setAnswer('Connection error. Check backend.');
+    } finally {
+      setIsStreaming(false);
+    }
+  }
+
+  async function streamScreenshot(imageBase64: string): Promise<void> {
+    setAnswer('');
+    setIsStreaming(true);
+    try {
+      const token = localStorage.getItem('access_token') || '';
+      const deviceId = await getCachedDeviceId();
+      const response = await fetch(`${API_URL}/ai/screenshot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Device-ID': deviceId,
+        },
+        body: JSON.stringify({
+          image: imageBase64,
+          ...(cvText ? { cvText } : {}),
+          ...(jdText ? { jdText } : {}),
+        }),
+      });
+      if (response.status === 401) { onLogout(); return; }
+      if (response.status === 429) {
+        const data = await response.json() as { retryAfter?: number };
+        setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
+        return;
+      }
+      setQuestionCount((prev) => prev + 1);
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw || raw === '[DONE]') continue;
+          const data: { chunk?: string; done?: boolean } = JSON.parse(raw);
+          if (data.done) return;
+          if (data.chunk) setAnswer((prev) => prev + data.chunk);
+        }
+      }
+    } catch {
+      setAnswer('Connection error. Check backend.');
+    } finally {
+      setIsStreaming(false);
+    }
+  }
+
+  // --- auto VAD ---
+
+  function stopAutoMode(): void {
+    isAutoModeRef.current = false;
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (autoRecorderRef.current?.state === 'recording') {
+      autoRecorderRef.current.stop();
+    }
+    autoStreamRef.current?.getTracks().forEach((t) => t.stop());
+    void autoContextRef.current?.close();
+    autoStreamRef.current = null;
+    autoContextRef.current = null;
+    autoAnalyserRef.current = null;
+    autoRecorderRef.current = null;
+    vadStateRef.current = 'idle';
+    setIsAutoMode(false);
+    setIsAutoListening(false);
+  }
+
+  processSegmentRef.current = async (mimeType: string): Promise<void> => {
+    vadStateRef.current = 'processing';
+    setIsAutoListening(false);
+
+    const duration = Date.now() - speechStartRef.current;
+    const blob = new Blob(autoChunksRef.current, { type: mimeType });
+
+    if (duration < MIN_SPEECH_MS) { vadStateRef.current = 'idle'; return; }
+    if (blob.size < MIN_BLOB_BYTES) { vadStateRef.current = 'idle'; return; }
+
+    try {
+      const token = localStorage.getItem('access_token') || '';
+      const [base64, deviceId] = await Promise.all([
+        blobToBase64(blob),
+        getCachedDeviceId(),
+      ]);
+      const res = await fetch(`${API_URL}/ai/transcribe`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Device-ID': deviceId,
+        },
+        body: JSON.stringify({ audio: base64 }),
+      });
+      if (res.status === 401) { stopAutoMode(); onLogout(); return; }
+      if (!res.ok) { vadStateRef.current = 'idle'; return; }
+
+      const data = await res.json() as { transcript?: string };
+      const transcript = data.transcript?.trim() ?? '';
+
+      if (transcript.split(/\s+/).filter(Boolean).length < MIN_WORDS) {
+        vadStateRef.current = 'idle';
+        return;
+      }
+
+      if (questionCountRef.current >= SESSION_CAP) {
+        stopAutoMode();
+        return;
+      }
+
+      await streamAnswer(transcript);
+
+      if (questionCountRef.current >= SESSION_CAP) {
+        stopAutoMode();
+      }
+    } catch {
+      // discard failed segments silently in auto mode
+    } finally {
+      if (vadStateRef.current === 'processing') vadStateRef.current = 'idle';
+    }
+  };
+
+  startSegmentRef.current = (): void => {
+    if (!autoStreamRef.current) return;
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm';
+    const recorder = new MediaRecorder(autoStreamRef.current, { mimeType });
+    autoChunksRef.current = [];
+    speechStartRef.current = Date.now();
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) autoChunksRef.current.push(e.data);
+    };
+    recorder.onstop = () => { void processSegmentRef.current(mimeType); };
+
+    autoRecorderRef.current = recorder;
+    vadStateRef.current = 'recording';
+    setIsAutoListening(true);
+    recorder.start(100);
+  };
+
+  async function startAutoMode(): Promise<void> {
+    if (sessionCapped) return;
+
+    let stream: MediaStream;
+    try {
+      // Use Electron's desktopCapturer source ID to grab system audio (WASAPI
+      // loopback on Windows) without any OS picker dialog. Video is required
+      // by the underlying Chrome capture pipeline but discarded immediately.
+      const sourceId = await window.zoomguru.getSystemAudioSourceId();
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          // chromeMediaSource is an Electron/Chrome extension not in DOM types
+          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId },
+        } as unknown as MediaTrackConstraints,
+        video: {
+          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId },
+        } as unknown as MediaTrackConstraints,
+      });
+      stream.getVideoTracks().forEach((t) => t.stop());
+    } catch {
+      setMicGranted(false);
+      return;
+    }
+
+    const context = new AudioContext();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 512;
+    context.createMediaStreamSource(stream).connect(analyser);
+
+    autoStreamRef.current = stream;
+    autoContextRef.current = context;
+    autoAnalyserRef.current = analyser;
+    vadStateRef.current = 'idle';
+    isAutoModeRef.current = true;
+    setIsAutoMode(true);
+
+    const dataArray = new Uint8Array(analyser.fftSize);
+
+    pollIntervalRef.current = setInterval(() => {
+      if (!isAutoModeRef.current || !autoAnalyserRef.current) return;
+      if (vadStateRef.current === 'processing') return;
+
+      autoAnalyserRef.current.getByteTimeDomainData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        const norm = (dataArray[i] - 128) / 128;
+        sum += norm * norm;
+      }
+      const rms = Math.sqrt(sum / dataArray.length);
+      const speaking = rms > VAD_THRESHOLD;
+
+      if (speaking && vadStateRef.current === 'idle') {
+        startSegmentRef.current();
+      } else if (!speaking && vadStateRef.current === 'recording') {
+        if (!silenceTimerRef.current) {
+          silenceTimerRef.current = setTimeout(() => {
+            silenceTimerRef.current = null;
+            if (vadStateRef.current === 'recording') {
+              autoRecorderRef.current?.stop();
+            }
+          }, SILENCE_MS);
+        }
+      } else if (speaking && vadStateRef.current === 'recording') {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = null;
+        }
+      }
+    }, 80);
+  }
+
+  // --- handler refs ---
+
+  handleListenRef.current = async () => {
+    if (sessionCapped || isAutoMode) return;
+    if (isListening && recorderRef.current?.state === 'recording') {
+      recorderRef.current.stop();
+      return;
+    }
+    if (isStreaming) return;
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setMicGranted(false);
+      setAnswer('Mic access denied. Allow microphone in system settings.');
+      return;
+    }
+
+    chunksRef.current = [];
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm';
+    const recorder = new MediaRecorder(stream, { mimeType });
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      setIsListening(false);
+
+      void (async () => {
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        if (blob.size === 0) {
+          setAnswer('No audio captured. Speak and try again.');
+          return;
+        }
+
+        const token = localStorage.getItem('access_token') || '';
+        let base64: string;
+        let deviceId: string;
+        try {
+          [base64, deviceId] = await Promise.all([blobToBase64(blob), getCachedDeviceId()]);
+        } catch {
+          setAnswer('Audio encoding error. Try again.');
+          return;
+        }
+
+        try {
+          const res = await fetch(`${API_URL}/ai/transcribe`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+              'X-Device-ID': deviceId,
+            },
+            body: JSON.stringify({ audio: base64 }),
+          });
+          if (res.status === 401) { onLogout(); return; }
+          if (!res.ok) {
+            setAnswer('Transcription failed. Check backend logs.');
+            return;
+          }
+          const data = await res.json() as { transcript?: string };
+          if (data.transcript?.trim()) {
+            void streamAnswer(data.transcript);
+          } else {
+            setAnswer('No speech detected. Speak clearly and try again.');
+          }
+        } catch {
+          setAnswer('Transcription error. Check your connection.');
+        }
+      })();
+    };
+
+    recorderRef.current = recorder;
+    setIsListening(true);
+    recorder.start();
+
+    const autoStop = setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop();
+    }, 30_000);
+    recorder.addEventListener('stop', () => clearTimeout(autoStop), { once: true });
+  };
+
+  handleScreenshotRef.current = async () => {
+    if (sessionCapped) return;
+    if (isStreaming) return;
+    const imageBase64 = await window.zoomguru.captureScreen();
+    await streamScreenshot(imageBase64);
+  };
+
+  handleClearRef.current = () => {
+    stopAutoMode();
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+    setAnswer('');
+    setIsStreaming(false);
+    setIsListening(false);
+    setQuestionCount(0);
+    chunksRef.current = [];
+  };
+
+  handleAutoRef.current = () => {
+    if (isAutoModeRef.current) { stopAutoMode(); } else { void startAutoMode(); }
+  };
+
+  // --- mount ---
 
   useEffect(() => {
-    window.zoomguru.onTrigger('listen', () => handleListenRef.current());
-    window.zoomguru.onTrigger('screenshot', () => handleScreenshotRef.current());
-    window.zoomguru.onTrigger('regenerate', () => handleRegenerateRef.current());
-    window.zoomguru.onTrigger('clear', () => handleClearRef.current());
+    void getCachedDeviceId();
 
-    window.zoomguru.onEvent('protection:status', (data: {
-      protected: boolean;
-      reason: string;
-      platform: string;
-    }) => {
-      setProtection(data.protected ? 'protected' : 'exposed');
+    void window.zoomguru.loadCV().then((stored) => {
+      if (stored) setCvText(stored.text);
     });
 
-    const goOnline = () => setIsOnline(true);
-    const goOffline = () => setIsOnline(false);
-    window.addEventListener('online', goOnline);
-    window.addEventListener('offline', goOffline);
+    void window.zoomguru.loadJD().then((stored) => {
+      if (stored) setJdText(stored);
+    });
+
+    void window.zoomguru.requestMicPermission().then((osGranted) => {
+      if (!osGranted) {
+        setMicGranted(false);
+        return;
+      }
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((s) => { s.getTracks().forEach((t) => t.stop()); setMicGranted(true); })
+        .catch(() => setMicGranted(false));
+    });
+
+    window.zoomguru.onTrigger('listen', () => { void handleListenRef.current(); });
+    window.zoomguru.onTrigger('screenshot', () => { void handleScreenshotRef.current(); });
+    window.zoomguru.onTrigger('clear', () => handleClearRef.current());
+    window.zoomguru.onTrigger('auto', () => { void handleAutoRef.current(); });
+
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+
     return () => {
-      window.removeEventListener('online', goOnline);
-      window.removeEventListener('offline', goOffline);
+      stopAutoMode();
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
     };
   }, []);
 
-  async function handleListen() {
-    if (isStreaming || isListening) return;
+  // --- helpers ---
 
-    const stream = await navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .catch(() => null);
+  const isRec = isListening || isAutoListening;
+  const isGen = isStreaming;
+  const isAutoOn = isAutoMode && !isAutoListening;
 
-    if (!stream) {
-      setAnswer(
-        '⚠ Microphone access denied.\n\n' +
-        'Fix: System Settings → Privacy → Microphone → Enable ZoomGuru'
-      );
-      return;
+  function fbg(id: string, activeColor?: string): CSSProperties {
+    const isH = hovered === id;
+    if (activeColor) {
+      return { background: isH ? activeColor.replace('0.07', '0.12') : activeColor };
     }
-    stream.getTracks().forEach(t => t.stop());
-
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      setAnswer('⚠ Speech recognition not available. Type your question instead.');
-      return;
-    }
-
-    setIsListening(true);
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setIsListening(false);
-      if (transcript.trim()) {
-        setLastTranscript(transcript);
-        setLastImage('');
-        streamAnswer(transcript, null);
-      }
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-      setAnswer('⚠ Could not capture speech. Try again or type your question.');
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
+    return { background: isH ? 'rgba(255,255,255,0.05)' : 'transparent' };
   }
 
-  async function handleScreenshot() {
-    if (isStreaming) return;
-
-    try {
-      const imageBase64 = await window.zoomguru.captureScreen();
-      setLastImage(imageBase64);
-      setLastTranscript('');
-      streamScreenshot(imageBase64);
-    } catch (e) {
-      console.error('Screenshot failed:', e);
-    }
-  }
-
-  function handleRegenerate() {
-    if (isStreaming) return;
-    if (lastImage) {
-      streamScreenshot(lastImage);
-    } else if (lastTranscript) {
-      streamAnswer(lastTranscript, null);
-    }
-  }
-
-  function copyAnswer() {
-    if (!answer) return;
-    const clean = answer
-      .replace(/[#*`_~]/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    navigator.clipboard.writeText(clean);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  function handleOpacityChange(val: number) {
-    setOpacity(val);
-    localStorage.setItem('zg_opacity', val.toString());
-  }
-
-  function handleClear() {
-    setAnswer('');
-    setIsStreaming(false);
-    setLastTranscript('');
-    setLastImage('');
-  }
-
-  handleListenRef.current = handleListen;
-  handleScreenshotRef.current = handleScreenshot;
-  handleRegenerateRef.current = handleRegenerate;
-  handleClearRef.current = handleClear;
-
-  async function streamAnswer(transcript: string, _image: null) {
-    setAnswer('');
-    setIsStreaming(true);
-
-    const token = localStorage.getItem('access_token');
-    const sessionId = localStorage.getItem('session_id');
-
-    try {
-      const response = await apiFetch(`${API_URL}/ai/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || ''}`,
-          'X-Device-ID': await window.zoomguru.getDeviceId(),
-        },
-        body: JSON.stringify({ transcript, sessionId: sessionId || '', mode }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        if (response.status === 403 && (err as any)?.message?.includes('limit')) {
-          setShowPaywall(true);
-        } else {
-          setAnswer('⚠ Request failed. Please try again.');
-        }
-        setIsStreaming(false);
-        return;
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        setAnswer('⚠ No response body received. Please try again.');
-        setIsStreaming(false);
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim();
-          if (!raw || raw === '[DONE]') continue;
-
-          try {
-            const data = JSON.parse(raw);
-            if (data.done) {
-              if (data.fullAnswer) {
-                sessionMessagesRef.current.push({ role: 'user', content: transcript });
-                sessionMessagesRef.current.push({ role: 'assistant', content: data.fullAnswer });
-                sessionQuestionsRef.current += 1;
-              }
-              setIsStreaming(false);
-              return;
-            }
-            if (data.error) {
-              const msg: string = data.error;
-              if (msg.includes('limit') || msg.includes('Upgrade') || msg.includes('Pro')) {
-                setShowPaywall(true);
-              } else {
-                setAnswer('⚠ ' + msg);
-              }
-              setIsStreaming(false);
-              return;
-            }
-            if (data.chunk) {
-              setAnswer(prev => prev + data.chunk);
-            }
-          } catch {
-            // ignore malformed chunk
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Stream error:', err);
-      setAnswer('⚠ Connection lost. Check your internet and try again.');
-    } finally {
-      setIsStreaming(false);
-    }
-  }
-
-  async function streamScreenshot(imageBase64: string) {
-    setAnswer('');
-    setIsStreaming(true);
-
-    const token = localStorage.getItem('access_token');
-    const sessionId = localStorage.getItem('session_id');
-
-    try {
-      const response = await apiFetch(`${API_URL}/ai/screenshot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || ''}`,
-          'X-Device-ID': await window.zoomguru.getDeviceId(),
-        },
-        body: JSON.stringify({ image: imageBase64, sessionId: sessionId || '', mode }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        if (response.status === 403 && (err as any)?.message?.includes('limit')) {
-          setShowPaywall(true);
-        } else {
-          setAnswer('⚠ Screenshot request failed. Please try again.');
-        }
-        setIsStreaming(false);
-        return;
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        setAnswer('⚠ No response body received. Please try again.');
-        setIsStreaming(false);
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim();
-          if (!raw || raw === '[DONE]') continue;
-
-          try {
-            const data = JSON.parse(raw);
-            if (data.done) {
-              setIsStreaming(false);
-              return;
-            }
-            if (data.error) {
-              const msg: string = data.error;
-              if (msg.includes('limit') || msg.includes('Upgrade')) {
-                setShowPaywall(true);
-              } else {
-                setAnswer('⚠ ' + msg);
-              }
-              setIsStreaming(false);
-              return;
-            }
-            if (data.chunk) {
-              setAnswer(prev => prev + data.chunk);
-            }
-          } catch {
-            // ignore
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Screenshot stream error:', err);
-      setAnswer('⚠ Connection lost. Check your internet and try again.');
-    } finally {
-      setIsStreaming(false);
-    }
-  }
-
-  if (!visible) return null;
+  // --- render ---
 
   return (
     <>
-      <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: '#fff',
-        borderRadius: '20px',
-        border: '1.5px solid #e5e5e5',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        userSelect: 'none',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.12)',
-        opacity,
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: '12px 16px',
-          background: '#f5f5f3',
-          borderBottom: '1px solid #e5e5e5',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          WebkitAppRegion: 'drag',
-          flexShrink: 0,
-        } as React.CSSProperties & { WebkitAppRegion: string }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 22, height: 22, borderRadius: 6, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <span style={{ color: '#fff', fontSize: 10, fontWeight: 900 }}>Z</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#333', letterSpacing: '-0.2px' }}>ZoomGuru</span>
-          </div>
+      <style>{`
+        @keyframes zg-pulse {
+          0%, 100% { opacity: 1 }
+          50% { opacity: 0.3 }
+        }
+        .zg-fbtn:active:not([disabled]) {
+          transform: scale(0.96) !important;
+        }
+        .zg-ibtn:hover {
+          background: rgba(255,255,255,0.07) !important;
+          color: rgba(255,255,255,0.60) !important;
+        }
+      `}</style>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isListening && <span style={{ color: '#16a34a', fontSize: 11, fontWeight: 600 }}>● Listening...</span>}
-            {isStreaming && <span style={{ color: '#2563eb', fontSize: 11, fontWeight: 600 }}>● Thinking...</span>}
-            {!isListening && !isStreaming && <span style={{ color: '#bbb', fontSize: 10 }}>Ready</span>}
-            {!isOnline && <span style={{ color: '#dc2626', fontSize: 10, fontWeight: 600 }}>⚠ Offline</span>}
+      <div style={s.root}>
 
-            {protection === 'checking' && (
-              <span style={{ fontSize: 9, color: '#bbb', letterSpacing: '0.05em' }}>checking...</span>
-            )}
-            {protection === 'protected' && (
-              <span style={{ fontSize: 9, color: '#16a34a', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
-                Hidden
+        {/* ── Header ── */}
+        <div style={s.header}>
+          <span style={s.wordmark}>ZoomGuru</span>
+
+          <div style={s.headerRight}>
+            {/* Status */}
+            {isRec && (
+              <span style={s.statusRec}>
+                <span style={s.recDot} />
+                REC
               </span>
             )}
-            {protection === 'exposed' && (
-              <span title="Overlay may be visible to screen share." style={{ fontSize: 9, color: '#dc2626', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#dc2626', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
-                ⚠ Visible
-              </span>
+            {isAutoOn && !isGen && (
+              <span style={s.statusAuto}>AUTO</span>
+            )}
+            {isGen && (
+              <span style={s.statusGen}>GEN</span>
+            )}
+            {!micGranted && <span style={s.statusWarn}>no mic</span>}
+            {!isOnline && <span style={s.statusWarn}>offline</span>}
+            {questionCount > 0 && !sessionCapped && (
+              <span style={s.sessionCount}>{questionCount}/{SESSION_CAP}</span>
             )}
 
+            {/* Buttons */}
             <button
-              onClick={async () => {
-                const sessionId = localStorage.getItem('session_id');
-                const token = localStorage.getItem('access_token');
-                if (sessionId && token) {
-                  try {
-                    const deviceId = await window.zoomguru.getDeviceId();
-                    await apiFetch(`${API_URL}/session/end`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`,
-                        'X-Device-ID': deviceId,
-                      },
-                      body: JSON.stringify({
-                        sessionId,
-                        messages: sessionMessagesRef.current,
-                        durationSeconds: Math.round((Date.now() - sessionStartRef.current) / 1000),
-                        totalQuestions: sessionQuestionsRef.current,
-                      }),
-                    });
-                  } catch {
-                    // Don't block new session if end fails
-                  }
-                }
-                localStorage.removeItem('session_id');
-                window.location.reload();
-              }}
-              title="Start a new interview session"
-              style={{
-                padding: '3px 8px', borderRadius: 5,
-                border: '1px solid #e5e5e5',
-                background: 'transparent', color: '#666',
-                fontSize: 10, cursor: 'pointer',
-                WebkitAppRegion: 'no-drag',
-              } as React.CSSProperties & { WebkitAppRegion: string }}
-            >New</button>
-
+              className="zg-ibtn"
+              style={s.logoutBtn}
+              onClick={() => { stopAutoMode(); onLogout(); }}
+              aria-label="Log out"
+            >
+              Logout
+            </button>
             <button
-              onClick={() => window.zoomguru.hideWindow()}
-              title="Hide to tray (Ctrl+Shift+H)"
-              style={{
-                padding: '3px 8px', borderRadius: 5,
-                border: '1px solid #e5e5e5',
-                background: 'transparent', color: '#999',
-                fontSize: 12, lineHeight: 1, cursor: 'pointer',
-                WebkitAppRegion: 'no-drag',
-              } as React.CSSProperties & { WebkitAppRegion: string }}
-            >✕</button>
-
-            <button
-              onClick={() => setShowPaywall(true)}
-              style={{
-                padding: '3px 8px', borderRadius: 5,
-                border: '1.5px solid #111',
-                background: '#111', color: '#fff',
-                fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                WebkitAppRegion: 'no-drag',
-              } as React.CSSProperties & { WebkitAppRegion: string }}
-            >Pro</button>
-          </div>
-        </div>
-
-        <ModeBar mode={mode} onModeChange={setMode} />
-        <AnswerStream answer={answer} isStreaming={isStreaming} />
-
-        {answer && !isStreaming && (
-          <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
-            <button onClick={copyAnswer} style={{
-              background: 'transparent',
-              border: '1px solid #e5e5e5',
-              borderRadius: 6,
-              color: copied ? '#16a34a' : '#666',
-              fontSize: 11, fontWeight: copied ? 600 : 400,
-              padding: '4px 10px', cursor: 'pointer',
-            }}>
-              {copied ? '✓ Copied' : 'Copy'}
+              className="zg-ibtn"
+              style={s.iconBtn}
+              onClick={() => { void window.zoomguru.quitApp(); }}
+              aria-label="Quit"
+            >
+              ×
             </button>
           </div>
+        </div>
+
+        {/* ── Content ── */}
+        {sessionCapped ? (
+          <div style={s.capNotice}>
+            <span style={s.capCount}>40 / 40</span>
+            <p style={s.capMessage}>Session complete</p>
+            <p style={s.capSub}>Start a new session to continue.</p>
+            <button style={s.newSessionBtn} onClick={() => handleClearRef.current()}>
+              New Session
+            </button>
+          </div>
+        ) : (
+          <AnswerStream answer={answer} isStreaming={isStreaming} />
         )}
 
-        <div style={{
-          padding: '8px 16px',
-          borderTop: '1px solid #e5e5e5',
-          background: '#fafaf8',
-          display: 'flex', gap: 10,
-          fontSize: 10, color: '#bbb', flexShrink: 0,
-        }}>
-          {(() => {
-            const mod = navigator.platform.includes('Mac') ? '⌘⇧' : 'Ctrl+';
-            return (<>
-              <span>{mod}A Listen</span>
-              <span>{mod}S Screen</span>
-              <span>{mod}H Hide</span>
-              <span>{mod}R Retry</span>
-              <span>{mod}C Clear</span>
-            </>);
-          })()}
-          <input
-            type="range"
-            min={0.1} max={0.95} step={0.05}
-            value={opacity}
-            onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-            style={{ width: 60, cursor: 'pointer', accentColor: '#111', marginLeft: 'auto' }}
-            title="Overlay opacity"
-          />
-        </div>
-      </div>
+        {/* ── Footer ── */}
+        <div style={s.footer}>
+          <button
+            className="zg-fbtn"
+            style={{
+              ...s.footerBtn,
+              ...(isListening
+                ? { borderTop: '2px solid #f43f5e', ...fbg('listen', 'rgba(244,63,94,0.07)') }
+                : fbg('listen')
+              ),
+              opacity: isStreaming || sessionCapped || isAutoMode ? 0.35 : 1,
+            }}
+            onMouseEnter={() => setHovered('listen')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => { void handleListenRef.current(); }}
+            disabled={isStreaming || sessionCapped || isAutoMode}
+            aria-label={isListening ? 'Stop recording' : 'Start listening'}
+          >
+            <span style={s.btnLabel}>{isListening ? 'Stop' : 'Listen'}</span>
+            <span style={s.btnHint}>⌘⇧A</span>
+          </button>
 
-      {showPaywall && <PaywallModal onClose={() => setShowPaywall(false)} />}
+          <button
+            className="zg-fbtn"
+            style={{
+              ...s.footerBtn,
+              ...fbg('screen'),
+              opacity: isStreaming || sessionCapped ? 0.35 : 1,
+            }}
+            onMouseEnter={() => setHovered('screen')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => { void handleScreenshotRef.current(); }}
+            disabled={isStreaming || sessionCapped}
+            aria-label="Screenshot"
+          >
+            <span style={s.btnLabel}>Screen</span>
+            <span style={s.btnHint}>⌘⇧S</span>
+          </button>
+
+          <button
+            className="zg-fbtn"
+            style={{
+              ...s.footerBtn,
+              ...(isAutoListening
+                ? { borderTop: '2px solid #f43f5e', ...fbg('auto', 'rgba(244,63,94,0.07)') }
+                : isAutoMode
+                ? { borderTop: '2px solid #10b981', ...fbg('auto', 'rgba(16,185,129,0.07)') }
+                : fbg('auto')
+              ),
+              opacity: sessionCapped ? 0.35 : 1,
+            }}
+            onMouseEnter={() => setHovered('auto')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => { if (isAutoMode) { stopAutoMode(); } else { void startAutoMode(); } }}
+            disabled={sessionCapped}
+            aria-label={isAutoMode ? 'Stop auto mode' : 'Start auto mode'}
+          >
+            <span style={s.btnLabel}>{isAutoMode ? 'Auto On' : 'Auto'}</span>
+            <span style={s.btnHint}>⌘⇧D</span>
+          </button>
+
+          <button
+            className="zg-fbtn"
+            style={{ ...s.footerBtn, ...fbg('clear'), borderRight: 'none' }}
+            onMouseEnter={() => setHovered('clear')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => handleClearRef.current()}
+            aria-label="Clear"
+          >
+            <span style={s.btnLabel}>{sessionCapped ? 'Reset' : 'Clear'}</span>
+            <span style={s.btnHint}>⌘⇧C</span>
+          </button>
+        </div>
+
+      </div>
     </>
   );
 }
+
+const s: Record<string, ElectronStyle> = {
+  root: {
+    position: 'fixed',
+    inset: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    background: 'rgba(7, 7, 11, 0.60)',
+    backdropFilter: 'blur(32px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+    borderRadius: '16px',
+    border: '1px solid rgba(255,255,255,0.07)',
+    fontFamily: FONT,
+    overflow: 'hidden',
+  },
+
+  // Header
+  header: {
+    height: '40px',
+    minHeight: '40px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '0 12px 0 14px',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    WebkitAppRegion: 'drag',
+    flexShrink: 0,
+  },
+  wordmark: {
+    fontSize: '15px',
+    fontWeight: 400,
+    fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.80)',
+    letterSpacing: '0.1px',
+    fontFamily: SERIF,
+  },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    WebkitAppRegion: 'no-drag',
+  },
+
+  // Status labels
+  statusRec: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    color: '#f43f5e',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
+  },
+  recDot: {
+    width: '5px',
+    height: '5px',
+    borderRadius: '50%',
+    background: '#f43f5e',
+    display: 'inline-block',
+    animation: 'zg-pulse 1.2s ease-in-out infinite',
+  },
+  statusGen: {
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    color: '#6366f1',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
+  },
+  statusAuto: {
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    color: '#10b981',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
+  },
+  statusWarn: {
+    fontSize: '9px',
+    fontWeight: 500,
+    letterSpacing: '0.3px',
+    color: 'rgba(255,255,255,0.30)',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
+  },
+  sessionCount: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.18)',
+    letterSpacing: '0.3px',
+    fontFamily: FONT,
+  },
+
+  // Icon buttons (header)
+  iconBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: '14px',
+    lineHeight: '1',
+    cursor: 'pointer',
+    padding: '3px 5px',
+    borderRadius: '4px',
+    transition: 'background 120ms ease, color 120ms ease',
+    WebkitAppRegion: 'no-drag',
+    fontFamily: FONT,
+  },
+  logoutBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.28)',
+    fontSize: '10px',
+    fontWeight: 500,
+    letterSpacing: '0.2px',
+    lineHeight: '1',
+    cursor: 'pointer',
+    padding: '3px 6px',
+    borderRadius: '4px',
+    transition: 'background 120ms ease, color 120ms ease',
+    WebkitAppRegion: 'no-drag',
+    fontFamily: FONT,
+  },
+
+  // Session cap
+  capNotice: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    padding: '16px',
+  },
+  capCount: {
+    fontSize: '10px',
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.14)',
+    letterSpacing: '0.5px',
+    fontFamily: FONT,
+  },
+  capMessage: {
+    margin: '4px 0 0',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: 'rgba(255,255,255,0.60)',
+    fontFamily: FONT,
+  },
+  capSub: {
+    margin: '2px 0 16px',
+    fontSize: '11px',
+    color: 'rgba(255,255,255,0.22)',
+    fontFamily: FONT,
+  },
+  newSessionBtn: {
+    padding: '8px 22px',
+    background: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    color: '#07070b',
+    fontSize: '12px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: FONT,
+    transition: 'background 120ms ease',
+  },
+
+  // Footer
+  footer: {
+    height: '52px',
+    minHeight: '52px',
+    display: 'flex',
+    borderTop: '1px solid rgba(255,255,255,0.06)',
+    WebkitAppRegion: 'no-drag',
+    flexShrink: 0,
+  },
+  footerBtn: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    border: 'none',
+    borderRight: '1px solid rgba(255,255,255,0.06)',
+    borderTop: '2px solid transparent',
+    cursor: 'pointer',
+    padding: 0,
+    transition: 'background 120ms ease, transform 100ms ease',
+    WebkitAppRegion: 'no-drag',
+  },
+  btnLabel: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: 'rgba(255,255,255,0.55)',
+    lineHeight: '1',
+    fontFamily: FONT,
+    letterSpacing: '0.1px',
+  },
+  btnHint: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.18)',
+    lineHeight: '1',
+    fontFamily: FONT,
+  },
+};

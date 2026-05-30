@@ -1,32 +1,27 @@
 # ZoomGuru
 
-**Your invisible edge in every interview.**
-
-ZoomGuru is an AI-powered interview copilot delivered as a cross-platform desktop app (Windows + macOS). It sits as a transparent, always-on-top overlay that is **completely invisible to screen share software** — Zoom, Google Meet, Teams, Webex, and browser-based tab sharing via Chrome. It listens to interview audio, captures screenshots on demand, and streams personalized AI answers in real time, all based on your uploaded CV.
+A desktop overlay app that sits transparently over your screen during job interviews. It listens to questions via microphone, captures screenshots on demand, and streams answers in real time. The overlay is invisible to screen share software — the user sees it, the interviewer does not.
 
 ---
 
-## What it does
+## How it works
 
-- **Listens** — local Whisper STT transcribes the interviewer's question on-device
-- **Reads your screen** — press a hotkey to capture a screenshot; vision AI reads code challenges, diagrams, and whiteboard problems
-- **Answers in real time** — first word in under 500ms, streamed word by word
-- **Personalized to your CV** — every answer pulls from your real experience, projects, and skills
-- **Invisible** — OS-level window exclusion; no screen capture software can see the overlay
+1. Launch the app. A transparent overlay appears above all other windows.
+2. Join your interview call. The overlay is hidden from Zoom, Meet, Teams, and Webex via OS content protection.
+3. Press `Ctrl+Shift+A`, speak the question you just heard. An answer streams onto the overlay word by word in under two seconds.
+4. For coding challenges, press `Ctrl+Shift+S` to capture the screen. The vision model reads the problem and streams a full solution.
 
 ---
 
-## Monorepo structure
+## Repository structure
 
 ```
 zoomguru/
 ├── apps/
-│   ├── backend/      NestJS + Fastify API server (Render)
-│   ├── electron/     Desktop overlay app — Electron + Vite + React
-│   ├── landing/      Marketing + user dashboard — Next.js 16 + Tailwind (Netlify)
-│   └── admin/        Internal admin dashboard — Next.js 16 + Recharts (Netlify)
-├── .claude/          Full architecture, patch notes, and documentation
-└── package.json      npm workspaces root
+│   ├── electron/       Desktop overlay app (Electron + Vite + React)
+│   ├── backend/        Local API server (NestJS + Fastify, port 3000)
+│   └── landing/        Marketing page (plain HTML, no build step)
+└── .claude/            Project context and specs
 ```
 
 ---
@@ -35,71 +30,108 @@ zoomguru/
 
 | Layer | Technology |
 |---|---|
-| Desktop app | Electron, Vite, React 19, TypeScript |
-| Landing + dashboard | Next.js 16 (App Router), Tailwind CSS, Netlify |
-| Admin dashboard | Next.js 16, Recharts, NextAuth, Netlify |
-| Backend API | NestJS, Fastify adapter, Render |
-| Database | Neon PostgreSQL — raw SQL, no ORM |
-| AI — text | DeepSeek V3 (`deepseek-chat`) + R1 (`deepseek-reasoner`) |
-| AI — vision | DeepSeek V3 multimodal for screenshot understanding |
-| AI — speech | Whisper tiny (local ONNX, on-device) |
-| Wake word | Porcupine (local, on-device) |
-| Payments | Paystack (NGN + USD) |
-| Auth | JWT (15m access / 30d refresh rotation) + Google OAuth + device fingerprint |
+| Desktop app | Electron, Vite, React 18, TypeScript strict |
+| Backend | NestJS, Fastify adapter, TypeScript |
+| Database | Neon PostgreSQL, `@neondatabase/serverless`, raw SQL |
+| Auth | JWT via `@nestjs/jwt`, 30-day expiry |
+| Text answers | DeepSeek V3 (`deepseek-chat`) and R1 (`deepseek-reasoner`) |
+| Screenshot reading | Groq vision (`llama-4-scout-17b-16e-instruct`) |
+| Voice transcription | Groq Whisper (`whisper-large-v3-turbo`) |
+| Payments | Paystack |
 
 ---
 
-## Apps
+## Prerequisites
 
-### `apps/backend` — NestJS API
-Full REST API with Fastify. Modules: auth, cv, session, license, paystack, referral, admin.  
-Self-healing: all DB tables auto-create on first boot — no migrations needed.
-
-### `apps/electron` — Desktop overlay
-Transparent always-on-top Electron window. Screen share invisible via OS-level exclusion.  
-Connects to backend via HTTPS. Audio captured locally, STT via Whisper ONNX, wake word via Porcupine.
-
-### `apps/landing` — Marketing + user dashboard
-Public marketing pages, pricing, and a full authenticated user dashboard:
-- Session history, subscription management, referral tracking, settings, payment history.
-
-### `apps/admin` — Internal admin dashboard
-Protected admin-only Next.js app. Full observability and management:
-- **Overview** — live KPI cards, revenue + session sparklines, recent signups
-- **Users** — searchable/filterable table, per-user detail with license + payment history
-- **Revenue** — MRR/ARR/LTV, daily area chart (NGN/USD toggle), cohort retention, churn analysis
-- **Sessions** — stacked bar by interview type, peak-hours heatmap, recent session table with AI summaries
-- **Referrals** — conversion funnel, top referrers leaderboard, all referral rows
-- **Payouts** — pending payout cards with pay/reject modals, payout history
-- **Errors** — auto-refreshing error log, severity icons, inline stack trace expansion, filters
-- **Settings** — account management, admin user CRUD, system config reference, pricing display
+- Node.js 20+
+- A Neon PostgreSQL database (free tier works)
+- A DeepSeek API key
+- A Groq API key
+- A Paystack account (test keys are fine for development)
 
 ---
 
-## Screen share invisibility
+## Setup
 
-### Windows
-```javascript
-const { setWindowDisplayAffinity } = require('electron-wda');
-setWindowDisplayAffinity(win, 'WDA_EXCLUDEFROMCAPTURE');
+### 1. Install dependencies
+
+```bash
+cd apps/backend && npm install
+cd ../electron && npm install
 ```
-Uses `SetWindowDisplayAffinity` Win32 API (`0x00000011`). Excludes from all capture including Zoom, Teams, Chrome `getDisplayMedia()`, and OBS.
 
-### macOS
-```javascript
-win.setContentProtection(true);
+### 2. Configure the backend
+
+```bash
+cp apps/backend/.env.example apps/backend/.env
 ```
-Electron built-in. Renders on user display, appears black/absent in any screen capture.
+
+Fill in `apps/backend/.env`:
+
+```env
+DATABASE_URL=postgresql://user:password@ep-xxx.neon.tech/dbname?sslmode=require
+JWT_SECRET=any_long_random_string
+
+DEEPSEEK_API_KEY=sk-...
+GROQ_API_KEY=gsk_...
+
+PAYSTACK_SECRET_KEY=sk_test_...
+PAYSTACK_PLAN_MONTHLY=PLN_...
+PAYSTACK_PLAN_ANNUAL=PLN_...
+PAYSTACK_SUCCESS_URL=http://localhost:5173/payment-success
+
+PORT=3000
+NODE_ENV=development
+```
+
+The backend validates all required variables on startup and exits immediately if any are missing.
+
+### 3. Configure the Electron app
+
+Create `apps/electron/.env`:
+
+```env
+VITE_API_URL=http://localhost:3000
+VITE_APP_ENV=development
+```
+
+### 4. Seed the database
+
+The backend runs `CREATE TABLE IF NOT EXISTS` on first boot — no migration step needed. Connect to your Neon database and insert a user manually to log in:
+
+```sql
+INSERT INTO users (email, password_hash, name, is_active)
+VALUES (
+  'you@example.com',
+  '$2b$10$...',
+  'Your Name',
+  true
+);
+```
+
+To generate a bcrypt hash:
+
+```bash
+node -e "const b=require('bcrypt'); b.hash('yourpassword', 10).then(console.log)"
+```
 
 ---
 
-## Pricing
+## Running
 
-| Plan | NGN | USD |
-|---|---|---|
-| Free | 3 sessions · 10 responses each | — |
-| Monthly | ₦15,000 / month | $12 / month |
-| Lifetime | ₦100,000 one-time | $79 one-time |
+Both processes must be running simultaneously.
+
+```bash
+# Terminal 1 — backend
+cd apps/backend
+npm run start:dev
+
+# Terminal 2 — Electron app
+cd apps/electron
+npm run dev
+```
+
+The backend starts on `http://localhost:3000`. The Electron app connects to it automatically.
 
 ---
 
@@ -107,148 +139,82 @@ Electron built-in. Renders on user display, appears black/absent in any screen c
 
 | Hotkey | Action |
 |---|---|
-| `Ctrl+Shift+A` | Start listening (mic → STT → AI) |
-| `Ctrl+Shift+S` | Capture screenshot → vision AI |
-| `Ctrl+Shift+H` | Hide / show overlay |
-| `Ctrl+Shift+R` | Regenerate last answer |
-| `Ctrl+Shift+C` | Clear overlay |
-| `"Hey ZoomGuru"` | Wake word → listen mode |
+| `Ctrl+Shift+A` | Start microphone, speak your question |
+| `Ctrl+Shift+S` | Capture screen and solve what is visible |
+| `Ctrl+Shift+H` | Toggle overlay visibility |
+| `Ctrl+Shift+C` | Clear current answer |
 
 ---
 
-## Getting started
+## API endpoints
 
-### Prerequisites
-- Node.js 20+
-- A [Neon](https://neon.tech) PostgreSQL database
-- [DeepSeek](https://platform.deepseek.com) API key
-- [Paystack](https://paystack.com) account
-- Google OAuth credentials (for Google sign-in)
+```
+POST /auth/login
+  Body:    { email, password }
+  Returns: { accessToken, user }
 
-### 1. Clone and install
+POST /ai/stream
+  Auth:    Bearer token
+  Body:    { transcript, sessionId? }
+  Returns: text/event-stream — chunks: { chunk, done }
 
-```bash
-git clone https://github.com/HasbiyallahuJafaru/Zoomguru.git
-cd Zoomguru
-npm install
+POST /ai/screenshot
+  Auth:    Bearer token
+  Body:    { image (base64), sessionId? }
+  Returns: text/event-stream — same format as /ai/stream
+
+POST /subscription/initialize
+  Auth:    Bearer token
+  Returns: { checkoutUrl } — Paystack hosted checkout
+
+POST /subscription/verify
+  Auth:    Bearer token
+  Body:    { reference }
+  Returns: { active, plan, expiresAt }
+
+GET /subscription/status
+  Auth:    Bearer token
+  Returns: { active, plan, expiresAt }
 ```
 
-### 2. Backend
+---
+
+## Building a distributable
 
 ```bash
-cd apps/backend
-cp .env.example .env
-# Fill in: DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET, ELECTRON_OAUTH_SECRET,
-#          DEEPSEEK_API_KEY, PAYSTACK_SECRET_KEY, PAYSTACK_WEBHOOK_SECRET,
-#          GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ADMIN_SECRET_KEY
-npm run start:dev
-```
-
-Tables auto-create on first boot — no migrations needed.
-
-### 3. Electron app
-
-```bash
+# Windows installer
 cd apps/electron
-cp .env .env.local      # adjust VITE_API_URL if needed
-npm install
-npm run dev
-```
+npm run dist:win
 
-### 4. Landing page
-
-```bash
-cd apps/landing
-cp .env.local.example .env.local
-# Set NEXT_PUBLIC_API_URL, NEXTAUTH_SECRET, NEXTAUTH_URL, NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
-npm install
-npm run dev
-```
-
-### 5. Admin dashboard
-
-```bash
-cd apps/admin
-cp .env.local.example .env.local
-# Set NEXT_PUBLIC_API_URL, NEXTAUTH_SECRET, NEXTAUTH_URL
-npm install
-npm run dev
-```
-
----
-
-## Build & release
-
-```bash
-# Backend → Render
-cd apps/backend && npm run build
-
-# Landing → Netlify (auto-deploys on push if connected)
-cd apps/landing && npm run build
-
-# Admin → Netlify
-cd apps/admin && npm run build
-
-# Electron — package installers
+# macOS dmg
 cd apps/electron
-npm run dist:win    # → release/ZoomGuru-Setup-1.0.0.exe
-npm run dist:mac    # → release/ZoomGuru-1.0.0-arm64.dmg
+npm run dist:mac
 ```
+
+Output lands in `apps/electron/dist-release/`.
 
 ---
 
-## Tests
+## Screen share invisibility
+
+The overlay is hidden from screen share software using `win.setContentProtection(true)` — the same OS API used by banking apps to block screen capture. This is called before the window is shown, and re-applied after the first `show` event on Windows. It works on Zoom, Google Meet, Microsoft Teams, and Webex without any configuration.
+
+---
+
+## Model routing
+
+The backend routes each question to the appropriate model automatically:
+
+- Coding, algorithms, system design, maths — DeepSeek R1 (`deepseek-reasoner`)
+- Behavioural, situational, general — DeepSeek V3 (`deepseek-chat`)
+- Screenshots — Groq vision reads the image, R1 solves the problem
+
+---
+
+## Landing page
+
+`apps/landing/index.html` is a single self-contained file with no build step. Open it directly in a browser or serve it from any static host.
 
 ```bash
-cd apps/backend
-npm test              # run all tests
-npm run test:coverage # with coverage report
+npx serve apps/landing
 ```
-
-**297 tests · 13 suites · 0 failures**
-
-| Suite | What it tests |
-|---|---|
-| `ai/prompts.spec.ts` | System prompt building and CV context injection |
-| `ai/question-router.spec.ts` | Model routing — coding/system-design → R1, behavioral → V3 |
-| `ai/sse-manager.spec.ts` | SSE client lifecycle, stream writing, cleanup |
-| `cv/cv-sanitize.spec.ts` | CV text sanitisation and injection-attack stripping |
-| `cv/cv-profile-validation.spec.ts` | Profile defaults, fallback builder, file type gating |
-| `license/license-expiry.spec.ts` | Expiry dates, plan types, payout floor validation |
-| `license/license-logic.spec.ts` | Full license resolution — expiry + device lock + status |
-| `auth/auth-logic.spec.ts` | JWT signing/verification, bcrypt, username rules, referral codes |
-| `session/session-logic.spec.ts` | Transcript export, duration formatting, ownership checks |
-| `referral/referral-logic.spec.ts` | Commission calc, payout validation, revenue KPIs, funnel rates |
-| `admin/admin-analytics.spec.ts` | KPI builders, retention colours, peak hours, churn stats, masking |
-| `guards/guards.spec.ts` | AdminGuard, DeviceGuard, multi-account detection, secret key check |
-| `paystack/paystack-webhook.spec.ts` | HMAC-SHA512 webhook signature verification |
-
----
-
-## Environment variables
-
-All required variables are documented in `apps/backend/.env.example` and `apps/landing/.env.local.example`.  
-Never commit real `.env` files — they are `.gitignore`d.
-
----
-
-## Documentation
-
-Full architecture, data flows, and implementation details live in [`.claude/`](.claude/):
-
-- [`CLAUDE.md`](.claude/CLAUDE.md) — master context and standing rules for AI sessions
-- [`ARCHITECTURE.md`](.claude/ARCHITECTURE.md) — system overview and all data flows
-- [`BACKEND.md`](.claude/BACKEND.md) — NestJS module structure and API endpoints
-- [`ELECTRON.md`](.claude/ELECTRON.md) — overlay, hotkeys, screen exclusion, IPC
-- [`AI.md`](.claude/AI.md) — DeepSeek V3/R1 + Whisper integration
-- [`DATABASE.md`](.claude/DATABASE.md) — schema and raw SQL query patterns
-- [`AUTH.md`](.claude/AUTH.md) — JWT flow, Google OAuth, device fingerprinting
-- [`PAYMENTS.md`](.claude/PAYMENTS.md) — Paystack webhook and license activation
-- [`LANDING.md`](.claude/LANDING.md) — Next.js landing page and user dashboard
-- [`patches/auth-dashboard/`](.claude/patches/auth-dashboard/) — step-by-step auth + admin build log
-
----
-
-## License
-
-Proprietary. All rights reserved © 2026 ZoomGuru.

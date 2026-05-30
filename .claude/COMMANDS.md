@@ -1,277 +1,179 @@
-﻿# ZoomGuru â€” Commands
+# ZoomGuru MVP — Commands
 
-## Monorepo Setup
-
-```bash
-# Root package.json â€” npm workspaces
-{
-  "name": "zoomguru",
-  "private": true,
-  "workspaces": ["apps/*"],
-  "scripts": {
-    "dev:backend": "npm run dev --workspace=apps/backend",
-    "dev:landing": "npm run dev --workspace=apps/landing",
-    "dev:electron": "npm run dev --workspace=apps/electron",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:landing\" \"npm run dev:electron\"",
-    "build:backend": "npm run build --workspace=apps/backend",
-    "build:landing": "npm run build --workspace=apps/landing",
-    "build:electron": "npm run build --workspace=apps/electron"
-  }
-}
-```
-
----
-
-## Backend Commands
+## Start Everything Locally
 
 ```bash
+# Terminal 1 — Backend
 cd apps/backend
-
-# Install
 npm install
-
-# Dev (hot reload)
 npm run start:dev
+# Should print: ZoomGuru backend running on http://localhost:3000
 
-# Build
-npm run build
-
-# Production
-node dist/main.js
-
-# Generate NestJS module
-nest generate module <name>
-nest generate controller <name>
-nest generate service <name>
-```
-
----
-
-## Electron Commands
-
-```bash
+# Terminal 2 — Electron
 cd apps/electron
-
-# Install
 npm install
-
-# Dev (starts Vite + Electron together)
 npm run dev
-
-# Build production app
-npm run build
-
-# Package for macOS (.dmg)
-npm run dist:mac
-
-# Package for Windows (.exe)
-npm run dist:win
-
-# Package both
-npm run dist
+# Should open the Electron overlay window
 ```
 
-### package.json scripts for Electron
-```json
-{
-  "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "build": "vite build && tsc -p electron/tsconfig.json",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist": "npm run build && electron-builder --mac --win"
-  }
-}
+Both must be running simultaneously.
+
+---
+
+## Verify Backend Is Running
+
+```bash
+curl http://localhost:3000/health
+# Expected: {"status":"ok"}
+```
+
+If /health doesn't exist yet, just check:
+```bash
+curl http://localhost:3000
+# Any response = backend is running
 ```
 
 ---
 
-## Landing Page Commands
+## TypeScript Verification (Run After Every File Change)
 
 ```bash
-cd apps/landing
+# Electron
+cd apps/electron
+npx tsc --noEmit
 
-# Install
-npm install
+# Backend
+cd apps/backend
+npx tsc --noEmit
 
-# Dev
-npm run dev
-
-# Build
-npm run build
-
-# Deploy to Vercel (auto on git push if connected)
-# Manual deploy:
-npx vercel --prod
+# Zero output = zero errors = ready
 ```
 
 ---
 
-## Database Commands
+## Create Your First User in Neon
 
-```bash
-# No migration CLI â€” tables auto-created on backend boot
-
-# Manual Neon SQL console
-# Go to: console.neon.tech â†’ SQL Editor
-
-# Reset all tables (CAUTION â€” destroys data)
-DROP TABLE IF EXISTS payments CASCADE;
-DROP TABLE IF EXISTS interview_sessions CASCADE;
-DROP TABLE IF EXISTS cv_profiles CASCADE;
-DROP TABLE IF EXISTS user_usage CASCADE;
-DROP TABLE IF EXISTS licenses CASCADE;
-DROP TABLE IF EXISTS refresh_tokens CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-# Then restart backend â€” initDB() recreates everything
-
-# View active licenses
-SELECT u.email, l.plan, l.currency, l.device_fingerprint, l.expires_at, l.status
-FROM licenses l JOIN users u ON u.id = l.user_id
-ORDER BY l.activated_at DESC;
-
-# View usage stats
-SELECT u.email, uu.sessions_used, uu.responses_used, uu.reset_at
-FROM user_usage uu JOIN users u ON u.id = uu.user_id
-ORDER BY uu.responses_used DESC;
-
-# Monthly usage reset (run manually or as cron)
-UPDATE user_usage
-SET responses_used = 0, sessions_used = 0, reset_at = NOW() + INTERVAL '30 days'
-WHERE reset_at < NOW() AND user_id IN (
-  SELECT id FROM users WHERE is_pro = false
+```sql
+-- Run in Neon SQL Editor (console.neon.tech)
+INSERT INTO users (email, password_hash, name, username, is_pro)
+VALUES (
+  'test@zoomguru.com',
+  crypt('password123', gen_salt('bf')),
+  'Test User',
+  'testuser',
+  true
 );
 ```
+
+Then log in with:
+- Email: test@zoomguru.com or username: testuser
+- Password: password123
 
 ---
 
 ## Environment Files
 
-### apps/backend/.env
-```env
-DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/zoomguru?sslmode=require
-JWT_SECRET=change_this_to_random_64_char_string
-JWT_REFRESH_SECRET=change_this_to_different_random_64_char_string
-DEEPSEEK_API_KEY=sk-xxxxxxxxxxxx
-QWEN_API_KEY=sk-xxxxxxxxxxxx
-PAYSTACK_SECRET_KEY=sk_live_xxxxxxxxxxxx
-PAYSTACK_WEBHOOK_SECRET=xxxxxxxxxxxx
-PAYSTACK_NGN_MONTHLY_PLAN=PLN_xxxxxxxxxxxx
-PAYSTACK_USD_MONTHLY_PLAN=PLN_xxxxxxxxxxxx
+```bash
+# apps/electron/.env (create this if missing)
+VITE_API_URL=http://localhost:3000
+VITE_APP_ENV=development
+
+# apps/backend/.env (create this if missing)
+DATABASE_URL=postgresql://...neon.tech/zoomguru?sslmode=require
+JWT_SECRET=zoomguru_local_dev_secret_change_this
+DEEPSEEK_API_KEY=sk-...
+QWEN_API_KEY=sk-...
 PORT=3000
 NODE_ENV=development
 ```
 
-### apps/electron/.env
-```env
-VITE_API_URL=http://localhost:3000
-VITE_PAYSTACK_PUBLIC_KEY=pk_test_xxxxxxxxxxxx
-VITE_APP_ENV=development
-```
+---
 
-### apps/electron/.env.production
-```env
-VITE_API_URL=https://api.zoomguru.xyz
-VITE_PAYSTACK_PUBLIC_KEY=pk_live_xxxxxxxxxxxx
-VITE_APP_ENV=production
-```
+## Test Each Flow Manually
 
-### apps/landing/.env.local
-```env
-NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_xxxxxxxxxxxx
-NEXT_PUBLIC_API_URL=https://api.zoomguru.xyz
+```
+FLOW 1 — Window:
+  1. npm run dev in electron
+  2. Window appears
+  3. Open Zoom → share screen
+  4. Confirm overlay not visible in Zoom preview
+  ✅ Pass: hidden from screen share
+
+FLOW 2 — Login:
+  1. Type email/username + password
+  2. Click Sign In
+  3. Check network tab: POST http://localhost:3000/auth/login
+  4. Confirm 200 response with accessToken
+  5. Overlay appears
+  ✅ Pass: logged in successfully
+
+FLOW 3 — Listen:
+  1. Press Cmd/Ctrl+Shift+A
+  2. "● Listening..." appears in header
+  3. Speak: "What is a closure in JavaScript?"
+  4. Check network tab: POST http://localhost:3000/ai/stream
+  5. Answer streams word by word in overlay
+  ✅ Pass: text flow works end to end
+
+FLOW 4 — Screenshot:
+  1. Open a coding problem in browser
+  2. Press Cmd/Ctrl+Shift+S
+  3. Check network tab: POST http://localhost:3000/ai/screenshot
+  4. Answer streams in overlay
+  ✅ Pass: image flow works end to end
 ```
 
 ---
 
-## Render Deployment (Backend)
+## Common Issues and Fixes
 
-```bash
-# Automatic deploy on git push if connected
-# Manual deploy via Render dashboard
+```
+Issue: Backend not starting
+Fix: Check .env exists with all required vars
+     Check Neon DB is accessible
+     Run: cd apps/backend && npm install
 
-# Environment variables to set in Render:
-# DATABASE_URL, JWT_SECRET, JWT_REFRESH_SECRET,
-# DEEPSEEK_API_KEY, QWEN_API_KEY,
-# PAYSTACK_SECRET_KEY, PAYSTACK_WEBHOOK_SECRET,
-# PAYSTACK_NGN_MONTHLY_PLAN, PAYSTACK_USD_MONTHLY_PLAN
+Issue: Electron window not appearing
+Fix: Check VITE_API_URL=http://localhost:3000 in .env
+     Check vite dev server is on port 5173
+     Run: cd apps/electron && npm install
 
-# Build command (in Render settings):
-npm install && npm run build
+Issue: Login fails with network error
+Fix: Confirm backend is running on port 3000
+     Confirm CORS allows localhost:5173
+     Check browser DevTools network tab for error
 
-# Start command:
-node dist/main.js
+Issue: SSE streaming not working
+Fix: Confirm endpoint accepts POST not GET
+     Confirm Authorization header is sent
+     Check backend logs for JWT errors
+
+Issue: Overlay visible in screen share
+Fix: Confirm setContentProtection(true) called before show()
+     On Windows: confirm re-applied after first show
+     Test: open Zoom, share entire screen, check preview
 ```
 
 ---
 
-## Vercel Deployment (Landing)
+## Graphify (Codebase Map)
 
 ```bash
-# Recommended â€” connect repo in Vercel dashboard
-# 1. Import at vercel.com/new
-# 2. Root Directory: apps/landing
-# 3. Framework: Next.js (auto-detected)
-# 4. Env var: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_...
-# Auto-deploys on every push to main
+# Already installed. Run in Claude Code sessions:
+graphify claude install  # done once
 
-# Or CLI:
-cd apps/landing
-npx vercel --prod
+# The graph rebuilds automatically after code changes
+# via the PreToolUse hook installed in .claude/settings.json
 ```
 
 ---
 
-## Electron Release Distribution
+## Build for Distribution (Post-MVP)
 
 ```bash
-# Build and sign for macOS
-# Requires Apple Developer certificate for notarization
-
+# Not needed for local MVP
+# When ready:
 cd apps/electron
-npm run dist:mac
-# Output: release/ZoomGuru-{version}-arm64.dmg
-#         release/ZoomGuru-{version}.dmg
-
-# Build for Windows
-npm run dist:win
-# Output: release/ZoomGuru-Setup-{version}.exe
-
-# Upload release files to:
-# GitHub Releases OR
-# Cloudflare R2 bucket (releases.zoomguru.xyz)
-# Then update DOWNLOAD_LINKS in landing/components/Download.tsx
+npm run dist:win   # Windows .exe
+npm run dist:mac   # macOS .dmg
 ```
-
----
-
-## Generating JWT Secrets
-
-```bash
-# Run once to generate secure secrets
-node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-# Copy output â†’ JWT_SECRET
-
-node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
-# Copy output â†’ JWT_REFRESH_SECRET
-```
-
----
-
-## Checking Paystack Webhook (Local Testing)
-
-```bash
-# Use Paystack CLI or ngrok to expose local backend
-
-# With ngrok:
-ngrok http 3000
-# Copy https URL â†’ set as Paystack webhook in dashboard
-# Dashboard â†’ Settings â†’ API Keys & Webhooks â†’ Webhook URL
-
-# Test charge event:
-curl -X POST https://your-ngrok-url/paystack/webhook \
-  -H "Content-Type: application/json" \
-  -H "x-paystack-signature: {computed_hmac}" \
-  -d '{"event":"charge.success","data":{"reference":"test_ref","metadata":{"user_id":"uuid","plan":"monthly"},"amount":1500000,"currency":"NGN"}}'
-```
-

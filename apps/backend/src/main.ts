@@ -1,114 +1,46 @@
-import * as Sentry from '@sentry/node';
-
-if (process.env.GLITCHTIP_DSN) {
-  Sentry.init({
-    dsn: process.env.GLITCHTIP_DSN,
-    environment: process.env.NODE_ENV || 'production',
-    release: '1.0.0',
-    tracesSampleRate: 0.01,
-  });
-}
-
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import {
+  NestFastifyApplication,
+  FastifyAdapter,
+} from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
-import multipart from '@fastify/multipart';
+import { initDB } from './database/init';
 
-async function bootstrap() {
-  // Validate required environment variables on startup
-  const REQUIRED_ENV = [
-    'DATABASE_URL',
-    'JWT_SECRET',
-    'JWT_REFRESH_SECRET',
-    'DEEPSEEK_API_KEY',
+async function bootstrap(): Promise<void> {
+  const REQUIRED = [
+    'DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
     'PAYSTACK_SECRET_KEY',
-    'PAYSTACK_WEBHOOK_SECRET',
-    'ADMIN_SECRET_KEY',
-    'ELECTRON_OAUTH_SECRET',
-    'GOOGLE_CLIENT_ID',
-    'GOOGLE_CLIENT_SECRET',
-    'BACKEND_URL',
   ];
-
-  const missing = REQUIRED_ENV.filter(key => !process.env[key]);
-  if (missing.length > 0) {
-    console.error('❌ Missing required environment variables:');
-    missing.forEach(key => console.error(`   - ${key}`));
+  const missing = REQUIRED.filter((k) => !process.env[k]);
+  if (missing.length) {
+    console.error('❌ Missing env vars:', missing.join(', '));
     process.exit(1);
   }
 
-  console.log('✅ All environment variables present');
-
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false })
+    new FastifyAdapter({ logger: false, trustProxy: true }),
+    { rawBody: true },
   );
-
-  // init() triggers NestJS to register its own application/json parser. We call it explicitly
-  // here so we can then replace that parser with our rawBody-capturing version before listen().
-  await app.init();
-
-  // Capture raw body so Paystack webhook HMAC can verify against original bytes.
-  const fastify = app.getHttpAdapter().getInstance() as any;
-  fastify.removeContentTypeParser('application/json');
-  fastify.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req: any, body: Buffer, done: any) => {
-    req.rawBody = body;
-    try {
-      done(null, JSON.parse(body.toString('utf8')));
-    } catch (e: any) {
-      e.statusCode = 400;
-      done(e);
-    }
-  });
-
-  // Multipart for CV uploads
-  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB max
-
-  const ALLOWED_ORIGINS = [
-    'https://zoomguru.xyz',
-    'app://.',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:3001',
-  ];
 
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow requests with no Origin header (Electron app, server-to-server)
-      if (!origin) return callback(null, true);
-      if (
-        ALLOWED_ORIGINS.includes(origin) ||
-        // Only allow our own Vercel project previews, not all *.vercel.app
-        /^https:\/\/zoomguru(-[a-z0-9]+)?\.vercel\.app$/.test(origin)
-      ) {
-        return callback(null, true);
+      const allowed = ['http://localhost:5173', 'app://.'];
+      if (!origin || allowed.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Origin not allowed'), false);
       }
-      callback(new Error('CORS: origin not allowed'), false);
     },
     credentials: true,
   });
 
-  // Init DB tables on startup
-  const { initDB } = await import('./database/init');
   await initDB();
 
-  // Global unhandled error catcher
-  process.on('uncaughtException', async (err) => {
-    Sentry.captureException(err);
-    try {
-      const { AdminService } = await import('./admin/admin.service');
-      const adminService = app.get(AdminService);
-      await adminService.logError({
-        errorMessage: err.message,
-        stackTrace: err.stack,
-      });
-    } catch {
-      // Don't let logging failure crash the process
-    }
-    console.error('Uncaught exception:', err);
-  });
+  await app.listen(process.env['PORT'] ?? 3000, '0.0.0.0');
 
-  await app.listen(process.env.PORT || 3000, '0.0.0.0');
-  console.log(`ZoomGuru backend running on port ${process.env.PORT || 3000}`);
+  console.log('✅ ZoomGuru backend: http://localhost:3000');
 }
-bootstrap();
+
+void bootstrap();

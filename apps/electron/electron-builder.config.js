@@ -1,42 +1,54 @@
+/** @type {import('electron-builder').Configuration} */
 module.exports = {
   appId: 'com.zoomguru.app',
   productName: 'ZoomGuru',
-  electronVersion: '42.1.0',
-  asar: true,
-  asarUnpack: ['**/node_modules/**/*.node'],
-  directories: { output: 'dist-release' },
+  copyright: 'Copyright © 2025 ZoomGuru',
+
+  directories: {
+    output: 'release',
+    buildResources: 'assets',
+  },
+
   files: [
     'dist/**/*',
-    '!dist/**/*.map',
     'dist-electron/**/*',
-    '!dist-electron/**/*.map',
     'assets/**/*',
+    'package.json',
   ],
-  publish: [
-    {
-      provider: 'github',
-      owner: 'hasbiyallahujafaru',
-      repo: 'zoomguru',
-      private: false,
-    },
+
+  asar: true,
+  asarUnpack: [
+    'node_modules/pdf-parse/**/*',
   ],
-  mac: {
-    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
-    category: 'public.app-category.productivity',
-    icon: 'assets/tray-icon.png',
-  },
+
   win: {
-    target: [
-      { target: 'portable', arch: ['x64'] },
-      { target: 'zip', arch: ['x64'] },
-    ],
-    icon: 'assets/icon.png',
-    forceCodeSigning: false,
+    target: [{ target: 'nsis', arch: ['x64'] }],
+    icon: 'assets/tray-icon.png',
+    requestedExecutionLevel: 'asInvoker',
   },
+
   nsis: {
     oneClick: false,
-    allowToChangeInstallationDirectory: true,
+    allowToChangeInstallationDirectory: false,
+    shortcutName: 'ZoomGuru',
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
+  },
+
+  mac: {
+    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
+    icon: 'assets/tray-icon.png',
+    category: 'public.app-category.productivity',
+    darkModeSupport: true,
+    hardenedRuntime: false,
+    gatekeeperAssess: false,
+    extendInfo: {
+      NSMicrophoneUsageDescription: 'ZoomGuru uses your microphone to listen to interview questions.',
+      NSScreenCaptureDescription: 'ZoomGuru captures your screen to answer visual questions.',
+    },
+  },
+
+  dmg: {
+    sign: false,
   },
 };
