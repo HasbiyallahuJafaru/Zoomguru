@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type CSSProperties } from 'react';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -23,10 +23,36 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isProtected, setIsProtected] = useState<boolean | null>(null);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const forgotRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void window.zoomguru.getProtectionStatus().then(setIsProtected);
   }, []);
+
+  useEffect(() => {
+    if (showForgot) forgotRef.current?.focus();
+  }, [showForgot]);
+
+  async function handleForgot(e: FormEvent): Promise<void> {
+    e.preventDefault();
+    setForgotLoading(true);
+    try {
+      await fetch(`${API_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      setForgotSent(true);
+    } catch {
+      setForgotSent(true);
+    } finally {
+      setForgotLoading(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -73,6 +99,7 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
         .zg-submit:active:not(:disabled) { transform: scale(0.98); }
         .zg-link:hover { color: rgba(255,255,255,0.65) !important; }
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
+        .zg-forgot:hover { color: rgba(255,255,255,0.55) !important; }
       `}</style>
 
       <div style={s.root}>
@@ -96,21 +123,52 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
             <span style={s.brandTag}>Your invisible interview edge</span>
           </div>
 
-          <form onSubmit={(e) => { void handleSubmit(e); }} style={s.form}>
-            <input className="zg-field" type="text" placeholder="Email or username"
-              value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-              disabled={loading} autoComplete="username" />
-            <input className="zg-field" type="password" placeholder="Password"
-              value={password} onChange={(e) => setPassword(e.target.value)}
-              disabled={loading} autoComplete="current-password" />
+          {!showForgot ? (
+            <form onSubmit={(e) => { void handleSubmit(e); }} style={s.form}>
+              <input className="zg-field" type="text" placeholder="Email or username"
+                value={identifier} onChange={(e) => setIdentifier(e.target.value)}
+                disabled={loading} autoComplete="username" />
+              <input className="zg-field" type="password" placeholder="Password"
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                disabled={loading} autoComplete="current-password" />
 
-            {error && <p style={s.error}>{error}</p>}
+              {error && <p style={s.error}>{error}</p>}
 
-            <button className="zg-submit" type="submit" disabled={loading}
-              style={{ ...s.submitBtn, ...(loading ? s.submitDisabled : {}) }}>
-              {loading ? 'Signing in…' : 'Sign In'}
-            </button>
-          </form>
+              <button className="zg-submit" type="submit" disabled={loading}
+                style={{ ...s.submitBtn, ...(loading ? s.submitDisabled : {}) }}>
+                {loading ? 'Signing in…' : 'Sign In'}
+              </button>
+
+              <button type="button" className="zg-forgot" style={s.forgotLink}
+                onClick={() => setShowForgot(true)}>
+                Forgot password?
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={(e) => { void handleForgot(e); }} style={s.form}>
+              {!forgotSent ? (
+                <>
+                  <p style={s.forgotHint}>Enter your email and we'll send a reset link.</p>
+                  <input className="zg-field" type="email" placeholder="Your email"
+                    ref={forgotRef}
+                    value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
+                    disabled={forgotLoading} autoComplete="email" required />
+                  <button className="zg-submit" type="submit" disabled={forgotLoading}
+                    style={{ ...s.submitBtn, ...(forgotLoading ? s.submitDisabled : {}) }}>
+                    {forgotLoading ? 'Sending…' : 'Send reset link'}
+                  </button>
+                </>
+              ) : (
+                <p style={s.forgotHint}>
+                  If that email is registered, a reset link is on its way. Check your inbox.
+                </p>
+              )}
+              <button type="button" className="zg-forgot" style={s.forgotLink}
+                onClick={() => { setShowForgot(false); setForgotSent(false); setForgotEmail(''); }}>
+                ← Back to sign in
+              </button>
+            </form>
+          )}
 
           <p style={s.switchText}>
             No account?{' '}
@@ -259,5 +317,24 @@ const s: Record<string, ElectronStyle> = {
     fontFamily: SANS,
     textDecoration: 'underline',
     textUnderlineOffset: '2px',
+  },
+  forgotLink: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.28)',
+    fontSize: '11px',
+    cursor: 'pointer',
+    padding: 0,
+    transition: 'color 120ms ease',
+    fontFamily: SANS,
+    marginTop: '-8px',
+  },
+  forgotHint: {
+    margin: 0,
+    fontSize: '12px',
+    color: 'rgba(255,255,255,0.40)',
+    fontFamily: SANS,
+    textAlign: 'center' as const,
+    lineHeight: '1.6',
   },
 };
