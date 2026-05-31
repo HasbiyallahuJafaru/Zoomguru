@@ -4,10 +4,20 @@ import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { CronModule } from './cron/cron.module';
+import { AdminModule } from './admin/admin.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthController } from './health.controller';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), AuthModule, AiModule, SubscriptionModule, CronModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    AuthModule,
+    AiModule,
+    SubscriptionModule,
+    CronModule,
+    AdminModule,
+    AnalyticsModule,
+  ],
   controllers: [HealthController],
 })
 export class AppModule {}

@@ -93,6 +93,41 @@ export async function initDB(): Promise<void> {
         `),
       ]);
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS downloads (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          platform    TEXT NOT NULL,
+          version     TEXT,
+          ip          TEXT,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS ai_sessions (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+          type        TEXT NOT NULL CHECK (type IN ('stream', 'screenshot', 'transcribe')),
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      await Promise.all([
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_downloads_created_at
+            ON downloads(created_at)
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_ai_sessions_user_id
+            ON ai_sessions(user_id)
+            WHERE user_id IS NOT NULL
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_ai_sessions_created_at
+            ON ai_sessions(created_at)
+        `),
+      ]);
+
       console.log('✅ ZoomGuru DB ready');
       return;
     } catch (err) {

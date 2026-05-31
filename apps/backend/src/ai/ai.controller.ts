@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AiService } from './ai.service';
 import { SubscriptionService } from '../subscription/subscription.service';
+import { getDB } from '../database/db';
 
 function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -84,6 +85,10 @@ export class AiController {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
     }
+    void getDB().query(
+      'INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)',
+      [req.user.userId, 'stream'],
+    );
     const cleanTranscript = sanitize(body.transcript);
     const cleanCv         = body.cvText ? sanitize(body.cvText) : undefined;
     const cleanJd         = body.jdText ? sanitize(body.jdText) : undefined;
@@ -117,6 +122,10 @@ export class AiController {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
     }
+    void getDB().query(
+      'INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)',
+      [req.user.userId, 'screenshot'],
+    );
     const cleanImage = sanitize(body.image);
     const cleanCv    = body.cvText ? sanitize(body.cvText) : undefined;
     const cleanJd    = body.jdText ? sanitize(body.jdText) : undefined;
@@ -148,6 +157,10 @@ export class AiController {
     if (!allowed) {
       throw new HttpException({ error: 'rate_limit', retryAfter }, 429);
     }
+    void getDB().query(
+      'INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)',
+      [req.user.userId, 'transcribe'],
+    );
     const cleanAudio = sanitize(body.audio);
     const transcript = await this.aiService.transcribe({ audio: cleanAudio });
     return { transcript };
