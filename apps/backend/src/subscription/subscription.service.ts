@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { getDB } from '../database/db';
+import { EmailService } from '../email/email.service';
 
 type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
@@ -75,6 +76,8 @@ const PAYSTACK_BASE = 'https://api.paystack.co';
 
 @Injectable()
 export class SubscriptionService {
+  constructor(private readonly emailService: EmailService) {}
+
   async getStatus(userId: string): Promise<StatusResponse> {
     const pool = getDB();
     const result = await pool.query<SubscriptionRow>(
@@ -183,6 +186,15 @@ export class SubscriptionService {
       );
     }
 
+    const userResult = await pool.query<{ email: string; name: string | null }>(
+      `SELECT email, name FROM users WHERE id = $1 LIMIT 1`,
+      [userId],
+    );
+    const user = userResult.rows[0];
+    if (user) {
+      void this.emailService.sendPaymentConfirmation(user.email, user.name ?? 'there', plan);
+    }
+
     return { success: true };
   }
 
@@ -249,11 +261,20 @@ export class SubscriptionService {
       );
     } else if (event.event === 'invoice.payment_failed') {
       const data = event.data as InvoicePaymentFailedData;
-      await pool.query(
+      const upd = await pool.query<{ user_id: string }>(
         `UPDATE subscriptions SET status = 'past_due', updated_at = NOW()
-         WHERE paystack_customer_code = $1`,
+         WHERE paystack_customer_code = $1
+         RETURNING user_id`,
         [data.subscription.customer.customer_code],
       );
+      if (upd.rows[0]) {
+        const ur = await pool.query<{ email: string; name: string | null }>(
+          `SELECT email, name FROM users WHERE id = $1 LIMIT 1`,
+          [upd.rows[0].user_id],
+        );
+        const u = ur.rows[0];
+        if (u) void this.emailService.sendPaymentFailed(u.email, u.name ?? 'there');
+      }
     }
   }
 }

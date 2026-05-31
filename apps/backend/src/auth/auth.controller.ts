@@ -1,4 +1,8 @@
-import { Controller, Post, Body, Headers, BadRequestException } from '@nestjs/common';
+import {
+  Controller, Post, Get, Body, Headers, Query, BadRequestException, HttpCode,
+} from '@nestjs/common';
+import { FastifyReply } from 'fastify';
+import { Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 
 function sanitize(s: string): string {
@@ -11,6 +15,20 @@ function sanitizeLine(s: string): string {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const DEVICE_ID_RE = /^[a-f0-9]{64}$/;
+const TOKEN_RE = /^[a-f0-9]{64}$/;
+
+function pageHtml(title: string, body: string): string {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>*{box-sizing:border-box}body{background:#07070b;color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}.card{background:#111118;border:1px solid #1e1e2e;border-radius:12px;padding:40px 36px;width:100%;max-width:420px}h1{font-size:22px;font-weight:600;color:#fff;margin:0 0 16px}p{font-size:15px;line-height:1.6;color:#b0b0c0;margin:0 0 20px}label{display:block;font-size:13px;color:#888899;margin-bottom:6px}input[type=password]{width:100%;background:#0d0d14;border:1px solid #2a2a3e;border-radius:8px;color:#e8e8e8;font-size:15px;padding:10px 14px;outline:none;margin-bottom:16px}input[type=password]:focus{border-color:#6c63ff}button{width:100%;background:#6c63ff;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;padding:12px;cursor:pointer;margin-top:4px}button:disabled{opacity:0.5;cursor:default}#msg{font-size:14px;margin-top:16px;display:none}</style></head><body><div class="card">${body}</div></body></html>`;
+}
+
+function resetFormHtml(token: string): string {
+  const body = `<h1>Reset your password</h1><p>Enter a new password for your ZoomGuru account.</p><form id="f"><label for="pw">New password</label><input type="password" id="pw" name="pw" minlength="8" maxlength="128" placeholder="At least 8 characters" required><label for="pw2" style="margin-top:4px">Confirm password</label><input type="password" id="pw2" name="pw2" minlength="8" maxlength="128" placeholder="Repeat password" required><button type="submit" id="btn">Set new password</button></form><p id="msg"></p><script>document.getElementById('f').addEventListener('submit',async function(e){e.preventDefault();const pw=document.getElementById('pw').value;const pw2=document.getElementById('pw2').value;const msg=document.getElementById('msg');const btn=document.getElementById('btn');if(pw!==pw2){msg.style.display='block';msg.style.color='#ff6b6b';msg.textContent='Passwords do not match.';return;}btn.disabled=true;btn.textContent='Saving…';try{const r=await fetch('/auth/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:${JSON.stringify(token)},newPassword:pw})});const d=await r.json();msg.style.display='block';if(r.ok){msg.style.color='#6dff9f';msg.textContent='Password updated! You can now log in with your new password.';document.getElementById('f').style.display='none';}else{msg.style.color='#ff6b6b';msg.textContent=d.message||'Something went wrong. Please request a new reset link.';btn.disabled=false;btn.textContent='Set new password';}}catch(err){msg.style.display='block';msg.style.color='#ff6b6b';msg.textContent='Network error. Please try again.';btn.disabled=false;btn.textContent='Set new password';}});</script>`;
+  return pageHtml('Reset Password — ZoomGuru', body);
+}
+
+function errorPageHtml(message: string): string {
+  return pageHtml('Invalid Link — ZoomGuru', `<h1>Invalid link</h1><p>${message}</p><p>Please request a new password reset from the ZoomGuru app.</p>`);
+}
 
 @Controller('auth')
 export class AuthController {
@@ -64,5 +82,44 @@ export class AuthController {
     }
 
     return this.authService.login(cleanIdentifier, cleanPassword);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body() body: { email?: string }) {
+    if (!body.email || body.email.length > 254) {
+      return { message: 'If that email exists, a reset link was sent' };
+    }
+    const cleanEmail = sanitizeLine(body.email);
+    if (!EMAIL_RE.test(cleanEmail)) {
+      return { message: 'If that email exists, a reset link was sent' };
+    }
+    await this.authService.forgotPassword(cleanEmail);
+    return { message: 'If that email exists, a reset link was sent' };
+  }
+
+  @Get('reset-password-page')
+  async resetPasswordPage(
+    @Query('token') token: string | undefined,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    if (!token || !TOKEN_RE.test(token)) {
+      await reply.type('text/html').send(errorPageHtml('This reset link is invalid or has already been used.'));
+      return;
+    }
+    await reply.type('text/html').send(resetFormHtml(token));
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() body: { token?: string; newPassword?: string }) {
+    if (!body.token || !TOKEN_RE.test(body.token)) {
+      throw new BadRequestException('Invalid reset token');
+    }
+    if (!body.newPassword || body.newPassword.length < 8 || body.newPassword.length > 128) {
+      throw new BadRequestException('Password must be 8–128 characters');
+    }
+    await this.authService.resetPassword(body.token, sanitize(body.newPassword));
+    return { message: 'Password updated successfully' };
   }
 }

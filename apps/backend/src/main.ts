@@ -10,7 +10,7 @@ import { initDB } from './database/init';
 async function bootstrap(): Promise<void> {
   const REQUIRED = [
     'DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
-    'PAYSTACK_SECRET_KEY',
+    'PAYSTACK_SECRET_KEY', 'RESEND_API_KEY', 'FROM_EMAIL',
   ];
   const missing = REQUIRED.filter((k) => !process.env[k]);
   if (missing.length) {

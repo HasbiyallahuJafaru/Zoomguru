@@ -1,7 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes, createHash } from 'node:crypto';
 import { getDB } from '../database/db';
+import { EmailService } from '../email/email.service';
 
 interface UserRow {
   id: string;
@@ -23,7 +25,10 @@ export interface LoginResult {
 
 @Injectable()
 export class AuthService {
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private emailService: EmailService,
+  ) {}
 
   async register(email: string, name: string, password: string): Promise<LoginResult> {
     const pool = getDB();
@@ -49,6 +54,8 @@ export class AuthService {
       { sub: user.id, email: user.email },
       { expiresIn: '30d' },
     );
+
+    void this.emailService.sendWelcome(user.email, user.name ?? 'there');
 
     return {
       accessToken,
@@ -93,5 +100,51 @@ export class AuthService {
         username: user.username,
       },
     };
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const pool = getDB();
+
+    const userResult = await pool.query<{ id: string; name: string | null }>(
+      `SELECT id, name FROM users WHERE email = $1 LIMIT 1`,
+      [email],
+    );
+    const user = userResult.rows[0];
+    if (!user) return;
+
+    await pool.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [user.id]);
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+
+    await pool.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
+      [user.id, tokenHash],
+    );
+
+    const resetUrl = `http://localhost:3000/auth/reset-password-page?token=${rawToken}`;
+    void this.emailService.sendPasswordReset(email, resetUrl);
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const pool = getDB();
+
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+
+    const tokenResult = await pool.query<{ id: string; user_id: string }>(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token_hash = $1 AND expires_at > NOW()
+       LIMIT 1`,
+      [tokenHash],
+    );
+    const tokenRow = tokenResult.rows[0];
+    if (!tokenRow) {
+      throw new BadRequestException('Invalid or expired reset link');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [passwordHash, tokenRow.user_id]);
+    await pool.query(`DELETE FROM password_reset_tokens WHERE id = $1`, [tokenRow.id]);
   }
 }
