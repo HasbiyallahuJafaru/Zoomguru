@@ -31,17 +31,26 @@ export class SubscriptionController {
     return this.subscriptionService.getStatus(req.user.userId);
   }
 
+  @Post('trial')
+  @UseGuards(AuthGuard('jwt'))
+  async startTrial(
+    @Req() req: AuthRequest,
+    @Headers('x-key-id') keyId: string | undefined,
+  ) {
+    return this.subscriptionService.startTrial(req.user.userId, keyId);
+  }
+
   @Post('verify')
   @UseGuards(AuthGuard('jwt'))
   async verify(
     @Req() req: AuthRequest,
     @Body() body: { reference: string },
-    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-key-id') keyId: string | undefined,
   ) {
     if (!body.reference || typeof body.reference !== 'string') {
       throw new BadRequestException('reference is required');
     }
-    return this.subscriptionService.verify(req.user.userId, req.user.email, body.reference, deviceId);
+    return this.subscriptionService.verify(req.user.userId, req.user.email, body.reference, keyId);
   }
 
   @Post('webhook')

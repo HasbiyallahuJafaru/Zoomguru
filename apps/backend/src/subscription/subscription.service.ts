@@ -10,6 +10,8 @@ export interface StatusResponse {
   plan: 'monthly' | 'yearly' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
+  trialStartedAt: string | null;
+  trialActive: boolean;
 }
 
 interface SubscriptionRow {
@@ -65,7 +67,9 @@ interface DeviceCacheEntry {
   expiresAt: number;
 }
 
+const KEY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEVICE_CACHE_TTL_MS = 60_000;
+const TRIAL_DURATION_MS = 30 * 60_000;
 const deviceCache = new Map<string, DeviceCacheEntry>();
 
 setInterval(() => {
@@ -83,17 +87,35 @@ export class SubscriptionService {
 
   async getStatus(userId: string): Promise<StatusResponse> {
     const pool = getDB();
-    const result = await pool.query<SubscriptionRow>(
-      `SELECT status, plan, current_period_end
-       FROM subscriptions WHERE user_id = $1 LIMIT 1`,
-      [userId],
-    );
 
-    if (result.rows.length === 0) {
-      return { status: 'inactive', plan: null, daysRemaining: null, currentPeriodEnd: null };
+    const [subResult, userResult] = await Promise.all([
+      pool.query<SubscriptionRow>(
+        `SELECT status, plan, current_period_end
+         FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      ),
+      pool.query<{ trial_started_at: string | null }>(
+        `SELECT trial_started_at FROM users WHERE id = $1 LIMIT 1`,
+        [userId],
+      ),
+    ]);
+
+    const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
+    const trialActive = trialStartedAt !== null
+      && Date.now() < new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS;
+
+    if (subResult.rows.length === 0) {
+      return {
+        status: 'inactive',
+        plan: null,
+        daysRemaining: null,
+        currentPeriodEnd: null,
+        trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
+        trialActive,
+      };
     }
 
-    const row = result.rows[0];
+    const row = subResult.rows[0];
     let daysRemaining: number | null = null;
     if (row.current_period_end) {
       daysRemaining = Math.max(
@@ -109,13 +131,73 @@ export class SubscriptionService {
       currentPeriodEnd: row.current_period_end
         ? new Date(row.current_period_end).toISOString()
         : null,
+      trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
+      trialActive,
     };
   }
 
-  async checkDevice(userId: string, deviceId: string | undefined): Promise<boolean> {
-    if (!deviceId || !/^[a-f0-9]{64}$/.test(deviceId)) return true;
+  async startTrial(userId: string, keyId: string | undefined): Promise<{ trialStartedAt: string }> {
+    if (!keyId || !KEY_ID_RE.test(keyId)) {
+      throw new BadRequestException('Valid device key required to start trial');
+    }
 
-    const cacheKey = `${userId}:${deviceId}`;
+    const pool = getDB();
+
+    // Check if any account has already used this device for a trial
+    const deviceUsed = await pool.query<{ id: string }>(
+      `SELECT id FROM users WHERE trial_key_id = $1 LIMIT 1`,
+      [keyId],
+    );
+    if (deviceUsed.rows.length > 0) {
+      throw new BadRequestException('trial_device_used');
+    }
+
+    // Atomically set trial only if not already set for this user
+    const result = await pool.query<{ trial_started_at: string }>(
+      `UPDATE users
+       SET trial_started_at = NOW(), trial_key_id = $2
+       WHERE id = $1 AND trial_started_at IS NULL
+       RETURNING trial_started_at`,
+      [userId, keyId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new BadRequestException('trial_already_used');
+    }
+
+    return { trialStartedAt: new Date(result.rows[0].trial_started_at).toISOString() };
+  }
+
+  async canUseAI(userId: string): Promise<boolean> {
+    const pool = getDB();
+
+    const [subResult, userResult] = await Promise.all([
+      pool.query<{ status: string }>(
+        `SELECT status FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      ),
+      pool.query<{ trial_started_at: string | null }>(
+        `SELECT trial_started_at FROM users WHERE id = $1 LIMIT 1`,
+        [userId],
+      ),
+    ]);
+
+    if (subResult.rows.length > 0 && subResult.rows[0].status === 'active') {
+      return true;
+    }
+
+    const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
+    if (trialStartedAt !== null) {
+      return Date.now() < new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS;
+    }
+
+    return false;
+  }
+
+  async checkDevice(userId: string, keyId: string | undefined): Promise<boolean> {
+    if (!keyId || !KEY_ID_RE.test(keyId)) return true;
+
+    const cacheKey = `${userId}:${keyId}`;
     const now = Date.now();
     const cached = deviceCache.get(cacheKey);
     if (cached && cached.expiresAt > now) return cached.allowed;
@@ -123,10 +205,10 @@ export class SubscriptionService {
     const pool = getDB();
     const result = await pool.query<{
       status: string;
-      locked_device_id: string | null;
-      locked_device_id_2: string | null;
+      locked_key_id: string | null;
+      locked_key_id_2: string | null;
     }>(
-      `SELECT status, locked_device_id, locked_device_id_2
+      `SELECT status, locked_key_id, locked_key_id_2
        FROM subscriptions WHERE user_id = $1 LIMIT 1`,
       [userId],
     );
@@ -138,28 +220,25 @@ export class SubscriptionService {
       const row = result.rows[0];
       if (row.status !== 'active') {
         allowed = true;
-      } else if (row.locked_device_id === deviceId || row.locked_device_id_2 === deviceId) {
+      } else if (row.locked_key_id === keyId || row.locked_key_id_2 === keyId) {
         allowed = true;
-      } else if (!row.locked_device_id) {
-        // First device slot empty — lock it.
+      } else if (!row.locked_key_id) {
         await pool.query(
-          `UPDATE subscriptions SET locked_device_id = $1, updated_at = NOW()
-           WHERE user_id = $2 AND locked_device_id IS NULL`,
-          [deviceId, userId],
+          `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
+           WHERE user_id = $2 AND locked_key_id IS NULL`,
+          [keyId, userId],
         );
         this.invalidateDeviceCache(userId);
         allowed = true;
-      } else if (!row.locked_device_id_2) {
-        // Second device slot empty — lock it.
+      } else if (!row.locked_key_id_2) {
         await pool.query(
-          `UPDATE subscriptions SET locked_device_id_2 = $1, updated_at = NOW()
-           WHERE user_id = $2 AND locked_device_id_2 IS NULL`,
-          [deviceId, userId],
+          `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
+           WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
+          [keyId, userId],
         );
         this.invalidateDeviceCache(userId);
         allowed = true;
       } else {
-        // Both slots taken by different devices.
         allowed = false;
       }
     }
@@ -174,7 +253,7 @@ export class SubscriptionService {
     }
   }
 
-  async verify(userId: string, userEmail: string, reference: string, deviceId?: string): Promise<{ success: boolean }> {
+  async verify(userId: string, userEmail: string, reference: string, keyId?: string): Promise<{ success: boolean }> {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
@@ -225,11 +304,11 @@ export class SubscriptionService {
       throw new BadRequestException('Payment reference already used');
     }
 
-    const lockedDeviceId = (deviceId && /^[a-f0-9]{64}$/.test(deviceId)) ? deviceId : null;
+    const lockedKeyId = (keyId && KEY_ID_RE.test(keyId)) ? keyId : null;
 
     await pool.query(
       `INSERT INTO subscriptions
-         (user_id, paystack_customer_code, paystack_reference, status, plan, current_period_end, locked_device_id, updated_at)
+         (user_id, paystack_customer_code, paystack_reference, status, plan, current_period_end, locked_key_id, updated_at)
        VALUES ($1, $2, $3, 'active', $4, $5, $6, NOW())
        ON CONFLICT (user_id) DO UPDATE SET
          paystack_customer_code = $2,
@@ -237,9 +316,9 @@ export class SubscriptionService {
          status                  = 'active',
          plan                    = $4,
          current_period_end      = $5,
-         locked_device_id        = COALESCE(subscriptions.locked_device_id, $6),
+         locked_key_id           = COALESCE(subscriptions.locked_key_id, $6),
          updated_at              = NOW()`,
-      [userId, txData.customer.customer_code, reference, plan, periodEnd, lockedDeviceId],
+      [userId, txData.customer.customer_code, reference, plan, periodEnd, lockedKeyId],
     );
 
     this.invalidateDeviceCache(userId);

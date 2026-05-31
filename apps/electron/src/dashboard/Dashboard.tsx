@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -14,6 +14,8 @@ interface SubData {
   plan: 'monthly' | 'yearly' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
+  trialStartedAt: string | null;
+  trialActive: boolean;
 }
 
 interface PaystackResponse {
@@ -38,6 +40,7 @@ interface PaystackPopInterface {
   setup(config: PaystackSetupConfig): PaystackHandler;
 }
 
+const TRIAL_DURATION_MS = 30 * 60_000;
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
@@ -63,6 +66,14 @@ function loadPaystackScript(): Promise<void> {
   });
 }
 
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '0:00';
+  const totalSec = Math.ceil(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
 export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
@@ -70,19 +81,66 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+  const [startingTrial, setStartingTrial] = useState(false);
+  const [trialError, setTrialError] = useState<string | null>(null);
+  const [trialMsLeft, setTrialMsLeft] = useState<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Start/update the countdown ticker whenever trialStartedAt changes
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (!sub?.trialStartedAt || !sub.trialActive) {
+      setTrialMsLeft(null);
+      return;
+    }
+
+    const trialEnd = new Date(sub.trialStartedAt).getTime() + TRIAL_DURATION_MS;
+
+    function tick() {
+      const remaining = trialEnd - Date.now();
+      if (remaining <= 0) {
+        setTrialMsLeft(0);
+        if (timerRef.current) clearInterval(timerRef.current);
+        // Refresh status so UI switches to expired state
+        void refreshStatus();
+      } else {
+        setTrialMsLeft(remaining);
+      }
+    }
+
+    tick();
+    timerRef.current = setInterval(tick, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [sub?.trialStartedAt, sub?.trialActive]);
+
+  async function refreshStatus(): Promise<void> {
+    const token = await window.zoomguru.getToken();
+    const res = await fetch(`${API_URL}/subscription/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json() as SubData;
+      setSub(data);
+    }
+  }
 
   useEffect(() => {
     void (async () => {
       try {
-        const [token, deviceId] = await Promise.all([
-          window.zoomguru.getToken(),
-          window.zoomguru.getDeviceId(),
-        ]);
+        const token = await window.zoomguru.getToken();
+
+        // Register this device's public key with the backend (idempotent).
+        void window.zoomguru.getDevicePublicKey().then(({ keyId, publicKey }) =>
+          fetch(`${API_URL}/device/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ keyId, publicKey }),
+          }),
+        );
+
         const res = await fetch(`${API_URL}/subscription/status`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'X-Device-ID': deviceId,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (res.status === 401) { onLogout(); return; }
         if (res.ok) {
@@ -94,6 +152,38 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
       }
     })();
   }, []);
+
+  async function handleStartTrial(): Promise<void> {
+    setTrialError(null);
+    setStartingTrial(true);
+    try {
+      const token = await window.zoomguru.getToken();
+      const { keyId } = await window.zoomguru.getDevicePublicKey();
+      const res = await fetch(`${API_URL}/subscription/trial`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Key-ID': keyId,
+        },
+      });
+      if (res.status === 401) { onLogout(); return; }
+      if (!res.ok) {
+        const err = await res.json() as { message?: string };
+        const msg = err.message ?? '';
+        if (msg === 'trial_device_used') {
+          setTrialError('This device has already been used for a free trial.');
+        } else if (msg === 'trial_already_used') {
+          setTrialError('You have already used your free trial.');
+        } else {
+          setTrialError('Could not start trial. Please try again.');
+        }
+        return;
+      }
+      await refreshStatus();
+    } finally {
+      setStartingTrial(false);
+    }
+  }
 
   async function handleSubscribe(): Promise<void> {
     const token = await window.zoomguru.getToken();
@@ -128,28 +218,19 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
         setVerifying(true);
         void (async () => {
           try {
-            const deviceId = await window.zoomguru.getDeviceId();
+            const { keyId } = await window.zoomguru.getDevicePublicKey();
             const res = await fetch(`${API_URL}/subscription/verify`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
-                'X-Device-ID': deviceId,
+                'X-Key-ID': keyId,
               },
               body: JSON.stringify({ reference: response.reference }),
             });
             if (res.status === 401) { onLogout(); return; }
             if (!res.ok) { setVerifyError(true); return; }
-            const statusRes = await fetch(`${API_URL}/subscription/status`, {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'X-Device-ID': deviceId,
-              },
-            });
-            if (statusRes.ok) {
-              const data = await statusRes.json() as SubData;
-              setSub(data);
-            }
+            await refreshStatus();
           } finally {
             setVerifying(false);
           }
@@ -166,6 +247,9 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     if (sub?.status === 'active') {
       return { ...s.statusBadge, color: 'rgba(52,211,153,0.9)', background: 'rgba(52,211,153,0.12)' };
     }
+    if (sub?.trialActive) {
+      return { ...s.statusBadge, color: 'rgba(251,191,36,0.9)', background: 'rgba(251,191,36,0.12)' };
+    }
     if (sub?.status === 'past_due') {
       return { ...s.statusBadge, color: 'rgba(248,113,113,0.9)', background: 'rgba(248,113,113,0.12)' };
     }
@@ -176,6 +260,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     if (loadingSub) return 'Loading…';
     if (!sub) return '—';
     if (sub.status === 'active') return 'Active';
+    if (sub.trialActive) return 'Trial';
     if (sub.status === 'past_due') return 'Payment overdue';
     if (sub.status === 'cancelled') return 'Cancelled';
     return 'No active plan';
@@ -183,27 +268,42 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
 
   function daysLabel(): string {
     if (loadingSub) return 'Loading…';
-    if (!sub || sub.daysRemaining === null) return '—';
-    if (sub.plan === 'yearly') return 'Yearly';
-    if (sub.daysRemaining === 0) return 'Expired';
-    return `${sub.daysRemaining} days`;
+    if (!sub) return '—';
+    if (sub.status === 'active') {
+      if (sub.plan === 'yearly') return 'Yearly';
+      if (sub.daysRemaining === 0) return 'Expired';
+      return `${sub.daysRemaining ?? '—'} days`;
+    }
+    if (sub.trialActive && trialMsLeft !== null) {
+      return formatCountdown(trialMsLeft);
+    }
+    if (sub.trialStartedAt && !sub.trialActive) return 'Trial expired';
+    return '—';
   }
 
   function billingLabel(): string {
     if (loadingSub) return 'Loading…';
-    if (!sub || !sub.plan) return '—';
-    return sub.plan === 'monthly' ? 'Monthly' : 'Yearly';
+    if (!sub) return '—';
+    if (sub.status === 'active') return sub.plan === 'monthly' ? 'Monthly' : 'Yearly';
+    if (sub.trialActive) return 'Free trial';
+    if (sub.trialStartedAt && !sub.trialActive) return 'Trial used';
+    return '—';
   }
 
-  const isSubscribeDisabled = loadingSub || sub?.status === 'active' || checkingOut || verifying;
+  const isActive = sub?.status === 'active';
+  const isSubscribeDisabled = loadingSub || isActive || sub?.trialActive || checkingOut || verifying;
 
   function subscribeLabel(): string {
     if (loadingSub) return 'Loading…';
-    if (sub?.status === 'active') return 'Active subscription';
+    if (isActive) return 'Active subscription';
+    if (sub?.trialActive) return 'Trial in progress';
     if (verifying) return 'Verifying…';
     if (checkingOut) return 'Opening checkout…';
     return 'Subscribe';
   }
+
+  const showTrialButton = !loadingSub && !isActive && !sub?.trialStartedAt;
+  const showContinue = isActive || (sub?.trialActive ?? false);
 
   return (
     <>
@@ -213,6 +313,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
         .zg-ghost:hover { color: rgba(255,255,255,0.45) !important; }
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
         .zg-plan:hover { opacity: 0.85; }
+        .zg-trial:hover:not(:disabled) { opacity: 0.85; }
       `}</style>
 
       <div style={s.root}>
@@ -242,8 +343,12 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
             <div style={s.divider} />
 
             <div style={s.cardRow}>
-              <span style={s.cardLabel}>Days remaining</span>
-              <span style={s.cardValue}>{daysLabel()}</span>
+              <span style={s.cardLabel}>
+                {sub?.trialActive ? 'Time remaining' : 'Days remaining'}
+              </span>
+              <span style={sub?.trialActive ? s.countdown : s.cardValue}>
+                {daysLabel()}
+              </span>
             </div>
 
             <div style={s.divider} />
@@ -254,8 +359,27 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
             </div>
           </div>
 
-          {/* Plan selector — hidden when active */}
-          {sub?.status !== 'active' && (
+          {/* Free trial button — only shown when eligible */}
+          {showTrialButton && (
+            <button
+              className="zg-trial"
+              style={{
+                ...s.trialBtn,
+                ...(startingTrial ? s.trialBtnDisabled : s.trialBtnEnabled),
+              }}
+              disabled={startingTrial}
+              onClick={() => { void handleStartTrial(); }}
+            >
+              {startingTrial ? 'Starting…' : 'Start 30-min free trial'}
+            </button>
+          )}
+
+          {trialError && (
+            <p style={s.errorMsg}>{trialError}</p>
+          )}
+
+          {/* Plan selector — hidden when active sub or trial running */}
+          {!isActive && !sub?.trialActive && (
             <div style={s.planSelector}>
               <button
                 className="zg-plan"
@@ -288,14 +412,14 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
           </button>
 
           {verifyError && (
-            <p style={s.verifyErrorMsg}>
+            <p style={s.errorMsg}>
               Payment received but confirmation failed. Please contact support.
             </p>
           )}
 
-          {/* Continue to app — only shown when subscription is active */}
+          {/* Continue to app — shown when subscription is active or trial is running */}
           <div style={s.actions}>
-            {sub?.status === 'active' && (
+            {showContinue && (
               <button
                 className="zg-primary"
                 style={s.continueBtn}
@@ -405,6 +529,14 @@ const s: Record<string, ElectronStyle> = {
     color: 'rgba(255,255,255,0.55)',
     fontFamily: SANS,
   },
+  countdown: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: 'rgba(251,191,36,0.9)',
+    fontFamily: SANS,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '0.5px',
+  },
   statusBadge: {
     fontSize: '10px',
     fontWeight: 600,
@@ -414,6 +546,28 @@ const s: Record<string, ElectronStyle> = {
     padding: '3px 8px',
     borderRadius: '4px',
     fontFamily: SANS,
+  },
+  trialBtn: {
+    width: '100%',
+    padding: '10px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontWeight: 500,
+    fontFamily: SANS,
+    letterSpacing: '0.1px',
+    textAlign: 'center',
+    transition: 'opacity 120ms ease',
+    cursor: 'pointer',
+    border: '1px solid rgba(251,191,36,0.25)',
+  },
+  trialBtnEnabled: {
+    background: 'rgba(251,191,36,0.10)',
+    color: 'rgba(251,191,36,0.85)',
+  },
+  trialBtnDisabled: {
+    background: 'rgba(255,255,255,0.05)',
+    color: 'rgba(255,255,255,0.25)',
+    cursor: 'not-allowed',
   },
   planSelector: {
     display: 'flex',
@@ -505,7 +659,7 @@ const s: Record<string, ElectronStyle> = {
     letterSpacing: '0.1px',
     textAlign: 'center' as const,
   },
-  verifyErrorMsg: {
+  errorMsg: {
     margin: 0,
     fontSize: '10px',
     color: 'rgba(248,113,113,0.85)',

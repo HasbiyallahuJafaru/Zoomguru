@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { AiService } from './ai.service';
 import { SubscriptionService } from '../subscription/subscription.service';
+import { DeviceService } from '../device/device.service';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 
@@ -43,6 +44,7 @@ export class AiController {
   constructor(
     private aiService: AiService,
     private subscriptionService: SubscriptionService,
+    private deviceService: DeviceService,
   ) {}
 
   @UseGuards(AuthGuard('jwt'))
@@ -51,12 +53,24 @@ export class AiController {
     @Req() req: AuthenticatedRequest,
     @Body() body: { transcript: string; sessionId?: string; cvText?: string; jdText?: string },
     @Res() reply: FastifyReply,
-    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
   ): Promise<void> {
     if (!body.transcript || body.transcript.length > 4000) {
       throw new BadRequestException('Invalid transcript');
     }
-    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, deviceId);
+    const sigValid = await this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature);
+    if (!sigValid) {
+      await reply.code(403).send({ error: 'invalid_signature' });
+      return;
+    }
+    const canUse = await this.subscriptionService.canUseAI(req.user.userId);
+    if (!canUse) {
+      await reply.code(403).send({ error: 'subscription_required' });
+      return;
+    }
+    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, keyId);
     if (!deviceAllowed) {
       await reply.code(403).send({ error: 'device_locked' });
       return;
@@ -88,12 +102,24 @@ export class AiController {
     @Req() req: AuthenticatedRequest,
     @Body() body: { image: string; sessionId?: string; cvText?: string; jdText?: string; priorContext?: string[] },
     @Res() reply: FastifyReply,
-    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
   ): Promise<void> {
     if (!body.image || body.image.length > 10_000_000) {
       throw new BadRequestException('Invalid image');
     }
-    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, deviceId);
+    const sigValid = await this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature);
+    if (!sigValid) {
+      await reply.code(403).send({ error: 'invalid_signature' });
+      return;
+    }
+    const canUse = await this.subscriptionService.canUseAI(req.user.userId);
+    if (!canUse) {
+      await reply.code(403).send({ error: 'subscription_required' });
+      return;
+    }
+    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, keyId);
     if (!deviceAllowed) {
       await reply.code(403).send({ error: 'device_locked' });
       return;
@@ -132,12 +158,22 @@ export class AiController {
   async transcribe(
     @Req() req: AuthenticatedRequest,
     @Body() body: { audio: string },
-    @Headers('x-device-id') deviceId: string | undefined,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
   ): Promise<{ transcript: string }> {
     if (!body.audio || body.audio.length > 5_000_000) {
       throw new BadRequestException('Invalid audio');
     }
-    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, deviceId);
+    const sigValid = await this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature);
+    if (!sigValid) {
+      throw new HttpException({ error: 'invalid_signature' }, HttpStatus.FORBIDDEN);
+    }
+    const canUse = await this.subscriptionService.canUseAI(req.user.userId);
+    if (!canUse) {
+      throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
+    }
+    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, keyId);
     if (!deviceAllowed) {
       throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
     }
