@@ -86,7 +86,7 @@ export class AiController {
   @Post('screenshot')
   async screenshot(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { image: string; sessionId?: string; cvText?: string; jdText?: string },
+    @Body() body: { image: string; sessionId?: string; cvText?: string; jdText?: string; priorContext?: string[] },
     @Res() reply: FastifyReply,
     @Headers('x-device-id') deviceId: string | undefined,
   ): Promise<void> {
@@ -110,12 +110,19 @@ export class AiController {
     const cleanImage = sanitize(body.image);
     const cleanCv    = body.cvText ? sanitize(body.cvText) : undefined;
     const cleanJd    = body.jdText ? sanitize(body.jdText) : undefined;
+    const cleanPriorContext = Array.isArray(body.priorContext)
+      ? body.priorContext
+          .slice(0, 5)
+          .map((s) => (typeof s === 'string' ? sanitize(s.slice(0, 300)) : ''))
+          .filter(Boolean)
+      : undefined;
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamScreenshot({
       image: cleanImage,
       reply: reply.raw,
       cvText: cleanCv,
       jdText: cleanJd,
+      priorContext: cleanPriorContext,
     });
   }
 

@@ -42,6 +42,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [isAutoListening, setIsAutoListening] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [screenshotContext, setScreenshotContext] = useState<string[]>([]);
 
   const sessionCapped = questionCount >= sessionCap;
 
@@ -150,6 +151,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
           image: imageBase64,
           ...(cvText ? { cvText } : {}),
           ...(jdText ? { jdText } : {}),
+          ...(screenshotContext.length > 0 ? { priorContext: screenshotContext } : {}),
         }),
       });
       if (response.status === 401) { onLogout(); return; }
@@ -176,8 +178,13 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
           if (!line.startsWith('data: ')) continue;
           const raw = line.slice(6).trim();
           if (!raw || raw === '[DONE]') continue;
-          const data: { chunk?: string; done?: boolean } = JSON.parse(raw);
-          if (data.done) return;
+          const data: { chunk?: string; done?: boolean; contextSummary?: string } = JSON.parse(raw);
+          if (data.done) {
+            if (data.contextSummary) {
+              setScreenshotContext((prev) => [...prev, data.contextSummary!].slice(-5));
+            }
+            return;
+          }
           if (data.chunk) setAnswer((prev) => prev + data.chunk);
         }
       }
@@ -467,6 +474,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     setIsStreaming(false);
     setIsListening(false);
     setQuestionCount(0);
+    setScreenshotContext([]);
     chunksRef.current = [];
   };
 
@@ -663,6 +671,11 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
             aria-label="Screenshot"
           >
             <span style={s.btnLabel}>Screen</span>
+            {screenshotContext.length > 0 && (
+              <span style={{ fontSize: '8px', color: 'rgba(99,102,241,0.7)', fontFamily: FONT, lineHeight: '1', letterSpacing: '0.2px' }}>
+                ctx {screenshotContext.length}
+              </span>
+            )}
             <span style={s.btnHint}>⌘⇧S</span>
           </button>
 
