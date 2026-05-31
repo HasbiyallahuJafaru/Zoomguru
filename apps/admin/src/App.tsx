@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import type { FormEvent } from 'react';
 import { fetchStats } from './api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import Dashboard from './Dashboard';
 
 const SESSION_KEY = 'zg_admin_key';
+
+const F = {
+  heading: "'Cormorant Garamond', Georgia, serif",
+  body: "'Inter', system-ui, sans-serif",
+};
 
 export default function App() {
   const [adminKey, setAdminKey] = useState('');
@@ -21,7 +20,7 @@ export default function App() {
     if (stored) setAuthed(true);
   }, []);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!adminKey.trim()) return;
     setLoading(true);
@@ -50,36 +49,156 @@ export default function App() {
   }
 
   return (
-    <div className="dark min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-1 pb-4">
-          <CardTitle className="text-2xl font-bold">Admin Access</CardTitle>
-          <CardDescription>ZoomGuru Analytics Dashboard</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="key">Admin Key</Label>
-              <Input
-                id="key"
-                type="password"
-                placeholder="Enter admin key"
-                value={adminKey}
-                onChange={(e) => setAdminKey(e.target.value)}
-                autoComplete="current-password"
-              />
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(145deg, #F7F6F3 0%, #EDEAE5 55%, #E8E4DE 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+    }}>
+      {/* Decorative blobs */}
+      <div style={{
+        position: 'fixed', top: '-10%', right: '-8%',
+        width: 420, height: 420, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'fixed', bottom: '-8%', left: '-6%',
+        width: 360, height: 360, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Card */}
+      <div style={{
+        background: 'rgba(255,255,255,0.82)',
+        backdropFilter: 'blur(28px)',
+        WebkitBackdropFilter: 'blur(28px)',
+        borderRadius: 28,
+        padding: '52px 44px',
+        width: '100%',
+        maxWidth: 420,
+        border: '1px solid rgba(255,255,255,0.95)',
+        boxShadow: [
+          '0 2px 4px rgba(0,0,0,0.03)',
+          '0 8px 24px rgba(0,0,0,0.06)',
+          '0 24px 64px rgba(0,0,0,0.06)',
+        ].join(', '),
+        animation: 'fadeSlideUp 0.65s cubic-bezier(0.16,1,0.3,1) both',
+      }}>
+        {/* Brand */}
+        <div style={{ marginBottom: 44 }}>
+          <h1 style={{
+            fontFamily: F.heading,
+            fontStyle: 'italic',
+            fontWeight: 700,
+            fontSize: 42,
+            color: '#0D0D0D',
+            letterSpacing: '-0.025em',
+            lineHeight: 1,
+          }}>
+            ZoomGuru
+          </h1>
+          <p style={{
+            fontFamily: F.body,
+            fontSize: 11,
+            fontWeight: 500,
+            color: '#AAAAAA',
+            marginTop: 7,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}>
+            Analytics · Admin Access
+          </p>
+          {/* Thin decorative rule */}
+          <div style={{
+            marginTop: 24,
+            height: 1,
+            background: 'linear-gradient(90deg, rgba(0,0,0,0.1) 0%, transparent 100%)',
+          }} />
+        </div>
+
+        <form onSubmit={(e) => { void handleSubmit(e); }}>
+          {/* Label */}
+          <label style={{
+            display: 'block',
+            fontFamily: F.body,
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#888888',
+            marginBottom: 9,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}>
+            Admin Key
+          </label>
+
+          {/* Input */}
+          <input
+            className="admin-input"
+            type="password"
+            placeholder="Enter your admin key"
+            value={adminKey}
+            onChange={(e) => setAdminKey(e.target.value)}
+            autoComplete="current-password"
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '15px 18px',
+              background: 'rgba(0,0,0,0.03)',
+              border: '1.5px solid rgba(0,0,0,0.09)',
+              borderRadius: 14,
+              fontFamily: F.body,
+              fontSize: 14,
+              color: '#0D0D0D',
+              marginBottom: 14,
+            }}
+          />
+
+          {/* Error */}
+          {error && (
+            <div style={{
+              background: 'rgba(239,68,68,0.06)',
+              border: '1px solid rgba(239,68,68,0.18)',
+              borderRadius: 10,
+              padding: '11px 15px',
+              marginBottom: 16,
+              fontFamily: F.body,
+              fontSize: 13,
+              color: '#DC2626',
+              animation: 'fadeIn 0.2s ease',
+            }}>
+              {error}
             </div>
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Verifying…' : 'Sign In'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          )}
+
+          {/* Submit */}
+          <button
+            className="btn-black"
+            type="submit"
+            disabled={loading}
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '15px',
+              background: loading ? '#888' : '#0D0D0D',
+              border: 'none',
+              borderRadius: 14,
+              fontFamily: F.body,
+              fontSize: 14,
+              fontWeight: 600,
+              color: '#FFFFFF',
+              letterSpacing: '0.02em',
+              opacity: loading ? 0.75 : 1,
+              marginTop: 4,
+            }}
+          >
+            {loading ? 'Verifying…' : 'Sign In'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
