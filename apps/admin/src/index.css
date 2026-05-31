@@ -9,11 +9,14 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: #F5F3F0;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* ── Scrollbar ── */
@@ -32,17 +35,22 @@ body {
   to   { opacity: 1; }
 }
 
-/* ── Responsive grids ── */
+/* ── Responsive grids ──
+   min-width:0 is critical — without it CSS Grid items default
+   to min-width:auto which lets Recharts SVGs blow past the grid cell. */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 16px;
 }
+.stats-grid > * { min-width: 0; }
+
 .charts-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
+.charts-grid > * { min-width: 0; }
 
 @media (max-width: 1200px) {
   .stats-grid { grid-template-columns: repeat(3, 1fr); }
@@ -65,25 +73,19 @@ body {
   letter-spacing: -0.025em;
   line-height: 1;
 }
-@media (max-width: 768px) {
-  .welcome-heading { font-size: 38px; }
-}
-@media (max-width: 480px) {
-  .welcome-heading { font-size: 30px; }
-}
+@media (max-width: 768px) { .welcome-heading { font-size: 38px; } }
+@media (max-width: 480px) { .welcome-heading { font-size: 30px; } }
 
-/* ── Header subtitle hide on small screens ── */
+/* ── Header "Admin" tag — hide on tight screens ── */
 .header-tag {
   font-size: 11px;
-  color: #AAAA;
+  color: rgba(0,0,0,0.3);
   font-family: 'Inter', sans-serif;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   margin-left: 10px;
 }
-@media (max-width: 560px) {
-  .header-tag { display: none; }
-}
+@media (max-width: 480px) { .header-tag { display: none; } }
 
 /* ── Table scroll ── */
 .table-scroll {
@@ -97,10 +99,10 @@ body {
               box-shadow  0.28s ease;
 }
 .card-lift:hover {
-  transform: translateY(-5px);
+  transform: translateY(-4px);
   box-shadow:
-    0 12px 32px rgba(0,0,0,0.08),
-    0 32px 64px rgba(0,0,0,0.06) !important;
+    0 10px 28px rgba(0,0,0,0.07),
+    0 28px 56px rgba(0,0,0,0.06) !important;
 }
 
 /* ── Input ── */
@@ -115,82 +117,67 @@ body {
 
 /* ── Primary button (black) ── */
 .btn-black {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
 }
 .btn-black:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 10px 28px rgba(0,0,0,0.22);
 }
-.btn-black:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: none;
-}
+.btn-black:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
 
-/* ── Ghost button ── */
+/* ── Ghost / outline buttons ── */
 .btn-ghost {
   transition: background 0.15s ease;
   cursor: pointer;
 }
-.btn-ghost:hover {
-  background: rgba(0,0,0,0.055) !important;
-}
+.btn-ghost:hover { background: rgba(0,0,0,0.055) !important; }
 
 /* ── Day tab ── */
 .day-tab {
   transition: background 0.15s ease, color 0.15s ease;
   cursor: pointer;
   border: none;
+  white-space: nowrap;
 }
-.day-tab:hover {
-  background: rgba(0,0,0,0.06) !important;
-}
+.day-tab:hover { background: rgba(0,0,0,0.06) !important; }
 
-/* ── Table row ── */
-.trow {
-  transition: background 0.12s ease;
-}
-.trow:hover {
-  background: rgba(0,0,0,0.018) !important;
-}
+/* ── Table row hover ── */
+.trow { transition: background 0.12s ease; }
+.trow:hover { background: rgba(0,0,0,0.018) !important; }
 
-/* ── Header controls wrap on mobile ── */
+/* ── Header inner ──
+   Uses padding + flex-wrap so it grows naturally on mobile
+   instead of clipping at a fixed 66px height.              */
+.header-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 14px 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (max-width: 768px) { .header-inner { padding: 12px 18px; gap: 8px; } }
+@media (max-width: 480px) { .header-inner { padding: 10px 14px; gap: 6px; } }
+
+/* ── Header controls ── */
 .header-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-@media (max-width: 600px) {
-  .header-controls { gap: 6px; }
-}
 
-/* ── Main content padding responsive ── */
+/* ── Main content ── */
 .main-content {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 44px 36px 60px;
+  padding: 40px 36px 60px;
 }
-@media (max-width: 768px) {
-  .main-content { padding: 28px 18px 48px; }
-}
-@media (max-width: 480px) {
-  .main-content { padding: 20px 14px 40px; }
-}
-
-/* ── Header inner padding ── */
-.header-inner {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0 36px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-@media (max-width: 768px) {
-  .header-inner { padding: 0 18px; }
-}
+@media (max-width: 768px)  { .main-content { padding: 28px 18px 48px; } }
+@media (max-width: 480px)  { .main-content { padding: 20px 14px 40px; } }
 
 /* ── Skeleton shimmer ── */
 @keyframes shimmer {
@@ -199,7 +186,7 @@ body {
 }
 .skeleton {
   background: linear-gradient(90deg,
-    #EEECE9 25%, #E6E3DF 50%, #EEECE9 75%);
+    #EEECE9 25%, #E5E2DE 50%, #EEECE9 75%);
   background-size: 800px 100%;
   animation: shimmer 1.6s infinite linear;
   border-radius: 8px;

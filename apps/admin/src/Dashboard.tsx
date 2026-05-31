@@ -88,7 +88,6 @@ function StatCard({
   return (
     <Card style={{
       padding: '22px 20px 20px',
-      borderTop: `3px solid ${color}`,
       animation: `fadeSlideUp 0.55s cubic-bezier(0.16,1,0.3,1) ${delay}ms both`,
     }}>
       <p style={{
@@ -100,7 +99,7 @@ function StatCard({
       </p>
       <p style={{
         fontFamily: F.body, fontSize: 30, fontWeight: 700,
-        color, lineHeight: 1, letterSpacing: '-0.025em',
+        color: C.primary, lineHeight: 1, letterSpacing: '-0.025em',
         fontVariantNumeric: 'tabular-nums',
       }}>
         {value.toLocaleString()}
@@ -130,7 +129,7 @@ function ChartCard({ title, children, delay = 0 }: {
           {title}
         </p>
       </div>
-      <div style={{ padding: '0 16px 20px' }}>
+      <div style={{ padding: '0 16px 20px', overflow: 'hidden' }}>
         {children}
       </div>
     </Card>
@@ -171,7 +170,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
   useEffect(() => { void load(days); }, [load, days]);
 
   return (
-    <div style={{ minHeight: '100vh', background: C.bg }}>
+    <div style={{ minHeight: '100vh', background: C.bg, overflowX: 'hidden' }}>
 
       {/* ── Sticky header ── */}
       <header style={{
@@ -180,7 +179,6 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(0,0,0,0.06)',
-        height: 66,
         boxShadow: '0 1px 0 rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.04)',
       }}>
         <div className="header-inner">
@@ -292,7 +290,6 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
             Array.from({ length: 5 }).map((_, i) => (
               <Card key={i} style={{
                 padding: '22px 20px 20px',
-                borderTop: '3px solid #E8E5E1',
                 animation: `fadeSlideUp 0.55s cubic-bezier(0.16,1,0.3,1) ${i * 55}ms both`,
               }}>
                 <Skel w="55%" h={10} r={5} />
@@ -317,10 +314,10 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
               ? <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
               : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={data.signups.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                  <LineChart data={data.signups.map((d) => ({ ...d, date: shortDate(d.date) }))} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                     <XAxis dataKey="date" tick={CHART.axis} axisLine={false} tickLine={false} />
-                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={32} />
+                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Line type="monotone" dataKey="count" stroke={ACCENT.blue} strokeWidth={2.5} dot={false} name="Signups" />
                   </LineChart>
@@ -333,10 +330,10 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
               ? <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
               : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={data.payments.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                  <LineChart data={data.payments.map((d) => ({ ...d, date: shortDate(d.date) }))} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                     <XAxis dataKey="date" tick={CHART.axis} axisLine={false} tickLine={false} />
-                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={32} />
+                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
                     <Line type="monotone" dataKey="monthly"  stroke={ACCENT.purple} strokeWidth={2.5} dot={false} name="Monthly"  />
@@ -354,10 +351,10 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
               ? <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
               : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={data.usage.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                  <BarChart data={data.usage.map((d) => ({ ...d, date: shortDate(d.date) }))} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                     <XAxis dataKey="date" tick={CHART.axis} axisLine={false} tickLine={false} />
-                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={32} />
+                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
                     <Bar dataKey="stream"     stackId="a" fill={ACCENT.blue}   name="Stream" />
@@ -373,10 +370,10 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
               ? <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
               : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={data.downloads.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                  <BarChart data={data.downloads.map((d) => ({ ...d, date: shortDate(d.date) }))} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                     <XAxis dataKey="date" tick={CHART.axis} axisLine={false} tickLine={false} />
-                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={32} />
+                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
                     <Bar dataKey="windows" fill={ACCENT.blue} name="Windows" radius={[6,6,0,0]} />
