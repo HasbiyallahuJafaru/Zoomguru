@@ -67,7 +67,7 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
       });
       const data: LoginApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Invalid credentials'); return; }
-      localStorage.setItem('access_token', data.accessToken ?? '');
+      await window.zoomguru.setToken(data.accessToken ?? '');
       onLogin(data.user);
     } catch {
       setError('Cannot reach backend. Is it running?');

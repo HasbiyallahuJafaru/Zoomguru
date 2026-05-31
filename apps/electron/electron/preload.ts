@@ -46,6 +46,15 @@ contextBridge.exposeInMainWorld('zoomguru', {
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('open-external', url),
 
+  setToken: (token: string): Promise<void> =>
+    ipcRenderer.invoke('token:set', token),
+
+  getToken: (): Promise<string> =>
+    ipcRenderer.invoke('token:get'),
+
+  clearToken: (): Promise<void> =>
+    ipcRenderer.invoke('token:clear'),
+
   getProtectionStatus: (): Promise<boolean> =>
     ipcRenderer.invoke('protection:status'),
 });

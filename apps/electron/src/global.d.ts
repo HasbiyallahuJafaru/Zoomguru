@@ -22,6 +22,9 @@ interface ZoomGuruBridge {
   loadJD(): Promise<string | null>;
   clearJD(): Promise<void>;
   openExternal(url: string): Promise<void>;
+  setToken(token: string): Promise<void>;
+  getToken(): Promise<string>;
+  clearToken(): Promise<void>;
   getProtectionStatus(): Promise<boolean>;
 }
 

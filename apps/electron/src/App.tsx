@@ -1,22 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Login from './auth/Login';
 import Register from './auth/Register';
 import Dashboard from './dashboard/Dashboard';
 import CvSetup from './onboarding/CvSetup';
 import Overlay from './overlay/Overlay';
 
-type Step = 'login' | 'register' | 'dashboard' | 'cv' | 'overlay';
+type Step = 'loading' | 'login' | 'register' | 'dashboard' | 'cv' | 'overlay';
 
 const App = () => {
-  const [step, setStep] = useState<Step>(() =>
-    localStorage.getItem('access_token') ? 'dashboard' : 'login'
-  );
+  const [step, setStep] = useState<Step>('loading');
+
+  useEffect(() => {
+    void (async () => {
+      let token = await window.zoomguru.getToken();
+      if (!token) {
+        const legacy = localStorage.getItem('access_token');
+        if (legacy) {
+          await window.zoomguru.setToken(legacy);
+          localStorage.removeItem('access_token');
+          token = legacy;
+        }
+      }
+      setStep(token ? 'dashboard' : 'login');
+    })();
+  }, []);
 
   function handleLogout(): void {
-    localStorage.removeItem('access_token');
+    void window.zoomguru.clearToken();
     localStorage.removeItem('session_id');
     setStep('login');
   }
+
+  if (step === 'loading') return null;
 
   if (step === 'login') {
     return (

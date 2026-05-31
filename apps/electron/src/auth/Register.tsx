@@ -37,7 +37,7 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
       });
       const data: RegisterApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Registration failed'); return; }
-      localStorage.setItem('access_token', data.accessToken ?? '');
+      await window.zoomguru.setToken(data.accessToken ?? '');
       onRegistered();
     } catch {
       setError('Cannot reach backend. Is it running?');

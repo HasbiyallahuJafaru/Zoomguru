@@ -1,4 +1,4 @@
-# ZoomGuru MVP — Local Deployment
+# ZoomGuru — Live MVP
 # Master Context File
 # Read this before every session. No exceptions.
 
@@ -18,42 +18,51 @@ The user sees it. The interviewer does not.
 
 ## Current Phase
 
-LOCAL MVP — runs entirely on the developer's machine.
-No cloud hosting. No SSL. No Cloudflare. No auto-updater.
-Goal: get the four core flows working reliably before
-adding any infrastructure complexity.
+LIVE MVP — backend deployed on Render, payments live via Paystack,
+landing page live, admin dashboard running.
+Four core flows are working. Device locking is enforced.
+Next priorities: brute-force protection on auth, JWT migration
+from localStorage to electron-store.
 
 ---
 
-## The Four Core Flows (Nothing Else Matters Yet)
+## The Five Core Flows
 
 ```
 FLOW 1: Window
-    App launches → transparent overlay appears
+    App launches → splash screen → transparent overlay appears
     Open Zoom → overlay is invisible to screen share
     ✅ Gate: hidden from screen share confirmed
 
-FLOW 2: Login
-    User enters email + password
-    POST localhost:3000/auth/login
-    Token stored → overlay unlocks
-    ✅ Gate: can log in and see blank overlay
+FLOW 2: Auth
+    Register (email + name + password) or login
+    POST /auth/login → JWT → stored in localStorage
+    Dashboard shows subscription status
+    ✅ Gate: can register, log in, and see dashboard
 
-FLOW 3: Listen
-    Press Cmd/Ctrl+Shift+A
-    Speak a question
+FLOW 3: Listen (manual)
+    Press Ctrl+Shift+L
+    Speak a question (VAD detects speech end automatically)
+    POST /ai/transcribe → POST /ai/stream
     Answer streams word by word in overlay
     ✅ Gate: text flows end to end
 
-FLOW 4: Screenshot
-    Press Cmd/Ctrl+Shift+S
-    Screen captured → AI reads it → answer streams
+FLOW 4: Auto mode
+    Press Ctrl+Shift+D to toggle
+    VAD continuously listens, auto-transcribes, auto-answers
+    No hotkey needed per question
+    ✅ Gate: hands-free mode works
+
+FLOW 5: Screenshot
+    Press Ctrl+Shift+S
+    Screen captured → POST /ai/screenshot
+    Answer streams in overlay
     ✅ Gate: image flows end to end
 ```
 
 ---
 
-## Monorepo Structure (MVP scope only)
+## Monorepo Structure
 
 ```
 zoomguru/
@@ -65,13 +74,15 @@ zoomguru/
 │   └── DATABASE.md        ← neon schema
 ├── apps/
 │   ├── electron/          ← desktop overlay app
-│   └── backend/           ← nestjs local server
+│   ├── backend/           ← nestjs server (Render)
+│   ├── admin/             ← admin dashboard (React + Vite)
+│   └── landing/           ← marketing + download page
 └── package.json
 ```
 
 ---
 
-## Tech Stack — MVP Only
+## Tech Stack
 
 ```
 Electron App
@@ -80,16 +91,22 @@ Electron App
     ├── TypeScript strict
     └── No external UI library — plain inline styles
 
-Backend (runs locally on port 3000)
+Backend (NestJS on Render — port 3000 locally)
     ├── NestJS + Fastify adapter
     ├── @neondatabase/serverless (Neon PostgreSQL)
-    ├── @nestjs/jwt (simple JWT, long expiry)
-    └── No Redis, no Prisma, no ORMs
+    ├── ioredis (Redis — rate limiting)
+    ├── @nestjs/jwt (30-day JWT, no refresh tokens)
+    ├── bcryptjs (password hashing)
+    ├── Resend (transactional email)
+    └── @nestjs/schedule (cron — expiry reminders)
 
 AI
-    ├── DeepSeek V3 (deepseek-chat) — text questions
-    ├── DeepSeek R1 (deepseek-reasoner) — coding/math
-    └── Qwen VL (qwen-vl-max) — screenshot vision
+    ├── Gemini 2.0 Flash — PRIMARY for all text answers
+    │     Key rotation: GEMINI_API_KEY through GEMINI_API_KEY_5
+    ├── DeepSeek (deepseek-chat) — FALLBACK for text answers
+    │     Key rotation: DEEPSEEK_API_KEY through DEEPSEEK_API_KEY_5
+    ├── Groq Whisper — audio transcription (/ai/transcribe)
+    └── Groq Llama-4-Scout — vision/screenshot (/ai/screenshot)
 
 Database
     └── Neon PostgreSQL — direct SQL, @neondatabase/serverless
@@ -97,73 +114,253 @@ Database
 
 ---
 
-## Paystack Integration (Inline.js — current approach)
+## User Flow (Electron App)
 
-Paystack uses the inline.js script tag injected at runtime.
-No redirect, no popup mode, no server-side checkout session.
+```
+App opens
+  └─ localStorage has token? → Dashboard
+  └─ No token → Login
+       └─ Sign up → Register
+       └─ Forgot password → email reset flow
+
+Dashboard
+    Shows subscription status (inactive / active / past_due / cancelled)
+    Pay via Paystack inline.js → POST /subscription/verify
+    → Continue → CvSetup
+
+CvSetup
+    Upload CV (PDF/TXT/MD) → parsed via pdf-parse → stored in electron-store
+    Paste job description text → stored in electron-store
+    → Done → Overlay
+
+Overlay
+    Global hotkeys active (see below)
+    Session cap: 50 questions per session for monthly plan
+    CV text + JD text attached to every AI request
+```
+
+---
+
+## Global Hotkeys
+
+```
+Ctrl+Shift+L  (fallback: Ctrl+Alt+L)  → Toggle manual listen mode
+Ctrl+Shift+S  (fallback: Ctrl+Alt+S)  → Take screenshot + answer
+Ctrl+Shift+H  (fallback: Ctrl+Alt+H)  → Hide / show overlay
+Ctrl+Shift+C  (fallback: Ctrl+Alt+C)  → Clear current answer
+Ctrl+Shift+D  (fallback: Ctrl+Alt+D)  → Toggle auto VAD mode
+```
+
+---
+
+## Backend Endpoints
+
+```
+Auth
+    POST /auth/register          { email, name, password }
+    POST /auth/login             { email, password } + X-Device-ID header
+    POST /auth/forgot-password   { email }
+    GET  /auth/reset-password-page?token=...
+    POST /auth/reset-password    { token, newPassword }
+
+AI  (all require Authorization: Bearer <token> + X-Device-ID header)
+    POST /ai/stream        { transcript, cvText?, jdText? }  → SSE
+    POST /ai/screenshot    { image (base64), cvText?, jdText? }  → SSE
+    POST /ai/transcribe    { audio (base64) }  → { transcript }
+
+Subscription  (requires Authorization: Bearer <token>)
+    GET  /subscription/status
+    POST /subscription/verify    { reference }  + X-Device-ID header
+    POST /subscription/webhook   (Paystack HMAC-verified)
+
+Admin  (requires X-Admin-Key header)
+    GET /admin/stats
+    GET /admin/signups?days=30
+    GET /admin/payments?days=30
+    GET /admin/usage?days=30
+    GET /admin/downloads?days=30
+    GET /admin/users
+
+Analytics  (public)
+    GET /analytics/download?platform=windows|mac
+
+Health
+    GET /health
+```
+
+---
+
+## Paystack Integration (Inline.js)
 
 ```
 Monthly plan  → pop.setup({ plan: VITE_PAYSTACK_PLAN_MONTHLY })
-                Paystack subscription — recurring ₦50,000/month
-                Plan code (PLN_xxx) must be created in Paystack dashboard
+                Recurring ₦50,000/month
+                Plan code (PLN_xxx) must exist in Paystack dashboard
 
 Lifetime plan → pop.setup({ amount: 100_000_000 })
-                One-time payment — ₦1,000,000 (amount in kobo)
-                No plan code needed — hardcoded in Dashboard.tsx
+                One-time ₦1,000,000 (amount in kobo)
 
 After payment → POST /subscription/verify { reference }
                 Backend calls Paystack API to confirm
-                Monthly: no period_end set (webhook sets it later)
-                Lifetime: current_period_end set to 2099-12-31
-```
-
-Note: VITE_PAYSTACK_PLAN_ANNUAL has been removed.
-The second plan is now lifetime (one-time), not annual (recurring).
-
----
-
-## What Is Deliberately CUT From MVP
-
-These exist in the full spec but are NOT built yet.
-Do not reference or implement them in MVP sessions.
-
-```
-DEFERRED (build after core works):
-    ├── Google OAuth — email/password only for now
-    ├── Wake word (Porcupine) — hotkeys only
-    ├── Auto-updater — not needed locally
-    ├── Protection self-test — trust setContentProtection
-    ├── Paywall / free tier limits — everyone unlimited
-    ├── Session summary saving — no DB writes during session
-    ├── Referral system — post-launch
-    ├── Onboarding flow — skip to overlay directly
-    ├── Zustand state management — plain useState
-    ├── CV upload — system prompt uses generic base prompt
-    ├── Mode switching UI — one smart mode, auto-detected
-    ├── ModeBar component — removed
-    ├── Opacity slider — hardcoded 20%
-    ├── Admin dashboard — post-launch
-    ├── User dashboard — post-launch
-    ├── Landing page payments — post-launch
-    ├── Device fingerprint locking — post-launch
-    ├── Cloudflare protection — post-launch
-    └── Rate limiting — post-launch
+                Monthly: provisional 30-day period_end (webhook corrects it)
+                Lifetime: current_period_end = 2099-12-31
+                Device is locked on first AI use after subscription is active
 ```
 
 ---
 
-## Local Environment
+## Device Locking
+
+Device locking is enforced at AI endpoint time, not at login time.
+
+```
+How it works:
+    X-Device-ID header = SHA-256 of (cpu model, cpu count, platform,
+                         arch, hostname, total memory, MAC address)
+
+    checkDevice() in subscription.service.ts:
+        No subscription row → allow (no sub yet)
+        Subscription not 'active' → allow
+        Subscription active, locked_device_id = NULL → bind current device
+        Subscription active, locked_device_id set → must match or 403
+
+Bypass risk: header is client-generated and can be forged.
+Post-launch: add server-side challenge to verify hardware.
+```
+
+---
+
+## Rate Limiting (AI Endpoints Only)
+
+```
+15 requests per 60 seconds per user
+Enforced via Redis INCR + EXPIRE
+Returns 429 { error: 'rate_limit', retryAfter: N } when exceeded
+Auth endpoints are NOT rate limited yet — post-launch priority
+```
+
+---
+
+## SSE Streaming Format
+
+```
+Content-Type: text/event-stream
+
+data: {"chunk":"word ","done":false}\n\n
+data: {"chunk":"by ","done":false}\n\n
+data: {"done":true}\n\n
+```
+
+---
+
+## Database Schema
+
+```sql
+users (
+    id UUID PK, email UNIQUE, password_hash,
+    name, username UNIQUE, is_pro BOOLEAN, created_at
+)
+
+subscriptions (
+    id UUID PK, user_id UUID UNIQUE FK → users,
+    status CHECK IN ('inactive','active','past_due','cancelled'),
+    plan TEXT, current_period_start, current_period_end,
+    paystack_customer_code, paystack_subscription_code,
+    locked_device_id TEXT, created_at, updated_at
+)
+
+password_reset_tokens (
+    id UUID PK, user_id FK → users,
+    token_hash TEXT, expires_at (1 hour TTL), created_at
+)
+
+downloads (id UUID PK, platform, version, ip, created_at)
+
+ai_sessions (
+    id UUID PK, user_id FK → users (nullable),
+    type CHECK IN ('stream','screenshot','transcribe'), created_at
+)
+```
+
+---
+
+## Environment Variables
+
+```env
+# Backend (apps/backend/.env)
+DATABASE_URL=          # Neon PostgreSQL connection string
+DATABASE_POOL_URL=     # Optional — pooled URL for multi-instance
+JWT_SECRET=            # Any long random string
+REDIS_URL=             # Redis connection string
+GEMINI_API_KEY=        # Required
+GEMINI_API_KEY_2=      # Optional key rotation
+GEMINI_API_KEY_3=      # Optional
+GEMINI_API_KEY_4=      # Optional
+GEMINI_API_KEY_5=      # Optional
+DEEPSEEK_API_KEY=      # Required (fallback)
+DEEPSEEK_API_KEY_2=    # Optional
+GROQ_API_KEY=          # For transcription + vision
+PAYSTACK_SECRET_KEY=   # Paystack secret
+RESEND_API_KEY=        # For transactional email
+FROM_EMAIL=            # Sender address
+ADMIN_KEY=             # For /admin/* endpoints
+APP_URL=               # Base URL for password reset links
+ADMIN_CORS_ORIGIN=     # Admin dashboard origin
+R2_DOWNLOAD_URL_WINDOWS= # Cloudflare R2 download URL
+R2_DOWNLOAD_URL_MAC=      # Cloudflare R2 download URL
+
+# Electron (apps/electron/.env)
+VITE_API_URL=          # Defaults to https://zoomguru.onrender.com
+VITE_PAYSTACK_PUBLIC_KEY=
+VITE_PAYSTACK_PLAN_MONTHLY=  # PLN_xxx from Paystack dashboard
+```
+
+---
+
+## Local Development
 
 ```
 Backend URL:     http://localhost:3000
-Frontend URL:    http://localhost:5173 (Vite dev server)
+Electron dev:    http://localhost:5173 (Vite)
 Database:        Neon PostgreSQL (cloud, always accessible)
-AI APIs:         DeepSeek + Qwen (cloud, need internet)
+AI APIs:         Gemini + DeepSeek + Groq (cloud, need internet)
 
 Start backend:   cd apps/backend && npm run start:dev
 Start electron:  cd apps/electron && npm run dev
+Start admin:     cd apps/admin && npm run dev
 
-Both must be running simultaneously for the app to work.
+Set VITE_API_URL=http://localhost:3000 in apps/electron/.env
+to point the Electron app at local backend during development.
+```
+
+---
+
+## Known Security Issues (Prioritised)
+
+```
+OPEN — implement before scaling:
+    1. No brute-force protection on /auth/login and /auth/register
+       (Redis is available — add rate limit by IP)
+    2. JWT stored in localStorage (renderer)
+       (should move to electron-store via IPC)
+    3. Device fingerprint is client-generated and forgeable
+       (architectural — needs server-side challenge post-launch)
+```
+
+---
+
+## What Is Still Deferred
+
+```
+    ├── Google OAuth — email/password only for now
+    ├── Wake word (Porcupine) — hotkeys only
+    ├── Auto-updater
+    ├── Brute-force protection on auth endpoints
+    ├── JWT in electron-store (currently localStorage)
+    ├── Server-side device fingerprint verification
+    ├── Referral system
+    ├── Cloudflare protection
+    └── Free tier / usage limits (monthly cap is session-only, not DB-enforced)
 ```
 
 ---
@@ -184,20 +381,29 @@ Both must be running simultaneously for the app to work.
 
 ---
 
-## Andrej Karpathy Coding Guidelines (forrestchang/andrej-karpathy-skills)
+## Andrej Karpathy Coding Guidelines
 
 ### 1. Think Before Coding
 Don't assume. Don't hide confusion. Surface tradeoffs.
-Before implementing: state assumptions, present multiple interpretations if they exist, push back when a simpler approach exists, stop and ask if something is unclear.
+Before implementing: state assumptions, present multiple
+interpretations if they exist, push back when a simpler
+approach exists, stop and ask if something is unclear.
 
 ### 2. Simplicity First
 Minimum code that solves the problem. Nothing speculative.
-No features beyond what was asked. No abstractions for single-use code. No "flexibility" that wasn't requested. No error handling for impossible scenarios. If 200 lines could be 50, rewrite it.
+No features beyond what was asked. No abstractions for
+single-use code. No "flexibility" that wasn't requested.
+No error handling for impossible scenarios.
+If 200 lines could be 50, rewrite it.
 
 ### 3. Surgical Changes
 Touch only what you must. Clean up only your own mess.
-Don't "improve" adjacent code, comments, or formatting. Don't refactor things that aren't broken. Match existing style. Remove imports/variables/functions that YOUR changes made unused — don't touch pre-existing dead code unless asked.
+Don't "improve" adjacent code, comments, or formatting.
+Don't refactor things that aren't broken. Match existing style.
+Remove imports/variables/functions that YOUR changes made
+unused — don't touch pre-existing dead code unless asked.
 
 ### 4. Goal-Driven Execution
 Define success criteria. Loop until verified.
-Transform tasks into verifiable goals. For multi-step tasks, state a brief plan with verify steps before starting.
+Transform tasks into verifiable goals. For multi-step tasks,
+state a brief plan with verify steps before starting.

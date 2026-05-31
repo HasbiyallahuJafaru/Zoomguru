@@ -1,9 +1,11 @@
 import {
-  Controller, Post, Get, Body, Headers, Query, BadRequestException, HttpCode,
+  Controller, Post, Get, Body, Headers, Query, Req,
+  BadRequestException, HttpCode, HttpException,
 } from '@nestjs/common';
-import { FastifyReply } from 'fastify';
+import { FastifyReply, FastifyRequest } from 'fastify';
 import { Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { getRedis } from '../redis/redis';
 
 function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -16,6 +18,25 @@ function sanitizeLine(s: string): string {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const DEVICE_ID_RE = /^[a-f0-9]{64}$/;
 const TOKEN_RE = /^[a-f0-9]{64}$/;
+
+async function checkIpRateLimit(
+  ip: string,
+  prefix: string,
+  max: number,
+  windowSec: number,
+): Promise<void> {
+  const redis = getRedis();
+  const key = `rl:${prefix}:${ip}`;
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, windowSec);
+  if (count > max) {
+    const ttl = await redis.ttl(key);
+    throw new HttpException(
+      { error: 'rate_limit', retryAfter: ttl > 0 ? ttl : windowSec },
+      429,
+    );
+  }
+}
 
 const PAGE_SVG = `<svg aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" viewBox="0 0 400 520" preserveAspectRatio="none"><defs><linearGradient id="zgBF" x1="1" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.055"/><stop offset="42%" stop-color="#fff" stop-opacity="0.024"/><stop offset="100%" stop-color="#fff" stop-opacity="0.005"/></linearGradient><linearGradient id="zgEG" x1="1" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.18"/><stop offset="50%" stop-color="#fff" stop-opacity="0.07"/><stop offset="100%" stop-color="#fff" stop-opacity="0.01"/></linearGradient></defs><path d="M 435,-15 C 372,52 304,68 256,158 C 208,248 202,312 138,396 C 90,460 32,482 -22,545 L 18,572 C 64,504 116,476 163,412 C 226,328 234,264 283,172 C 332,80 400,62 462,12 Z" fill="url(#zgBF)"/><path d="M 435,-15 C 372,52 304,68 256,158 C 208,248 202,312 138,396 C 90,460 32,482 -22,545" fill="none" stroke="url(#zgEG)" stroke-width="1"/><path d="M 462,12 C 400,62 332,80 283,172 C 234,264 226,328 163,412 C 116,476 64,504 18,572" fill="none" stroke="rgba(255,255,255,0.028)" stroke-width="0.7"/><path d="M 408,-32 C 348,36 282,54 234,144 C 186,234 180,300 116,382 C 68,446 12,470 -44,530" fill="none" stroke="rgba(255,255,255,0.038)" stroke-width="0.5"/></svg>`;
 
@@ -39,7 +60,10 @@ export class AuthController {
   @Post('register')
   async register(
     @Body() body: { email: string; name: string; password: string },
+    @Req() req: FastifyRequest,
   ) {
+    await checkIpRateLimit(req.ip, 'register', 5, 60);
+
     if (!body.email || body.email.length > 254) {
       throw new BadRequestException('Invalid email');
     }
@@ -65,7 +89,10 @@ export class AuthController {
   async login(
     @Body() body: { email: string; password: string },
     @Headers('x-device-id') deviceId: string | undefined,
+    @Req() req: FastifyRequest,
   ) {
+    await checkIpRateLimit(req.ip, 'login', 10, 60);
+
     if (!body.email || body.email.length > 254) {
       throw new BadRequestException('Invalid email');
     }
@@ -88,7 +115,12 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(200)
-  async forgotPassword(@Body() body: { email?: string }) {
+  async forgotPassword(
+    @Body() body: { email?: string },
+    @Req() req: FastifyRequest,
+  ) {
+    await checkIpRateLimit(req.ip, 'forgot', 3, 300);
+
     if (!body.email || body.email.length > 254) {
       return { message: 'If that email exists, a reset link was sent' };
     }

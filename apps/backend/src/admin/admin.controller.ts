@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { timingSafeEqual } from 'node:crypto';
 import { FastifyRequest } from 'fastify';
 import {
   AdminService,
@@ -19,13 +20,20 @@ import {
   UserRow,
 } from './admin.service';
 
+function safeKeyEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
 @Injectable()
 class AdminKeyGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
     const key = request.headers['x-admin-key'];
     const expected = process.env['ADMIN_KEY'];
-    if (!expected || key !== expected) {
+    if (!expected || typeof key !== 'string' || !safeKeyEqual(key, expected)) {
       throw new UnauthorizedException('Invalid admin key');
     }
     return true;

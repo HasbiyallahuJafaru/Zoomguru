@@ -74,8 +74,10 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   useEffect(() => {
     void (async () => {
       try {
-        const token = localStorage.getItem('access_token') || '';
-        const deviceId = await window.zoomguru.getDeviceId();
+        const [token, deviceId] = await Promise.all([
+          window.zoomguru.getToken(),
+          window.zoomguru.getDeviceId(),
+        ]);
         const res = await fetch(`${API_URL}/subscription/status`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -94,7 +96,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   }, []);
 
   async function handleSubscribe(): Promise<void> {
-    const token = localStorage.getItem('access_token') || '';
+    const token = await window.zoomguru.getToken();
     const email = getEmailFromJwt(token);
     const pubKey = 'pk_live_5187e2c64d0f6e607ae278857461ee7a0e5c8d55';
     const isLifetime = selectedPlan === 'lifetime';

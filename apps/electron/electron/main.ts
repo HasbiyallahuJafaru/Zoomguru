@@ -26,6 +26,7 @@ interface WindowStore {
   cvText?: string;
   cvFilename?: string;
   jdText?: string;
+  accessToken?: string;
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -354,8 +355,18 @@ if (!gotLock) {
     });
 
     ipcMain.handle('open-external', (_event, url: string) => {
-      void shell.openExternal(url);
+      if (typeof url === 'string' && /^https?:\/\//.test(url)) {
+        void shell.openExternal(url);
+      }
     });
+
+    ipcMain.handle('token:set', (_event, token: string) => {
+      if (typeof token === 'string') store.set('accessToken', token);
+    });
+
+    ipcMain.handle('token:get', () => store.get('accessToken', ''));
+
+    ipcMain.handle('token:clear', () => store.delete('accessToken'));
 
     ipcMain.handle('protection:status', () => contentProtected);
   }

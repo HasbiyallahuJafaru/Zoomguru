@@ -141,7 +141,17 @@ export class SubscriptionService {
       allowed = true;
     } else {
       const row = result.rows[0];
-      if (row.status !== 'active' || !row.locked_device_id) {
+      if (row.status !== 'active') {
+        allowed = true;
+      } else if (!row.locked_device_id) {
+        // Subscription is active but no device bound yet — lock on first use.
+        // The WHERE clause prevents a race: only the first concurrent writer wins.
+        await pool.query(
+          `UPDATE subscriptions SET locked_device_id = $1, updated_at = NOW()
+           WHERE user_id = $2 AND locked_device_id IS NULL`,
+          [deviceId, userId],
+        );
+        this.invalidateDeviceCache(userId);
         allowed = true;
       } else {
         allowed = row.locked_device_id === deviceId;

@@ -78,8 +78,10 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     setAnswer('');
     setIsStreaming(true);
     try {
-      const token = localStorage.getItem('access_token') || '';
-      const deviceId = await getCachedDeviceId();
+      const [token, deviceId] = await Promise.all([
+        window.zoomguru.getToken(),
+        getCachedDeviceId(),
+      ]);
       const response = await fetch(`${API_URL}/ai/stream`, {
         method: 'POST',
         headers: {
@@ -133,8 +135,10 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     setAnswer('');
     setIsStreaming(true);
     try {
-      const token = localStorage.getItem('access_token') || '';
-      const deviceId = await getCachedDeviceId();
+      const [token, deviceId] = await Promise.all([
+        window.zoomguru.getToken(),
+        getCachedDeviceId(),
+      ]);
       const response = await fetch(`${API_URL}/ai/screenshot`, {
         method: 'POST',
         headers: {
@@ -221,8 +225,8 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     if (blob.size < MIN_BLOB_BYTES) { vadStateRef.current = 'idle'; return; }
 
     try {
-      const token = localStorage.getItem('access_token') || '';
-      const [base64, deviceId] = await Promise.all([
+      const [token, base64, deviceId] = await Promise.all([
+        window.zoomguru.getToken(),
         blobToBase64(blob),
         getCachedDeviceId(),
       ]);
@@ -394,11 +398,15 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
           return;
         }
 
-        const token = localStorage.getItem('access_token') || '';
+        let token: string;
         let base64: string;
         let deviceId: string;
         try {
-          [base64, deviceId] = await Promise.all([blobToBase64(blob), getCachedDeviceId()]);
+          [token, base64, deviceId] = await Promise.all([
+            window.zoomguru.getToken(),
+            blobToBase64(blob),
+            getCachedDeviceId(),
+          ]);
         } catch {
           setAnswer('Audio encoding error. Try again.');
           return;
@@ -472,8 +480,10 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     void getCachedDeviceId();
 
     void (async () => {
-      const token = localStorage.getItem('access_token') || '';
-      const deviceId = await getCachedDeviceId();
+      const [token, deviceId] = await Promise.all([
+        window.zoomguru.getToken(),
+        getCachedDeviceId(),
+      ]);
       try {
         const res = await fetch(`${API_URL}/subscription/status`, {
           headers: { Authorization: `Bearer ${token}`, 'X-Device-ID': deviceId },
