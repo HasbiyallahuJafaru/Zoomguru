@@ -131,8 +131,13 @@ export class SubscriptionService {
     if (cached && cached.expiresAt > now) return cached.allowed;
 
     const pool = getDB();
-    const result = await pool.query<{ status: string; locked_device_id: string | null }>(
-      `SELECT status, locked_device_id FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+    const result = await pool.query<{
+      status: string;
+      locked_device_id: string | null;
+      locked_device_id_2: string | null;
+    }>(
+      `SELECT status, locked_device_id, locked_device_id_2
+       FROM subscriptions WHERE user_id = $1 LIMIT 1`,
       [userId],
     );
 
@@ -143,9 +148,10 @@ export class SubscriptionService {
       const row = result.rows[0];
       if (row.status !== 'active') {
         allowed = true;
+      } else if (row.locked_device_id === deviceId || row.locked_device_id_2 === deviceId) {
+        allowed = true;
       } else if (!row.locked_device_id) {
-        // Subscription is active but no device bound yet — lock on first use.
-        // The WHERE clause prevents a race: only the first concurrent writer wins.
+        // First device slot empty — lock it.
         await pool.query(
           `UPDATE subscriptions SET locked_device_id = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_device_id IS NULL`,
@@ -153,8 +159,18 @@ export class SubscriptionService {
         );
         this.invalidateDeviceCache(userId);
         allowed = true;
+      } else if (!row.locked_device_id_2) {
+        // Second device slot empty — lock it.
+        await pool.query(
+          `UPDATE subscriptions SET locked_device_id_2 = $1, updated_at = NOW()
+           WHERE user_id = $2 AND locked_device_id_2 IS NULL`,
+          [deviceId, userId],
+        );
+        this.invalidateDeviceCache(userId);
+        allowed = true;
       } else {
-        allowed = row.locked_device_id === deviceId;
+        // Both slots taken by different devices.
+        allowed = false;
       }
     }
 

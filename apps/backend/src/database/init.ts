@@ -45,6 +45,10 @@ export async function initDB(): Promise<void> {
         ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_device_id TEXT
       `);
 
+      await pool.query(`
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_device_id_2 TEXT
+      `);
+
       // Drop the UNIQUE constraint on paystack_customer_code if it still exists
       // from a previous schema version. The column only needs a plain index for
       // webhook lookups; enforcing uniqueness here causes the upsert in verify()
