@@ -139,11 +139,11 @@ export class EmailService {
     }
   }
 
-  async sendPaymentConfirmation(to: string, name: string, plan: 'monthly' | 'lifetime'): Promise<void> {
-    const planLabel = plan === 'lifetime' ? 'Lifetime' : 'Monthly';
-    const planDetail = plan === 'lifetime'
-      ? 'You now have permanent access — no further charges, ever.'
-      : 'Your subscription renews automatically each month. You may cancel at any time from within the app.';
+  async sendPaymentConfirmation(to: string, name: string, plan: 'monthly' | 'yearly'): Promise<void> {
+    const planLabel = plan === 'yearly' ? 'Yearly' : 'Monthly';
+    const planDetail = plan === 'yearly'
+      ? 'You have full access for the next 12 months. Renew before it expires to keep uninterrupted access.'
+      : 'You have full access for the next 30 days. Renew before it expires to keep uninterrupted access.';
     const html = wrap(
       `<div style="${BADGE_PLAN}">${planLabel} Plan</div>` +
       `<h1 style="${H1_STYLE}">Payment confirmed.</h1>` +
@@ -207,6 +207,32 @@ export class EmailService {
       });
     } catch (err) {
       console.error('[EmailService] sendExpiryReminder failed:', err);
+    }
+  }
+
+  async sendFollowUp(to: string, name: string): Promise<void> {
+    const html = wrap(
+      `<h1 style="${H1_STYLE}">Still figuring it out, ${name}?</h1>` +
+      `<p style="${P_STYLE}">You created your ZoomGuru account yesterday but haven't subscribed yet. We just wanted to check — is there anything confusing or not working for you?</p>` +
+      `<p style="${P_STYLE}">If you're unsure how it works, here's the short version:</p>` +
+      `<div style="margin:0 0 22px">` +
+        `<div style="${ROW_STYLE}"><span style="${STRONG_STYLE}">1. Download &amp; open the app.</span> A small overlay appears on your screen — invisible to your interviewer and to screen-share software.</div>` +
+        `<div style="${ROW_STYLE}"><span style="${STRONG_STYLE}">2. Press Ctrl+Shift+L during the interview.</span> Speak the question out loud. ZoomGuru transcribes it and streams the answer back to you in seconds — only you can see it.</div>` +
+        `<div style="${ROW_STYLE}"><span style="${STRONG_STYLE}">3. Press Ctrl+Shift+S for coding challenges.</span> A screenshot is taken, analysed instantly, and an answer appears in your overlay.</div>` +
+        `<div style="${ROW_LAST}"><span style="${STRONG_STYLE}">That's the entire product.</span> No setup beyond the download, no browser extension, no external device.</div>` +
+      `</div>` +
+      `<p style="${P_STYLE}">If something isn't working or you have a question, just reply to this email — we read every message.</p>` +
+      `<p style="${P_STYLE}">When you're ready, open the app and subscribe from the dashboard to unlock full access.</p>`,
+    );
+    try {
+      await this.resend.emails.send({
+        from: this.from,
+        to,
+        subject: 'Are you having any trouble with ZoomGuru?',
+        html,
+      });
+    } catch (err) {
+      console.error('[EmailService] sendFollowUp failed:', err);
     }
   }
 

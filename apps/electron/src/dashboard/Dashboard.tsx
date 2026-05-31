@@ -11,7 +11,7 @@ type SubStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
 interface SubData {
   status: SubStatus;
-  plan: 'monthly' | 'lifetime' | null;
+  plan: 'monthly' | 'yearly' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
 }
@@ -69,7 +69,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   const [checkingOut, setCheckingOut] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'lifetime'>('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
 
   useEffect(() => {
     void (async () => {
@@ -99,7 +99,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     const token = await window.zoomguru.getToken();
     const email = getEmailFromJwt(token);
     const pubKey = 'pk_live_5187e2c64d0f6e607ae278857461ee7a0e5c8d55';
-    const isLifetime = selectedPlan === 'lifetime';
+    const isYearly = selectedPlan === 'yearly';
 
     if (!email) return;
 
@@ -157,11 +157,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
       },
     };
 
-    if (isLifetime) {
-      payConfig.amount = 100_000_000;
-    } else {
-      payConfig.plan = 'PLN_npr2z91c2wg3r0j';
-    }
+    payConfig.amount = isYearly ? 50_000_000 : 5_000_000;
 
     pop.setup(payConfig).openIframe();
   }
@@ -188,7 +184,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   function daysLabel(): string {
     if (loadingSub) return 'Loading…';
     if (!sub || sub.daysRemaining === null) return '—';
-    if (sub.plan === 'lifetime') return 'Lifetime';
+    if (sub.plan === 'yearly') return 'Yearly';
     if (sub.daysRemaining === 0) return 'Expired';
     return `${sub.daysRemaining} days`;
   }
@@ -196,7 +192,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   function billingLabel(): string {
     if (loadingSub) return 'Loading…';
     if (!sub || !sub.plan) return '—';
-    return sub.plan === 'monthly' ? 'Monthly' : 'Lifetime';
+    return sub.plan === 'monthly' ? 'Monthly' : 'Yearly';
   }
 
   const isSubscribeDisabled = loadingSub || sub?.status === 'active' || checkingOut || verifying;
@@ -270,10 +266,10 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
               </button>
               <button
                 className="zg-plan"
-                style={selectedPlan === 'lifetime' ? s.planBtnActive : s.planBtn}
-                onClick={() => setSelectedPlan('lifetime')}
+                style={selectedPlan === 'yearly' ? s.planBtnActive : s.planBtn}
+                onClick={() => setSelectedPlan('yearly')}
               >
-                Lifetime
+                Yearly
               </button>
             </div>
           )}

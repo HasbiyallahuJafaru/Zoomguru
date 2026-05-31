@@ -10,9 +10,33 @@ interface ReminderRow {
   days_remaining: number;
 }
 
+interface FollowUpRow {
+  email: string;
+  name: string | null;
+}
+
 @Injectable()
 export class CronService {
   constructor(private readonly emailService: EmailService) {}
+
+  @Cron('0 11 * * *', { timeZone: 'UTC' })
+  async sendNoPaymentFollowUps(): Promise<void> {
+    const pool = getDB();
+    try {
+      const result = await pool.query<FollowUpRow>(`
+        SELECT u.email, u.name
+        FROM users u
+        LEFT JOIN subscriptions s ON s.user_id = u.id
+        WHERE u.created_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours'
+          AND (s.status IS NULL OR s.status NOT IN ('active'))
+      `);
+      for (const row of result.rows) {
+        void this.emailService.sendFollowUp(row.email, row.name ?? 'there');
+      }
+    } catch (err) {
+      console.error('[CronService] sendNoPaymentFollowUps failed:', err);
+    }
+  }
 
   @Cron('0 9 * * *', { timeZone: 'UTC' })
   async sendExpiryReminders(): Promise<void> {

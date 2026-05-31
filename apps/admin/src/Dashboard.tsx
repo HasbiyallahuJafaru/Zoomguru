@@ -301,7 +301,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
               <StatCard label="Total Users"    value={data.stats.total_users}           color={ACCENT.blue}   delay={0}   />
               <StatCard label="Downloads"       value={data.stats.total_downloads}       color={ACCENT.green}  delay={55}  />
               <StatCard label="Active Subs"     value={data.stats.active_subscriptions}  color={ACCENT.purple} sub="₦50k/mo each" delay={110} />
-              <StatCard label="Lifetime Subs"   value={data.stats.lifetime_subscriptions}color={ACCENT.orange} sub="₦1M one-time" delay={165} />
+              <StatCard label="Yearly Subs"     value={data.stats.yearly_subscriptions}  color={ACCENT.orange} sub="₦500k/year"  delay={165} />
               <StatCard label="AI Sessions"     value={data.stats.total_ai_sessions}     color={ACCENT.red}    delay={220} />
             </>
           )}
@@ -337,7 +337,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
                     <Line type="monotone" dataKey="monthly"  stroke={ACCENT.purple} strokeWidth={2.5} dot={false} name="Monthly"  />
-                    <Line type="monotone" dataKey="lifetime" stroke={ACCENT.orange} strokeWidth={2.5} dot={false} name="Lifetime" />
+                    <Line type="monotone" dataKey="yearly"   stroke={ACCENT.orange} strokeWidth={2.5} dot={false} name="Yearly"   />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -459,10 +459,10 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                             display: 'inline-block',
                             padding: '3px 11px', borderRadius: 20,
                             fontSize: 11, fontWeight: 600,
-                            background: user.plan === 'lifetime'
+                            background: user.plan === 'yearly'
                               ? 'rgba(245,158,11,0.1)' : 'rgba(139,92,246,0.1)',
-                            color: user.plan === 'lifetime' ? ACCENT.orange : ACCENT.purple,
-                            border: `1px solid ${user.plan === 'lifetime' ? 'rgba(245,158,11,0.22)' : 'rgba(139,92,246,0.22)'}`,
+                            color: user.plan === 'yearly' ? ACCENT.orange : ACCENT.purple,
+                            border: `1px solid ${user.plan === 'yearly' ? 'rgba(245,158,11,0.22)' : 'rgba(139,92,246,0.22)'}`,
                           }}>
                             {user.plan}
                           </span>

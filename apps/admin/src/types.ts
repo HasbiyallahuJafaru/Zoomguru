@@ -2,7 +2,7 @@ export interface StatsResult {
   total_users: number;
   total_downloads: number;
   active_subscriptions: number;
-  lifetime_subscriptions: number;
+  yearly_subscriptions: number;
   total_ai_sessions: number;
 }
 
@@ -14,7 +14,7 @@ export interface DailyCount {
 export interface DailyPayments {
   date: string;
   monthly: number;
-  lifetime: number;
+  yearly: number;
 }
 
 export interface DailyUsage {

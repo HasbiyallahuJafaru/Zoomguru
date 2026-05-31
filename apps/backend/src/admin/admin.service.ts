@@ -5,7 +5,7 @@ export interface StatsResult {
   total_users: number;
   total_downloads: number;
   active_subscriptions: number;
-  lifetime_subscriptions: number;
+  yearly_subscriptions: number;
   total_ai_sessions: number;
 }
 
@@ -17,7 +17,7 @@ export interface DailyCount {
 export interface DailyPayments {
   date: string;
   monthly: number;
-  lifetime: number;
+  yearly: number;
 }
 
 export interface DailyUsage {
@@ -53,7 +53,7 @@ export class AdminService {
         `SELECT COUNT(*)::int AS count FROM subscriptions WHERE status = 'active' AND plan = 'monthly'`,
       ),
       pool.query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM subscriptions WHERE status = 'active' AND plan = 'lifetime'`,
+        `SELECT COUNT(*)::int AS count FROM subscriptions WHERE status = 'active' AND plan = 'yearly'`,
       ),
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM ai_sessions'),
     ]);
@@ -61,7 +61,7 @@ export class AdminService {
       total_users: users.rows[0].count,
       total_downloads: downloads.rows[0].count,
       active_subscriptions: monthlySubs.rows[0].count,
-      lifetime_subscriptions: lifetimeSubs.rows[0].count,
+      yearly_subscriptions: lifetimeSubs.rows[0].count,
       total_ai_sessions: sessions.rows[0].count,
     };
   }
@@ -94,11 +94,11 @@ export class AdminService {
     const map = new Map<string, DailyPayments>();
     for (const row of result.rows) {
       if (!map.has(row.date)) {
-        map.set(row.date, { date: row.date, monthly: 0, lifetime: 0 });
+        map.set(row.date, { date: row.date, monthly: 0, yearly: 0 });
       }
       const entry = map.get(row.date)!;
       if (row.plan === 'monthly') entry.monthly = row.count;
-      else if (row.plan === 'lifetime') entry.lifetime = row.count;
+      else if (row.plan === 'yearly') entry.yearly = row.count;
     }
     return Array.from(map.values());
   }

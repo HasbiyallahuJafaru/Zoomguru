@@ -7,7 +7,7 @@ type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
 export interface StatusResponse {
   status: SubscriptionStatus;
-  plan: 'monthly' | 'lifetime' | null;
+  plan: 'monthly' | 'yearly' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
 }
@@ -49,20 +49,10 @@ interface WebhookEvent {
   data: unknown;
 }
 
-interface PaystackVerifyCustomer {
-  customer_code: string;
-}
-
-interface PaystackVerifyPlan {
-  interval?: string;
-}
-
 interface PaystackVerifyData {
   status: string;
   amount: number;
-  plan: PaystackVerifyPlan | string | null;
-  plan_object?: { interval?: string } | null;
-  customer: PaystackVerifyCustomer;
+  customer: { customer_code: string };
 }
 
 interface PaystackVerifyResponse {
@@ -114,7 +104,7 @@ export class SubscriptionService {
 
     return {
       status: row.status as SubscriptionStatus,
-      plan: row.plan as 'monthly' | 'lifetime' | null,
+      plan: row.plan as 'monthly' | 'yearly' | null,
       daysRemaining,
       currentPeriodEnd: row.current_period_end
         ? new Date(row.current_period_end).toISOString()
@@ -201,49 +191,38 @@ export class SubscriptionService {
     }
 
     const txData = body.data;
-    const planCode = typeof txData.plan === 'string' ? txData.plan.trim() : '';
-    const planInterval =
-      typeof txData.plan === 'object' && txData.plan !== null
-        ? (txData.plan.interval ?? '').trim()
-        : (txData.plan_object?.interval ?? '').trim();
-    const isLifetime = !planCode && !planInterval;
-    if (isLifetime && txData.amount < 100_000_000) {
-      throw new BadRequestException('Invalid payment amount for lifetime plan');
-    }
-    const plan: 'monthly' | 'lifetime' = isLifetime ? 'lifetime' : 'monthly';
-    const pool = getDB();
 
+    let plan: 'monthly' | 'yearly';
+    let periodEnd: string;
+    if (txData.amount >= 50_000_000) {
+      plan = 'yearly';
+      const end = new Date();
+      end.setFullYear(end.getFullYear() + 1);
+      periodEnd = end.toISOString();
+    } else if (txData.amount >= 5_000_000) {
+      plan = 'monthly';
+      const end = new Date();
+      end.setDate(end.getDate() + 30);
+      periodEnd = end.toISOString();
+    } else {
+      throw new BadRequestException('Invalid payment amount');
+    }
+
+    const pool = getDB();
     const lockedDeviceId = (deviceId && /^[a-f0-9]{64}$/.test(deviceId)) ? deviceId : null;
 
-    if (isLifetime) {
-      await pool.query(
-        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, locked_device_id, updated_at)
-         VALUES ($1, $2, 'active', $3, $4, $5, NOW())
-         ON CONFLICT (user_id) DO UPDATE SET
-           paystack_customer_code = $2,
-           status = 'active',
-           plan = $3,
-           current_period_end = $4,
-           locked_device_id = $5,
-           updated_at = NOW()`,
-        [userId, txData.customer.customer_code, plan, '2099-12-31T23:59:59.000Z', lockedDeviceId],
-      );
-    } else {
-      const provisionalEnd = new Date();
-      provisionalEnd.setDate(provisionalEnd.getDate() + 30);
-      await pool.query(
-        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, locked_device_id, updated_at)
-         VALUES ($1, $2, 'active', $3, $4, $5, NOW())
-         ON CONFLICT (user_id) DO UPDATE SET
-           paystack_customer_code = $2,
-           status = 'active',
-           plan = $3,
-           current_period_end = $4,
-           locked_device_id = $5,
-           updated_at = NOW()`,
-        [userId, txData.customer.customer_code, plan, provisionalEnd.toISOString(), lockedDeviceId],
-      );
-    }
+    await pool.query(
+      `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, locked_device_id, updated_at)
+       VALUES ($1, $2, 'active', $3, $4, $5, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         paystack_customer_code = $2,
+         status = 'active',
+         plan = $3,
+         current_period_end = $4,
+         locked_device_id = $5,
+         updated_at = NOW()`,
+      [userId, txData.customer.customer_code, plan, periodEnd, lockedDeviceId],
+    );
 
     this.invalidateDeviceCache(userId);
 
