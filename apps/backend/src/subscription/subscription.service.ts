@@ -60,8 +60,6 @@ interface PaystackVerifyPlan {
 interface PaystackVerifyData {
   status: string;
   amount: number;
-  // Paystack returns plan as a string (plan code) for subscription transactions
-  // or as an object with interval for some flows, or null for one-time charges.
   plan: PaystackVerifyPlan | string | null;
   plan_object?: { interval?: string } | null;
   customer: PaystackVerifyCustomer;
@@ -71,6 +69,21 @@ interface PaystackVerifyResponse {
   status: boolean;
   data: PaystackVerifyData;
 }
+
+interface DeviceCacheEntry {
+  allowed: boolean;
+  expiresAt: number;
+}
+
+const DEVICE_CACHE_TTL_MS = 60_000;
+const deviceCache = new Map<string, DeviceCacheEntry>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of deviceCache.entries()) {
+    if (entry.expiresAt <= now) deviceCache.delete(key);
+  }
+}, 5 * 60_000);
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 
@@ -111,16 +124,38 @@ export class SubscriptionService {
 
   async checkDevice(userId: string, deviceId: string | undefined): Promise<boolean> {
     if (!deviceId || !/^[a-f0-9]{64}$/.test(deviceId)) return true;
+
+    const cacheKey = `${userId}:${deviceId}`;
+    const now = Date.now();
+    const cached = deviceCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) return cached.allowed;
+
     const pool = getDB();
     const result = await pool.query<{ status: string; locked_device_id: string | null }>(
       `SELECT status, locked_device_id FROM subscriptions WHERE user_id = $1 LIMIT 1`,
       [userId],
     );
-    if (result.rows.length === 0) return true;
-    const row = result.rows[0];
-    if (row.status !== 'active') return true;
-    if (!row.locked_device_id) return true;
-    return row.locked_device_id === deviceId;
+
+    let allowed: boolean;
+    if (result.rows.length === 0) {
+      allowed = true;
+    } else {
+      const row = result.rows[0];
+      if (row.status !== 'active' || !row.locked_device_id) {
+        allowed = true;
+      } else {
+        allowed = row.locked_device_id === deviceId;
+      }
+    }
+
+    deviceCache.set(cacheKey, { allowed, expiresAt: now + DEVICE_CACHE_TTL_MS });
+    return allowed;
+  }
+
+  invalidateDeviceCache(userId: string): void {
+    for (const key of deviceCache.keys()) {
+      if (key.startsWith(`${userId}:`)) deviceCache.delete(key);
+    }
   }
 
   async verify(userId: string, reference: string, deviceId?: string): Promise<{ success: boolean }> {
@@ -140,8 +175,6 @@ export class SubscriptionService {
     }
 
     const txData = body.data;
-    // plan can be a string (plan code), an object with interval, or null.
-    // A non-empty plan string or a plan_object with an interval means subscription.
     const planCode = typeof txData.plan === 'string' ? txData.plan.trim() : '';
     const planInterval =
       typeof txData.plan === 'object' && txData.plan !== null
@@ -185,6 +218,8 @@ export class SubscriptionService {
         [userId, txData.customer.customer_code, plan, provisionalEnd.toISOString(), lockedDeviceId],
       );
     }
+
+    this.invalidateDeviceCache(userId);
 
     const userResult = await pool.query<{ email: string; name: string | null }>(
       `SELECT email, name FROM users WHERE id = $1 LIMIT 1`,

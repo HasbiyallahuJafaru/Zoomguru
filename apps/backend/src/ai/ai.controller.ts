@@ -16,7 +16,7 @@ const SSE_HEADERS = {
   'Access-Control-Allow-Origin': '*',
 } as const;
 
-const RATE_LIMIT = 3;
+const RATE_LIMIT = 15;
 const WINDOW_MS = 60_000;
 
 interface RateWindow {
