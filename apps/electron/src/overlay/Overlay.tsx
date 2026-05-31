@@ -31,7 +31,17 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-export default function Overlay({ onLogout }: { onLogout: () => void }) {
+const TRIAL_DURATION_MS = 30 * 60_000;
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '0:00';
+  const totalSec = Math.ceil(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => void; onTrialExpired?: () => void }) {
   // --- state ---
   const [answer, setAnswer] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -41,6 +51,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   const [cvText, setCvText] = useState('');
   const [jdText, setJdText] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
+  const [trialMsLeft, setTrialMsLeft] = useState<number | null>(null);
   const [sessionCap, setSessionCap] = useState(CAP_MONTHLY);
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [isAutoListening, setIsAutoListening] = useState(false);
@@ -70,6 +81,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   const autoRecorderRef = useRef<MediaRecorder | null>(null);
   const autoChunksRef = useRef<BlobPart[]>([]);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const trialTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startSegmentRef = useRef<() => void>(() => {});
   const processSegmentRef = useRef<(mimeType: string) => Promise<void>>(async () => {});
 
@@ -101,6 +113,8 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
       });
       if (response.status === 401) { onLogout(); return; }
       if (response.status === 403) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
         setAnswer('Subscription is locked to another device.');
         return;
       }
@@ -159,6 +173,8 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
       });
       if (response.status === 401) { onLogout(); return; }
       if (response.status === 403) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
         setAnswer('Subscription is locked to another device.');
         return;
       }
@@ -434,6 +450,8 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
           });
           if (res.status === 401) { onLogout(); return; }
           if (res.status === 403) {
+            const body = await res.json().catch(() => ({})) as { error?: string };
+            if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
             setAnswer('Subscription is locked to another device.');
             return;
           }
@@ -495,10 +513,29 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          const data = await res.json() as { plan: 'monthly' | 'lifetime' | null };
-          if (data.plan === 'lifetime') {
+          const data = await res.json() as {
+            plan: 'monthly' | 'yearly' | null;
+            trialStartedAt: string | null;
+            trialActive: boolean;
+          };
+          if (data.plan === 'yearly') {
             setSessionCap(Infinity);
             sessionCapRef.current = Infinity;
+          }
+          if (data.trialActive && data.trialStartedAt) {
+            const trialEnd = new Date(data.trialStartedAt).getTime() + TRIAL_DURATION_MS;
+            function tick() {
+              const remaining = trialEnd - Date.now();
+              if (remaining <= 0) {
+                setTrialMsLeft(0);
+                if (trialTimerRef.current) clearInterval(trialTimerRef.current);
+                onTrialExpired?.();
+              } else {
+                setTrialMsLeft(remaining);
+              }
+            }
+            tick();
+            trialTimerRef.current = setInterval(tick, 1000);
           }
         }
       } catch { /* keep default cap */ }
@@ -534,6 +571,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
 
     return () => {
       stopAutoMode();
+      if (trialTimerRef.current) clearInterval(trialTimerRef.current);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
@@ -597,6 +635,11 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
               <span style={s.sessionCount}>
                 {sessionCap === Infinity ? questionCount : `${questionCount}/${sessionCap}`}
               </span>
+            )}
+
+            {/* Trial countdown */}
+            {trialMsLeft !== null && trialMsLeft > 0 && (
+              <span style={s.trialTimer}>{formatCountdown(trialMsLeft)}</span>
             )}
 
             {/* Buttons */}
@@ -823,6 +866,18 @@ const s: Record<string, ElectronStyle> = {
     transition: 'background 120ms ease, color 120ms ease',
     WebkitAppRegion: 'no-drag',
     fontFamily: FONT,
+  },
+  trialTimer: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: 'rgba(251,191,36,0.85)',
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '0.4px',
+    fontFamily: FONT,
+    padding: '2px 6px',
+    background: 'rgba(251,191,36,0.10)',
+    borderRadius: '4px',
+    lineHeight: '1.4',
   },
   logoutBtn: {
     background: 'transparent',

@@ -274,10 +274,6 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
       if (sub.daysRemaining === 0) return 'Expired';
       return `${sub.daysRemaining ?? '—'} days`;
     }
-    if (sub.trialActive && trialMsLeft !== null) {
-      return formatCountdown(trialMsLeft);
-    }
-    if (sub.trialStartedAt && !sub.trialActive) return 'Trial expired';
     return '—';
   }
 
@@ -343,12 +339,8 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
             <div style={s.divider} />
 
             <div style={s.cardRow}>
-              <span style={s.cardLabel}>
-                {sub?.trialActive ? 'Time remaining' : 'Days remaining'}
-              </span>
-              <span style={sub?.trialActive ? s.countdown : s.cardValue}>
-                {daysLabel()}
-              </span>
+              <span style={s.cardLabel}>Days remaining</span>
+              <span style={s.cardValue}>{daysLabel()}</span>
             </div>
 
             <div style={s.divider} />
@@ -427,6 +419,12 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
               >
                 Continue →
               </button>
+            )}
+            {sub?.trialActive && trialMsLeft !== null && (
+              <div style={s.trialCountdownRow}>
+                <span style={s.trialCountdownLabel}>Free trial ends in</span>
+                <span style={s.trialCountdownValue}>{formatCountdown(trialMsLeft)}</span>
+              </div>
             )}
             <button
               className="zg-ghost"
@@ -528,14 +526,6 @@ const s: Record<string, ElectronStyle> = {
     fontSize: '11px',
     color: 'rgba(255,255,255,0.55)',
     fontFamily: SANS,
-  },
-  countdown: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: 'rgba(251,191,36,0.9)',
-    fontFamily: SANS,
-    fontVariantNumeric: 'tabular-nums',
-    letterSpacing: '0.5px',
   },
   statusBadge: {
     fontSize: '10px',
@@ -666,5 +656,26 @@ const s: Record<string, ElectronStyle> = {
     textAlign: 'center' as const,
     fontFamily: SANS,
     letterSpacing: '0.1px',
+  },
+  trialCountdownRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    padding: '4px 0',
+  },
+  trialCountdownLabel: {
+    fontSize: '10px',
+    color: 'rgba(251,191,36,0.55)',
+    fontFamily: SANS,
+    letterSpacing: '0.1px',
+  },
+  trialCountdownValue: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: 'rgba(251,191,36,0.9)',
+    fontFamily: SANS,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '0.5px',
   },
 };

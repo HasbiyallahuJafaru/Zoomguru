@@ -64,7 +64,7 @@ const App = () => {
     return <CvSetup onDone={() => setStep('overlay')} />;
   }
 
-  return <Overlay onLogout={handleLogout} />;
+  return <Overlay onLogout={handleLogout} onTrialExpired={() => setStep('dashboard')} />;
 };
 
 export default App;
