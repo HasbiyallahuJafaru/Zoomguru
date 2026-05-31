@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "clean": "taskkill /F /IM electron.exe /T 2>nul & taskkill /F /IM ZoomGuru.exe /T 2>nul & npx --yes rimraf dist-release release",
+    "clean": "taskkill /F /IM electron.exe /T 2>nul & taskkill /F /IM ZoomGuru.exe /T 2>nul & npx --yes rimraf dist dist-renderer release",
     "dist:win": "npm run clean && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --config electron-builder.config.js",
     "dist:mac": "npm run build && electron-builder --mac --config electron-builder.config.js",
     "dist": "npm run clean && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --win --config electron-builder.config.js",
@@ -19,7 +19,7 @@
     "@types/pdf-parse": "^1.1.5",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.1.8",
-    "pdf-parse": "^2.4.5",
+    "pdf-parse": "^1.1.1",
     "zustand": "^4.5.2"
   },
   "devDependencies": {

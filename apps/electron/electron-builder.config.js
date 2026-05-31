@@ -10,7 +10,7 @@ module.exports = {
   },
 
   files: [
-    'dist/**/*',
+    'dist-renderer/**/*',
     'dist-electron/**/*',
     'assets/**/*',
     'package.json',

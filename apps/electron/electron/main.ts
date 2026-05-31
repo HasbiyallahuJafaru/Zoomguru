@@ -172,7 +172,7 @@ if (!gotLock) {
     if (!app.isPackaged) {
       void mainWindow.loadURL('http://localhost:5173');
     } else {
-      void mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+      void mainWindow.loadFile(path.join(__dirname, '../dist-renderer/index.html'));
     }
 
     mainWindow.once('ready-to-show', () => {
