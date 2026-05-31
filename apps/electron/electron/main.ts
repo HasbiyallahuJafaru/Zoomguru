@@ -15,7 +15,6 @@ import {
 } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { execFile } from 'child_process';
 import pdfParse from 'pdf-parse';
 import Store from 'electron-store';
 import { initCapture } from './capture';
@@ -28,7 +27,6 @@ interface WindowStore {
   cvFilename?: string;
   jdText?: string;
   accessToken?: string;
-  defenderTrusted?: boolean;
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -373,19 +371,6 @@ if (!gotLock) {
     ipcMain.handle('protection:status', () => contentProtected);
   }
 
-  function trustWithDefender(): void {
-    if (process.platform !== 'win32') return;
-    if (!app.isPackaged) return;
-    if (store.get('defenderTrusted', false)) return;
-
-    const exeName = path.basename(process.execPath);
-    execFile(
-      'powershell',
-      ['-NoProfile', '-NonInteractive', '-Command', `Add-MpPreference -ExclusionProcess '${exeName}'`],
-      (err) => { if (!err) store.set('defenderTrusted', true); },
-    );
-  }
-
   void app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler(
       (_webContents, permission, callback) => {
@@ -421,7 +406,6 @@ if (!gotLock) {
       });
     });
 
-    trustWithDefender();
     createSplash();
     createWindow();
     createTray();

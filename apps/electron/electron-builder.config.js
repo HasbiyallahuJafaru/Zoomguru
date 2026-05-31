@@ -24,7 +24,6 @@ module.exports = {
   win: {
     target: [{ target: 'portable', arch: ['x64'] }],
     icon: 'assets/icon-256.png',
-    requestedExecutionLevel: 'requireAdministrator',
   },
 
   mac: {

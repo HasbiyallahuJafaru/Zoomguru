@@ -48,7 +48,7 @@ function buildVisionPrompt(cvText?: string, jdText?: string, priorContext?: stri
     priorContext.forEach((ctx, i) => { prompt += `${i + 1}. ${ctx}\n`; });
     prompt += `Use this context to understand whether the current screenshot is a continuation or scroll of prior content.`;
   }
-  prompt += `\n\nAt the end of your response, on a new line, write:\nCONTEXT_SUMMARY: [one sentence describing what is visible in this screenshot]`;
+  prompt += `\n\nAt the end of your response, on a new line, write:\nCONTEXT_SUMMARY: [one sentence capturing the topic, core problem, or key facts — only what would help answer a follow-up question about this content]`;
   return prompt;
 }
 
