@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Resend } from 'resend';
 
 const BASE_STYLE = `
-  background:#07070b;color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background-color:#07070b;background-image:linear-gradient(135deg,transparent 28%,rgba(255,255,255,0.022) 37%,rgba(255,255,255,0.04) 44%,rgba(255,255,255,0.022) 51%,transparent 60%);
+  color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   margin:0;padding:0;
 `;
 const CARD_STYLE = `
-  max-width:520px;margin:40px auto;background:#111118;border-radius:12px;
-  padding:40px 36px;border:1px solid #1e1e2e;
+  max-width:520px;margin:40px auto;background-color:#111118;
+  background-image:linear-gradient(135deg,transparent 18%,rgba(255,255,255,0.016) 28%,rgba(255,255,255,0.032) 36%,rgba(255,255,255,0.016) 44%,transparent 54%);
+  border-radius:12px;padding:40px 36px;border:1px solid #1e1e2e;
 `;
 const LOGO_STYLE = `font-size:22px;font-weight:700;color:#fff;margin:0 0 32px;letter-spacing:-0.5px;`;
 const H1_STYLE = `font-size:24px;font-weight:600;color:#fff;margin:0 0 16px;`;

@@ -26,11 +26,12 @@ async function bootstrap(): Promise<void> {
 
   app.enableCors({
     origin: (origin, callback) => {
-      const allowed = ['http://localhost:5173', 'app://.'];
+      const appUrl = (process.env['APP_URL'] ?? '').replace(/\/$/, '');
+      const allowed = ['http://localhost:5173', 'app://.', appUrl].filter(Boolean);
       if (!origin || allowed.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Origin not allowed'), false);
+        callback(null, false);
       }
     },
     credentials: true,

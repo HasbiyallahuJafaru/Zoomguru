@@ -103,6 +103,81 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
       `}</style>
 
       <div style={s.root}>
+        {/* Organic diagonal band — top-right to bottom-left */}
+        <svg
+          aria-hidden="true"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+          viewBox="0 0 400 520"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="zgBandFill" x1="1" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#fff" stopOpacity="0.055" />
+              <stop offset="42%"  stopColor="#fff" stopOpacity="0.024" />
+              <stop offset="100%" stopColor="#fff" stopOpacity="0.005" />
+            </linearGradient>
+            <linearGradient id="zgEdgeGlow" x1="1" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#fff" stopOpacity="0.18" />
+              <stop offset="50%"  stopColor="#fff" stopOpacity="0.07" />
+              <stop offset="100%" stopColor="#fff" stopOpacity="0.01" />
+            </linearGradient>
+          </defs>
+
+          {/* Band fill — closed ribbon shape */}
+          <path
+            d="
+              M 435,-15
+              C 372,52 304,68 256,158
+              C 208,248 202,312 138,396
+              C 90,460 32,482 -22,545
+              L 18,572
+              C 64,504 116,476 163,412
+              C 226,328 234,264 283,172
+              C 332,80 400,62 462,12
+              Z
+            "
+            fill="url(#zgBandFill)"
+          />
+
+          {/* Leading edge — light-catching highlight */}
+          <path
+            d="
+              M 435,-15
+              C 372,52 304,68 256,158
+              C 208,248 202,312 138,396
+              C 90,460 32,482 -22,545
+            "
+            fill="none"
+            stroke="url(#zgEdgeGlow)"
+            strokeWidth="1"
+          />
+
+          {/* Trailing edge — faint ghost for depth */}
+          <path
+            d="
+              M 462,12
+              C 400,62 332,80 283,172
+              C 234,264 226,328 163,412
+              C 116,476 64,504 18,572
+            "
+            fill="none"
+            stroke="rgba(255,255,255,0.028)"
+            strokeWidth="0.7"
+          />
+
+          {/* Second ghost line, further offset — adds layered depth */}
+          <path
+            d="
+              M 408,-32
+              C 348,36 282,54 234,144
+              C 186,234 180,300 116,382
+              C 68,446 12,470 -44,530
+            "
+            fill="none"
+            stroke="rgba(255,255,255,0.038)"
+            strokeWidth="0.5"
+          />
+        </svg>
         {isProtected !== null && (
           <div style={{
             ...s.protectionBanner,
