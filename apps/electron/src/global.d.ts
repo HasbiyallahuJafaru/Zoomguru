@@ -7,10 +7,17 @@ interface CvError {
   error: string;
 }
 
+interface SignedRequest {
+  keyId: string;
+  timestamp: number;
+  signature: string;
+}
+
 interface ZoomGuruBridge {
   onTrigger(event: string, callback: (...args: any[]) => void): void;
   captureScreen(): Promise<string>;
-  getDeviceId(): Promise<string>;
+  getDevicePublicKey(): Promise<{ keyId: string; publicKey: string }>;
+  signRequest(): Promise<SignedRequest>;
   hideWindow(): Promise<void>;
   quitApp(): Promise<void>;
   requestMicPermission(): Promise<boolean>;

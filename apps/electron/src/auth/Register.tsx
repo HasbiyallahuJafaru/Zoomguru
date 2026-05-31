@@ -29,10 +29,9 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
     setLoading(true);
     try {
-      const deviceId = await window.zoomguru.getDeviceId();
       const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name, password }),
       });
       const data: RegisterApiResponse = await res.json();

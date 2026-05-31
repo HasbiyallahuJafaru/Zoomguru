@@ -13,10 +13,13 @@ const MIN_SPEECH_MS = 2500;
 const MIN_BLOB_BYTES = 25_000;
 const MIN_WORDS = 4;
 
-let _deviceId: string | null = null;
-async function getCachedDeviceId(): Promise<string> {
-  if (!_deviceId) _deviceId = await window.zoomguru.getDeviceId();
-  return _deviceId;
+async function makeDeviceHeaders(): Promise<Record<string, string>> {
+  const { keyId, timestamp, signature } = await window.zoomguru.signRequest();
+  return {
+    'X-Key-ID': keyId,
+    'X-Timestamp': String(timestamp),
+    'X-Signature': signature,
+  };
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -79,16 +82,16 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     setAnswer('');
     setIsStreaming(true);
     try {
-      const [token, deviceId] = await Promise.all([
+      const [token, deviceHeaders] = await Promise.all([
         window.zoomguru.getToken(),
-        getCachedDeviceId(),
+        makeDeviceHeaders(),
       ]);
       const response = await fetch(`${API_URL}/ai/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          'X-Device-ID': deviceId,
+          ...deviceHeaders,
         },
         body: JSON.stringify({
           transcript,
@@ -136,16 +139,16 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     setAnswer('');
     setIsStreaming(true);
     try {
-      const [token, deviceId] = await Promise.all([
+      const [token, deviceHeaders] = await Promise.all([
         window.zoomguru.getToken(),
-        getCachedDeviceId(),
+        makeDeviceHeaders(),
       ]);
       const response = await fetch(`${API_URL}/ai/screenshot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          'X-Device-ID': deviceId,
+          ...deviceHeaders,
         },
         body: JSON.stringify({
           image: imageBase64,
@@ -232,17 +235,17 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
     if (blob.size < MIN_BLOB_BYTES) { vadStateRef.current = 'idle'; return; }
 
     try {
-      const [token, base64, deviceId] = await Promise.all([
+      const [token, base64, deviceHeaders] = await Promise.all([
         window.zoomguru.getToken(),
         blobToBase64(blob),
-        getCachedDeviceId(),
+        makeDeviceHeaders(),
       ]);
       const res = await fetch(`${API_URL}/ai/transcribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          'X-Device-ID': deviceId,
+          ...deviceHeaders,
         },
         body: JSON.stringify({ audio: base64 }),
       });
@@ -407,12 +410,12 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
 
         let token: string;
         let base64: string;
-        let deviceId: string;
+        let deviceHeaders: Record<string, string>;
         try {
-          [token, base64, deviceId] = await Promise.all([
+          [token, base64, deviceHeaders] = await Promise.all([
             window.zoomguru.getToken(),
             blobToBase64(blob),
-            getCachedDeviceId(),
+            makeDeviceHeaders(),
           ]);
         } catch {
           setAnswer('Audio encoding error. Try again.');
@@ -425,7 +428,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
             headers: {
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
-              'X-Device-ID': deviceId,
+              ...deviceHeaders,
             },
             body: JSON.stringify({ audio: base64 }),
           });
@@ -485,16 +488,11 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   // --- mount ---
 
   useEffect(() => {
-    void getCachedDeviceId();
-
     void (async () => {
-      const [token, deviceId] = await Promise.all([
-        window.zoomguru.getToken(),
-        getCachedDeviceId(),
-      ]);
+      const token = await window.zoomguru.getToken();
       try {
         const res = await fetch(`${API_URL}/subscription/status`, {
-          headers: { Authorization: `Bearer ${token}`, 'X-Device-ID': deviceId },
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json() as { plan: 'monthly' | 'lifetime' | null };

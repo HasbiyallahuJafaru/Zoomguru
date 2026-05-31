@@ -18,7 +18,7 @@ import fs from 'fs';
 import pdfParse from 'pdf-parse';
 import Store from 'electron-store';
 import { initCapture } from './capture';
-import { getDeviceFingerprint } from './fingerprint';
+import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
 
 interface WindowStore {
   windowX: number;
@@ -33,7 +33,7 @@ let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-const fingerprint = getDeviceFingerprint();
+initDeviceKey();
 const store = new Store<WindowStore>();
 
 // Suppress AMD VideoProcessorGetOutputExtension DirectComposition error on Windows.
@@ -280,8 +280,12 @@ if (!gotLock) {
       app.quit();
     });
 
-    ipcMain.handle('device:fingerprint', () => {
-      return fingerprint;
+    ipcMain.handle('device:getPublicKey', () => {
+      return getPublicKeyInfo();
+    });
+
+    ipcMain.handle('device:sign', () => {
+      return signRequest();
     });
 
     ipcMain.handle('permissions:request-mic', async () => {

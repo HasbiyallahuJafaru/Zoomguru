@@ -59,10 +59,9 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
     setError('');
     setLoading(true);
     try {
-      const deviceId = await window.zoomguru.getDeviceId();
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: identifier, password }),
       });
       const data: LoginApiResponse = await res.json();

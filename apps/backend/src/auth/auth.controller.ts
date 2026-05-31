@@ -16,7 +16,6 @@ function sanitizeLine(s: string): string {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const DEVICE_ID_RE = /^[a-f0-9]{64}$/;
 const TOKEN_RE = /^[a-f0-9]{64}$/;
 
 async function checkIpRateLimit(
@@ -88,7 +87,6 @@ export class AuthController {
   @Post('login')
   async login(
     @Body() body: { email: string; password: string },
-    @Headers('x-device-id') deviceId: string | undefined,
     @Req() req: FastifyRequest,
   ) {
     await checkIpRateLimit(req.ip, 'login', 10, 60);
@@ -105,9 +103,6 @@ export class AuthController {
 
     if (!EMAIL_RE.test(cleanIdentifier) && cleanIdentifier.length < 3) {
       throw new BadRequestException('Invalid identifier');
-    }
-    if (deviceId && !DEVICE_ID_RE.test(deviceId)) {
-      throw new BadRequestException('Invalid device ID');
     }
 
     return this.authService.login(cleanIdentifier, cleanPassword);
