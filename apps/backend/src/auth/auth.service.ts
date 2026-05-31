@@ -123,7 +123,8 @@ export class AuthService {
       [user.id, tokenHash],
     );
 
-    const resetUrl = `http://localhost:3000/auth/reset-password-page?token=${rawToken}`;
+    const baseUrl = (process.env['APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '');
+    const resetUrl = `${baseUrl}/auth/reset-password-page?token=${rawToken}`;
     void this.emailService.sendPasswordReset(email, resetUrl);
   }
 
