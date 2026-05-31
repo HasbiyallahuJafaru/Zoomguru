@@ -20,6 +20,22 @@ import {
   fetchUsers,
 } from './api';
 import type { DashboardData } from './types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const COLORS = {
   blue: '#3b82f6',
@@ -38,55 +54,20 @@ interface Props {
   onLogout: () => void;
 }
 
-function StatCard({
-  label,
-  value,
-  color,
-  sub,
-}: {
-  label: string;
-  value: number | string;
-  color: string;
-  sub?: string;
-}) {
-  return (
-    <div style={{
-      background: '#13131a',
-      border: '1px solid #1e1e2e',
-      borderRadius: 10,
-      padding: '20px 24px',
-      flex: 1,
-      minWidth: 160,
-    }}>
-      <p style={{ color: '#6b6b8a', fontSize: 12, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-        {label}
-      </p>
-      <p style={{ color, fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{value.toLocaleString()}</p>
-      {sub && <p style={{ color: '#6b6b8a', fontSize: 12, marginTop: 6 }}>{sub}</p>}
-    </div>
-  );
-}
-
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{
-      background: '#13131a',
-      border: '1px solid #1e1e2e',
-      borderRadius: 10,
-      padding: '20px 24px',
-      flex: 1,
-      minWidth: 0,
-    }}>
-      <p style={{ color: '#9090b0', fontSize: 13, fontWeight: 600, marginBottom: 16 }}>{title}</p>
-      {children}
-    </div>
-  );
-}
-
 function shortDate(d: string): string {
   const [, m, day] = d.split('-');
   return `${m}/${day}`;
 }
+
+const axisStyle = { fill: '#6b6b8a', fontSize: 11 };
+const gridStroke = '#1e1e2e';
+const tooltipStyle = {
+  background: '#13131a',
+  border: '1px solid #1e1e2e',
+  borderRadius: 8,
+  fontSize: 12,
+};
+const tooltipLabel = { color: '#e8e8f0' };
 
 export default function Dashboard({ adminKey, onLogout }: Props) {
   const [days, setDays] = useState<DaysOption>(30);
@@ -118,238 +99,278 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
     void load(days);
   }, [load, days]);
 
-  const axisStyle = { fill: '#6b6b8a', fontSize: 11 };
-  const gridStroke = '#1e1e2e';
-  const tooltipStyle = { background: '#13131a', border: '1px solid #1e1e2e', borderRadius: 8 };
-  const tooltipLabel = { color: '#e8e8f0' };
-
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0f', padding: '28px 32px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#e8e8f0' }}>ZoomGuru Analytics</h1>
-          <p style={{ color: '#6b6b8a', fontSize: 13, marginTop: 2 }}>zoomguru-admin.vercel.app</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ display: 'flex', background: '#13131a', border: '1px solid #1e1e2e', borderRadius: 8, overflow: 'hidden' }}>
-            {DAYS_OPTIONS.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDays(d)}
-                style={{
-                  padding: '6px 14px',
-                  background: days === d ? '#3b82f6' : 'transparent',
-                  border: 'none',
-                  color: days === d ? '#fff' : '#6b6b8a',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
-                {d}d
-              </button>
-            ))}
+    <div className="dark min-h-screen bg-background">
+      <div className="max-w-screen-2xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-foreground">ZoomGuru Analytics</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">zoomguru-admin.vercel.app</p>
           </div>
-          <button
-            onClick={() => { void load(days); }}
-            disabled={refreshing}
-            style={{
-              padding: '6px 16px',
-              background: '#1e1e2e',
-              border: '1px solid #2e2e3e',
-              borderRadius: 8,
-              color: '#9090b0',
-              fontSize: 13,
-              cursor: refreshing ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {refreshing ? 'Loading...' : 'Refresh'}
-          </button>
-          <button
-            onClick={onLogout}
-            style={{
-              padding: '6px 16px',
-              background: 'transparent',
-              border: '1px solid #1e1e2e',
-              borderRadius: 8,
-              color: '#6b6b8a',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Tabs value={String(days)} onValueChange={(v) => setDays(Number(v) as DaysOption)}>
+              <TabsList>
+                {DAYS_OPTIONS.map((d) => (
+                  <TabsTrigger key={d} value={String(d)}>{d}d</TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { void load(days); }}
+              disabled={refreshing}
+            >
+              {refreshing ? 'Loading…' : 'Refresh'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onLogout}>
+              Logout
+            </Button>
+          </div>
         </div>
+
+        <Separator />
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Stat Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          {!data ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-3 w-24" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-16 mb-2" />
+                  <Skeleton className="h-3 w-20" />
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <>
+              <StatCard label="Total Users" value={data.stats.total_users} color={COLORS.blue} />
+              <StatCard label="Downloads" value={data.stats.total_downloads} color={COLORS.green} />
+              <StatCard label="Active Subs" value={data.stats.active_subscriptions} color={COLORS.purple} sub="₦50k/mo each" />
+              <StatCard label="Lifetime Subs" value={data.stats.lifetime_subscriptions} color={COLORS.orange} sub="₦1M one-time" />
+              <StatCard label="AI Sessions" value={data.stats.total_ai_sessions} color={COLORS.red} />
+            </>
+          )}
+        </div>
+
+        {/* Charts Row 1 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Signups — last {days} days
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!data ? <Skeleton className="h-[200px] w-full" /> : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={data.signups.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis dataKey="date" tick={axisStyle} />
+                    <YAxis tick={axisStyle} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
+                    <Line type="monotone" dataKey="count" stroke={COLORS.blue} strokeWidth={2} dot={false} name="Signups" />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Payments — last {days} days
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!data ? <Skeleton className="h-[200px] w-full" /> : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={data.payments.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis dataKey="date" tick={axisStyle} />
+                    <YAxis tick={axisStyle} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
+                    <Legend wrapperStyle={{ fontSize: 12, color: '#9090b0' }} />
+                    <Line type="monotone" dataKey="monthly" stroke={COLORS.purple} strokeWidth={2} dot={false} name="Monthly" />
+                    <Line type="monotone" dataKey="lifetime" stroke={COLORS.orange} strokeWidth={2} dot={false} name="Lifetime" />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Row 2 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                AI Usage — last {days} days
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!data ? <Skeleton className="h-[200px] w-full" /> : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={data.usage.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis dataKey="date" tick={axisStyle} />
+                    <YAxis tick={axisStyle} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
+                    <Legend wrapperStyle={{ fontSize: 12, color: '#9090b0' }} />
+                    <Bar dataKey="stream" stackId="a" fill={COLORS.blue} name="Stream" />
+                    <Bar dataKey="screenshot" stackId="a" fill={COLORS.green} name="Screenshot" />
+                    <Bar dataKey="transcribe" stackId="a" fill={COLORS.orange} name="Transcribe" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Downloads — last {days} days
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!data ? <Skeleton className="h-[200px] w-full" /> : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={data.downloads.map((d) => ({ ...d, date: shortDate(d.date) }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                    <XAxis dataKey="date" tick={axisStyle} />
+                    <YAxis tick={axisStyle} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
+                    <Legend wrapperStyle={{ fontSize: 12, color: '#9090b0' }} />
+                    <Bar dataKey="windows" fill={COLORS.blue} name="Windows" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="mac" fill={COLORS.gray} name="Mac" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Users Table */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">
+              Recent Users{' '}
+              <span className="font-normal text-muted-foreground">(last 50)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!data ? (
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 5 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    data.users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{user.email}</TableCell>
+                        <TableCell className="text-muted-foreground">{user.name ?? '—'}</TableCell>
+                        <TableCell>
+                          {user.plan ? (
+                            <Badge
+                              variant="outline"
+                              className={
+                                user.plan === 'lifetime'
+                                  ? 'border-orange-500/40 bg-orange-500/10 text-orange-400'
+                                  : 'border-purple-500/40 bg-purple-500/10 text-purple-400'
+                              }
+                            >
+                              {user.plan}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {user.status ? (
+                            <Badge
+                              variant="outline"
+                              className={
+                                user.status === 'active'
+                                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                                  : 'border-red-500/40 bg-red-500/10 text-red-400'
+                              }
+                            >
+                              {user.status}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {user.created_at.slice(0, 10)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
       </div>
-
-      {error && (
-        <div style={{ background: '#1a0a0a', border: '1px solid #3b1010', borderRadius: 8, padding: '12px 16px', color: '#ef4444', fontSize: 13, marginBottom: 20 }}>
-          {error}
-        </div>
-      )}
-
-      {!data && !error && (
-        <div style={{ color: '#6b6b8a', fontSize: 14, textAlign: 'center', paddingTop: 80 }}>Loading dashboard...</div>
-      )}
-
-      {data && (
-        <>
-          {/* Stat Cards */}
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
-            <StatCard label="Total Users" value={data.stats.total_users} color={COLORS.blue} />
-            <StatCard label="Downloads" value={data.stats.total_downloads} color={COLORS.green} />
-            <StatCard
-              label="Active Subs"
-              value={data.stats.active_subscriptions}
-              color={COLORS.purple}
-              sub="₦50k/mo each"
-            />
-            <StatCard
-              label="Lifetime Subs"
-              value={data.stats.lifetime_subscriptions}
-              color={COLORS.orange}
-              sub="₦1M one-time"
-            />
-            <StatCard label="AI Sessions" value={data.stats.total_ai_sessions} color={COLORS.red} />
-          </div>
-
-          {/* Charts Row 1 */}
-          <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-            <ChartCard title={`Signups — last ${days} days`}>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={data.signups.map((d) => ({ ...d, date: shortDate(d.date) }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                  <XAxis dataKey="date" tick={axisStyle} />
-                  <YAxis tick={axisStyle} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
-                  <Line type="monotone" dataKey="count" stroke={COLORS.blue} strokeWidth={2} dot={false} name="Signups" />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard title={`Payments — last ${days} days`}>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={data.payments.map((d) => ({ ...d, date: shortDate(d.date) }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                  <XAxis dataKey="date" tick={axisStyle} />
-                  <YAxis tick={axisStyle} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: '#9090b0' }} />
-                  <Line type="monotone" dataKey="monthly" stroke={COLORS.purple} strokeWidth={2} dot={false} name="Monthly" />
-                  <Line type="monotone" dataKey="lifetime" stroke={COLORS.orange} strokeWidth={2} dot={false} name="Lifetime" />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          {/* Charts Row 2 */}
-          <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-            <ChartCard title={`AI Usage — last ${days} days`}>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={data.usage.map((d) => ({ ...d, date: shortDate(d.date) }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                  <XAxis dataKey="date" tick={axisStyle} />
-                  <YAxis tick={axisStyle} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: '#9090b0' }} />
-                  <Bar dataKey="stream" stackId="a" fill={COLORS.blue} name="Stream" />
-                  <Bar dataKey="screenshot" stackId="a" fill={COLORS.green} name="Screenshot" />
-                  <Bar dataKey="transcribe" stackId="a" fill={COLORS.orange} name="Transcribe" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard title={`Downloads — last ${days} days`}>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={data.downloads.map((d) => ({ ...d, date: shortDate(d.date) }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                  <XAxis dataKey="date" tick={axisStyle} />
-                  <YAxis tick={axisStyle} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabel} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: '#9090b0' }} />
-                  <Bar dataKey="windows" fill={COLORS.blue} name="Windows" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="mac" fill={COLORS.gray} name="Mac" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          {/* Users Table */}
-          <div style={{
-            background: '#13131a',
-            border: '1px solid #1e1e2e',
-            borderRadius: 10,
-            overflow: 'hidden',
-          }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #1e1e2e' }}>
-              <p style={{ color: '#9090b0', fontSize: 13, fontWeight: 600 }}>Recent Users (last 50)</p>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: '#0f0f18' }}>
-                    {['Email', 'Name', 'Plan', 'Status', 'Joined'].map((h) => (
-                      <th key={h} style={{
-                        padding: '10px 16px',
-                        textAlign: 'left',
-                        color: '#6b6b8a',
-                        fontWeight: 500,
-                        fontSize: 12,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        borderBottom: '1px solid #1e1e2e',
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.users.map((user, i) => (
-                    <tr
-                      key={user.id}
-                      style={{ background: i % 2 === 0 ? 'transparent' : '#0f0f18' }}
-                    >
-                      <td style={{ padding: '10px 16px', color: '#e8e8f0' }}>{user.email}</td>
-                      <td style={{ padding: '10px 16px', color: '#9090b0' }}>{user.name ?? '—'}</td>
-                      <td style={{ padding: '10px 16px' }}>
-                        {user.plan ? (
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: user.plan === 'lifetime' ? '#2a1a00' : '#1a1a40',
-                            color: user.plan === 'lifetime' ? COLORS.orange : COLORS.purple,
-                          }}>
-                            {user.plan}
-                          </span>
-                        ) : <span style={{ color: '#3b3b5a' }}>—</span>}
-                      </td>
-                      <td style={{ padding: '10px 16px' }}>
-                        {user.status ? (
-                          <span style={{
-                            padding: '2px 8px',
-                            borderRadius: 4,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: user.status === 'active' ? '#0a2a1a' : '#1a0a0a',
-                            color: user.status === 'active' ? COLORS.green : COLORS.red,
-                          }}>
-                            {user.status}
-                          </span>
-                        ) : <span style={{ color: '#3b3b5a' }}>—</span>}
-                      </td>
-                      <td style={{ padding: '10px 16px', color: '#6b6b8a' }}>
-                        {user.created_at.slice(0, 10)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
     </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  color,
+  sub,
+}: {
+  label: string;
+  value: number;
+  color: string;
+  sub?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <p className="text-3xl font-bold tabular-nums" style={{ color }}>
+          {value.toLocaleString()}
+        </p>
+        {sub && <p className="text-xs text-muted-foreground mt-1.5">{sub}</p>}
+      </CardContent>
+    </Card>
   );
 }

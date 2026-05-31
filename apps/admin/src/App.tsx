@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { fetchStats } from './api';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Dashboard from './Dashboard';
 
 const SESSION_KEY = 'zg_admin_key';
@@ -15,7 +21,7 @@ export default function App() {
     if (stored) setAuthed(true);
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!adminKey.trim()) return;
     setLoading(true);
@@ -44,65 +50,36 @@ export default function App() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#0a0a0f',
-    }}>
-      <div style={{
-        background: '#13131a',
-        border: '1px solid #1e1e2e',
-        borderRadius: 12,
-        padding: '40px 48px',
-        width: 380,
-      }}>
-        <div style={{ marginBottom: 32 }}>
-          <p style={{ color: '#6b6b8a', fontSize: 13, marginTop: 4 }}>ZoomGuru Analytics</p>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#e8e8f0' }}>Admin Access</h1>
-        </div>
-        <form onSubmit={(e) => { void handleSubmit(e); }}>
-          <input
-            type="password"
-            placeholder="Enter admin key"
-            value={adminKey}
-            onChange={(e) => setAdminKey(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              background: '#0a0a0f',
-              border: '1px solid #1e1e2e',
-              borderRadius: 8,
-              color: '#e8e8f0',
-              fontSize: 14,
-              outline: 'none',
-              marginBottom: 12,
-            }}
-          />
-          {error && (
-            <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{error}</p>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              padding: '10px 0',
-              background: '#3b82f6',
-              border: 'none',
-              borderRadius: 8,
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            {loading ? 'Verifying...' : 'Sign In'}
-          </button>
-        </form>
-      </div>
+    <div className="dark min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="space-y-1 pb-4">
+          <CardTitle className="text-2xl font-bold">Admin Access</CardTitle>
+          <CardDescription>ZoomGuru Analytics Dashboard</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="key">Admin Key</Label>
+              <Input
+                id="key"
+                type="password"
+                placeholder="Enter admin key"
+                value={adminKey}
+                onChange={(e) => setAdminKey(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Verifying…' : 'Sign In'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
