@@ -129,7 +129,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, color: '#e8e8f0' }}>ZoomGuru Analytics</h1>
-          <p style={{ color: '#6b6b8a', fontSize: 13, marginTop: 2 }}>alto.zoomguru.xyz</p>
+          <p style={{ color: '#6b6b8a', fontSize: 13, marginTop: 2 }}>zoomguru-admin.vercel.app</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', background: '#13131a', border: '1px solid #1e1e2e', borderRadius: 8, overflow: 'hidden' }}>
