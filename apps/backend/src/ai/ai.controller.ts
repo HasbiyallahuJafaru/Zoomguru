@@ -4,6 +4,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { AiService } from './ai.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { getDB } from '../database/db';
+import { getRedis } from '../redis/redis';
 
 function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -17,43 +18,23 @@ const SSE_HEADERS = {
 } as const;
 
 const RATE_LIMIT = 15;
-const WINDOW_MS = 60_000;
-
-interface RateWindow {
-  count: number;
-  windowStart: number;
-}
+const WINDOW_SEC = 60;
 
 interface AuthenticatedRequest extends FastifyRequest {
   user: { userId: string; email: string };
 }
 
-const rateLimits = new Map<string, RateWindow>();
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [userId, window] of rateLimits.entries()) {
-    if (now - window.windowStart > WINDOW_MS) {
-      rateLimits.delete(userId);
-    }
+async function checkRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
+  const redis = getRedis();
+  const key = `rl:${userId}`;
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, WINDOW_SEC);
   }
-}, 5 * 60_000);
-
-function checkRateLimit(userId: string): { allowed: boolean; retryAfter: number } {
-  const now = Date.now();
-  const window = rateLimits.get(userId);
-
-  if (!window || now - window.windowStart > WINDOW_MS) {
-    rateLimits.set(userId, { count: 1, windowStart: now });
-    return { allowed: true, retryAfter: 0 };
+  if (count > RATE_LIMIT) {
+    const ttl = await redis.ttl(key);
+    return { allowed: false, retryAfter: ttl > 0 ? ttl : WINDOW_SEC };
   }
-
-  if (window.count >= RATE_LIMIT) {
-    const retryAfter = Math.ceil((WINDOW_MS - (now - window.windowStart)) / 1000);
-    return { allowed: false, retryAfter };
-  }
-
-  window.count++;
   return { allowed: true, retryAfter: 0 };
 }
 
@@ -80,7 +61,7 @@ export class AiController {
       await reply.code(403).send({ error: 'device_locked' });
       return;
     }
-    const { allowed, retryAfter } = checkRateLimit(req.user.userId);
+    const { allowed, retryAfter } = await checkRateLimit(req.user.userId);
     if (!allowed) {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
@@ -117,7 +98,7 @@ export class AiController {
       await reply.code(403).send({ error: 'device_locked' });
       return;
     }
-    const { allowed, retryAfter } = checkRateLimit(req.user.userId);
+    const { allowed, retryAfter } = await checkRateLimit(req.user.userId);
     if (!allowed) {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
@@ -153,7 +134,7 @@ export class AiController {
     if (!deviceAllowed) {
       throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
     }
-    const { allowed, retryAfter } = checkRateLimit(req.user.userId);
+    const { allowed, retryAfter } = await checkRateLimit(req.user.userId);
     if (!allowed) {
       throw new HttpException({ error: 'rate_limit', retryAfter }, 429);
     }

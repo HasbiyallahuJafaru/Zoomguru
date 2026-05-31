@@ -4,12 +4,15 @@ let _pool: Pool | null = null;
 
 export function getDB(): Pool {
   if (!_pool) {
-    if (!process.env.DATABASE_URL) {
+    const connectionString = process.env.DATABASE_POOL_URL ?? process.env.DATABASE_URL;
+    if (!connectionString) {
       throw new Error('DATABASE_URL not set');
     }
     _pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: 20,
+      connectionString,
+      max: 10,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 5_000,
     });
   }
   return _pool;

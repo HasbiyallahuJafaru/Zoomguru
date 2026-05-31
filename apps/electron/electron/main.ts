@@ -11,6 +11,7 @@ import {
   dialog,
   desktopCapturer,
   shell,
+  Notification,
 } from 'electron';
 import path from 'path';
 import fs from 'fs';
@@ -28,6 +29,7 @@ interface WindowStore {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 const fingerprint = getDeviceFingerprint();
@@ -52,7 +54,57 @@ if (!gotLock) {
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
     }
+    new Notification({
+      title: 'ZoomGuru is already running',
+      body: 'Find it in your system tray.',
+      silent: true,
+    }).show();
   });
+
+  function createSplash(): void {
+    const { width, height } = electronScreen.getPrimaryDisplay().workAreaSize;
+    splashWindow = new BrowserWindow({
+      width: 320,
+      height: 160,
+      x: Math.floor((width - 320) / 2),
+      y: Math.floor((height - 160) / 2),
+      frame: false,
+      transparent: false,
+      resizable: false,
+      movable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    const html = `<!DOCTYPE html>
+<html>
+<head><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 320px; height: 160px;
+    background: #0a0a0a;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #ffffff;
+    user-select: none;
+  }
+  .logo { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 10px; }
+  .sub { font-size: 13px; color: #666; }
+  .dot { display: inline-block; animation: blink 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100% { opacity: 0; } 40% { opacity: 1; } }
+</style></head>
+<body>
+  <div class="logo">ZoomGuru</div>
+  <div class="sub">Starting<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+</body>
+</html>`;
+
+    void splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  }
 
   function createWindow(): void {
     const { width: screenWidth, height: screenHeight } =
@@ -121,6 +173,8 @@ if (!gotLock) {
     }
 
     mainWindow.once('ready-to-show', () => {
+      splashWindow?.destroy();
+      splashWindow = null;
       mainWindow?.show();
     });
 
@@ -341,6 +395,7 @@ if (!gotLock) {
       });
     });
 
+    createSplash();
     createWindow();
     createTray();
     registerHotkeys();

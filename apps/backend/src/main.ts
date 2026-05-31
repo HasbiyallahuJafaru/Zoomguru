@@ -9,13 +9,17 @@ import { initDB } from './database/init';
 
 async function bootstrap(): Promise<void> {
   const REQUIRED = [
-    'DATABASE_URL', 'JWT_SECRET', 'GEMINI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
+    'DATABASE_URL', 'JWT_SECRET', 'REDIS_URL', 'GEMINI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
     'PAYSTACK_SECRET_KEY', 'RESEND_API_KEY', 'FROM_EMAIL',
   ];
   const missing = REQUIRED.filter((k) => !process.env[k]);
   if (missing.length) {
     console.error('❌ Missing env vars:', missing.join(', '));
     process.exit(1);
+  }
+
+  if (!process.env['DATABASE_POOL_URL']) {
+    console.warn('⚠️  DATABASE_POOL_URL not set — falling back to DATABASE_URL (not recommended for multi-instance deploys)');
   }
 
   const app = await NestFactory.create<NestFastifyApplication>(
