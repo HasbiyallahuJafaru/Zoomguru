@@ -22,17 +22,9 @@ module.exports = {
   ],
 
   win: {
-    target: [{ target: 'nsis', arch: ['x64'] }],
-    icon: 'assets/tray-icon.png',
+    target: [{ target: 'portable', arch: ['x64'] }],
+    icon: 'assets/icon-256.png',
     requestedExecutionLevel: 'asInvoker',
-  },
-
-  nsis: {
-    oneClick: false,
-    allowToChangeInstallationDirectory: false,
-    shortcutName: 'ZoomGuru',
-    createDesktopShortcut: true,
-    createStartMenuShortcut: true,
   },
 
   mac: {

@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
             build: {
               outDir: 'dist-electron',
               rollupOptions: {
-                external: ['electron', 'electron-updater', 'electron-store', 'wgc-exclude', 'pdf-parse'],
+                external: ['electron', 'electron-updater', 'electron-store', 'pdf-parse'],
               },
             },
           },
