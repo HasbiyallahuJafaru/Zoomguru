@@ -41,7 +41,7 @@ export class SubscriptionController {
     if (!body.reference || typeof body.reference !== 'string') {
       throw new BadRequestException('reference is required');
     }
-    return this.subscriptionService.verify(req.user.userId, body.reference, deviceId);
+    return this.subscriptionService.verify(req.user.userId, req.user.email, body.reference, deviceId);
   }
 
   @Post('webhook')

@@ -52,7 +52,7 @@ interface WebhookEvent {
 interface PaystackVerifyData {
   status: string;
   amount: number;
-  customer: { customer_code: string };
+  customer: { customer_code: string; email: string };
 }
 
 interface PaystackVerifyResponse {
@@ -174,7 +174,7 @@ export class SubscriptionService {
     }
   }
 
-  async verify(userId: string, reference: string, deviceId?: string): Promise<{ success: boolean }> {
+  async verify(userId: string, userEmail: string, reference: string, deviceId?: string): Promise<{ success: boolean }> {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
@@ -192,14 +192,20 @@ export class SubscriptionService {
 
     const txData = body.data;
 
+    // Guard: transaction must belong to the authenticated user
+    if (txData.customer.email.toLowerCase() !== userEmail.toLowerCase()) {
+      throw new BadRequestException('Payment reference does not belong to this account');
+    }
+
+    // Guard: reject exact amount mismatches (prevents cross-product reference abuse)
     let plan: 'monthly' | 'yearly';
     let periodEnd: string;
-    if (txData.amount >= 50_000_000) {
+    if (txData.amount === 50_000_000) {
       plan = 'yearly';
       const end = new Date();
       end.setFullYear(end.getFullYear() + 1);
       periodEnd = end.toISOString();
-    } else if (txData.amount >= 5_000_000) {
+    } else if (txData.amount === 5_000_000) {
       plan = 'monthly';
       const end = new Date();
       end.setDate(end.getDate() + 30);
@@ -209,19 +215,31 @@ export class SubscriptionService {
     }
 
     const pool = getDB();
+
+    // Guard: reject replayed references
+    const existing = await pool.query<{ user_id: string }>(
+      `SELECT user_id FROM subscriptions WHERE paystack_reference = $1 LIMIT 1`,
+      [reference],
+    );
+    if (existing.rows.length > 0) {
+      throw new BadRequestException('Payment reference already used');
+    }
+
     const lockedDeviceId = (deviceId && /^[a-f0-9]{64}$/.test(deviceId)) ? deviceId : null;
 
     await pool.query(
-      `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, locked_device_id, updated_at)
-       VALUES ($1, $2, 'active', $3, $4, $5, NOW())
+      `INSERT INTO subscriptions
+         (user_id, paystack_customer_code, paystack_reference, status, plan, current_period_end, locked_device_id, updated_at)
+       VALUES ($1, $2, $3, 'active', $4, $5, $6, NOW())
        ON CONFLICT (user_id) DO UPDATE SET
          paystack_customer_code = $2,
-         status = 'active',
-         plan = $3,
-         current_period_end = $4,
-         locked_device_id = $5,
-         updated_at = NOW()`,
-      [userId, txData.customer.customer_code, plan, periodEnd, lockedDeviceId],
+         paystack_reference      = $3,
+         status                  = 'active',
+         plan                    = $4,
+         current_period_end      = $5,
+         locked_device_id        = COALESCE(subscriptions.locked_device_id, $6),
+         updated_at              = NOW()`,
+      [userId, txData.customer.customer_code, reference, plan, periodEnd, lockedDeviceId],
     );
 
     this.invalidateDeviceCache(userId);
@@ -250,7 +268,58 @@ export class SubscriptionService {
     const event = JSON.parse(rawBody.toString()) as WebhookEvent;
     const pool = getDB();
 
-    if (event.event === 'subscription.create') {
+    if (event.event === 'charge.success') {
+      const data = event.data as PaystackVerifyData;
+      if (data.status !== 'success') return;
+
+      // Only act if this reference hasn't been processed yet
+      const refCheck = await pool.query<{ user_id: string }>(
+        `SELECT user_id FROM subscriptions WHERE paystack_reference = $1 LIMIT 1`,
+        [(event.data as { reference?: string }).reference ?? ''],
+      );
+      if (refCheck.rows.length > 0) return;
+
+      // Find the user by email
+      const ref = (event.data as { reference?: string }).reference ?? '';
+      const userRow = await pool.query<{ id: string }>(
+        `SELECT id FROM users WHERE email = $1 LIMIT 1`,
+        [data.customer.email.toLowerCase()],
+      );
+      if (!userRow.rows[0]) return;
+      const uid = userRow.rows[0].id;
+
+      let plan: 'monthly' | 'yearly';
+      let periodEnd: string;
+      if (data.amount === 50_000_000) {
+        plan = 'yearly';
+        const end = new Date();
+        end.setFullYear(end.getFullYear() + 1);
+        periodEnd = end.toISOString();
+      } else if (data.amount === 5_000_000) {
+        plan = 'monthly';
+        const end = new Date();
+        end.setDate(end.getDate() + 30);
+        periodEnd = end.toISOString();
+      } else {
+        return;
+      }
+
+      await pool.query(
+        `INSERT INTO subscriptions
+           (user_id, paystack_customer_code, paystack_reference, status, plan, current_period_end, updated_at)
+         VALUES ($1, $2, $3, 'active', $4, $5, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET
+           paystack_customer_code = $2,
+           paystack_reference      = $3,
+           status                  = 'active',
+           plan                    = $4,
+           current_period_end      = $5,
+           locked_device_id        = COALESCE(subscriptions.locked_device_id, NULL),
+           updated_at              = NOW()`,
+        [uid, data.customer.customer_code, ref, plan, periodEnd],
+      );
+      this.invalidateDeviceCache(uid);
+    } else if (event.event === 'subscription.create') {
       const data = event.data as SubscriptionCreateData;
       const plan = 'monthly';
       const updateResult = await pool.query(
