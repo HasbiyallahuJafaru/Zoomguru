@@ -194,6 +194,78 @@ export class SubscriptionService {
     return false;
   }
 
+  // Combines canUseAI + checkDevice into a single DB round trip.
+  // Returns { canUse, deviceAllowed } so the controller can gate on both
+  // with only one pool checkout instead of three.
+  async checkAccess(
+    userId: string,
+    keyId: string | undefined,
+  ): Promise<{ canUse: boolean; deviceAllowed: boolean }> {
+    const pool = getDB();
+
+    const [subResult, userResult] = await Promise.all([
+      pool.query<{
+        status: string;
+        locked_key_id: string | null;
+        locked_key_id_2: string | null;
+      }>(
+        `SELECT status, locked_key_id, locked_key_id_2
+         FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      ),
+      pool.query<{ trial_started_at: string | null }>(
+        `SELECT trial_started_at FROM users WHERE id = $1 LIMIT 1`,
+        [userId],
+      ),
+    ]);
+
+    const sub = subResult.rows[0] ?? null;
+    const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
+
+    // Determine canUse
+    let canUse = false;
+    if (sub?.status === 'active') {
+      canUse = true;
+    } else if (trialStartedAt !== null) {
+      canUse = Date.now() < new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS;
+    }
+
+    // Determine deviceAllowed (reuses subscription row already fetched)
+    let deviceAllowed = true;
+    if (keyId && KEY_ID_RE.test(keyId) && sub?.status === 'active') {
+      const cacheKey = `${userId}:${keyId}`;
+      const now = Date.now();
+      const cached = deviceCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        deviceAllowed = cached.allowed;
+      } else if (sub.locked_key_id === keyId || sub.locked_key_id_2 === keyId) {
+        deviceAllowed = true;
+        deviceCache.set(cacheKey, { allowed: true, expiresAt: now + DEVICE_CACHE_TTL_MS });
+      } else if (!sub.locked_key_id) {
+        await pool.query(
+          `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
+           WHERE user_id = $2 AND locked_key_id IS NULL`,
+          [keyId, userId],
+        );
+        this.invalidateDeviceCache(userId);
+        deviceAllowed = true;
+      } else if (!sub.locked_key_id_2) {
+        await pool.query(
+          `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
+           WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
+          [keyId, userId],
+        );
+        this.invalidateDeviceCache(userId);
+        deviceAllowed = true;
+      } else {
+        deviceAllowed = false;
+        deviceCache.set(cacheKey, { allowed: false, expiresAt: now + DEVICE_CACHE_TTL_MS });
+      }
+    }
+
+    return { canUse, deviceAllowed };
+  }
+
   async checkDevice(userId: string, keyId: string | undefined): Promise<boolean> {
     if (!keyId || !KEY_ID_RE.test(keyId)) return true;
 

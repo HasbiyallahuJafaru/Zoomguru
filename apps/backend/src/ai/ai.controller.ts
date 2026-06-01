@@ -7,6 +7,14 @@ import { DeviceService } from '../device/device.service';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 
+function logSession(userId: string, type: 'stream' | 'screenshot' | 'transcribe'): void {
+  getDB()
+    .query('INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)', [userId, type])
+    .catch((err: unknown) => {
+      console.error('[AiController] session log failed:', (err as Error).message);
+    });
+}
+
 function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
@@ -60,30 +68,28 @@ export class AiController {
     if (!body.transcript || body.transcript.length > 4000) {
       throw new BadRequestException('Invalid transcript');
     }
-    const sigValid = await this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature);
+    const [sigValid, { canUse, deviceAllowed }, { allowed, retryAfter }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+      checkRateLimit(req.user.userId),
+    ]);
     if (!sigValid) {
       await reply.code(403).send({ error: 'invalid_signature' });
       return;
     }
-    const canUse = await this.subscriptionService.canUseAI(req.user.userId);
     if (!canUse) {
       await reply.code(403).send({ error: 'subscription_required' });
       return;
     }
-    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, keyId);
     if (!deviceAllowed) {
       await reply.code(403).send({ error: 'device_locked' });
       return;
     }
-    const { allowed, retryAfter } = await checkRateLimit(req.user.userId);
     if (!allowed) {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
     }
-    void getDB().query(
-      'INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)',
-      [req.user.userId, 'stream'],
-    );
+    logSession(req.user.userId, 'stream');
     const cleanTranscript = sanitize(body.transcript);
     const cleanCv         = body.cvText ? sanitize(body.cvText) : undefined;
     const cleanJd         = body.jdText ? sanitize(body.jdText) : undefined;
@@ -109,30 +115,28 @@ export class AiController {
     if (!body.image || body.image.length > 10_000_000) {
       throw new BadRequestException('Invalid image');
     }
-    const sigValid = await this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature);
+    const [sigValid, { canUse, deviceAllowed }, { allowed, retryAfter }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+      checkRateLimit(req.user.userId),
+    ]);
     if (!sigValid) {
       await reply.code(403).send({ error: 'invalid_signature' });
       return;
     }
-    const canUse = await this.subscriptionService.canUseAI(req.user.userId);
     if (!canUse) {
       await reply.code(403).send({ error: 'subscription_required' });
       return;
     }
-    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, keyId);
     if (!deviceAllowed) {
       await reply.code(403).send({ error: 'device_locked' });
       return;
     }
-    const { allowed, retryAfter } = await checkRateLimit(req.user.userId);
     if (!allowed) {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
     }
-    void getDB().query(
-      'INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)',
-      [req.user.userId, 'screenshot'],
-    );
+    logSession(req.user.userId, 'screenshot');
     const cleanImage = sanitize(body.image);
     const cleanCv    = body.cvText ? sanitize(body.cvText) : undefined;
     const cleanJd    = body.jdText ? sanitize(body.jdText) : undefined;
@@ -165,26 +169,24 @@ export class AiController {
     if (!body.audio || body.audio.length > 5_000_000) {
       throw new BadRequestException('Invalid audio');
     }
-    const sigValid = await this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature);
+    const [sigValid, { canUse, deviceAllowed }, { allowed, retryAfter }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+      checkRateLimit(req.user.userId),
+    ]);
     if (!sigValid) {
       throw new HttpException({ error: 'invalid_signature' }, HttpStatus.FORBIDDEN);
     }
-    const canUse = await this.subscriptionService.canUseAI(req.user.userId);
     if (!canUse) {
       throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
     }
-    const deviceAllowed = await this.subscriptionService.checkDevice(req.user.userId, keyId);
     if (!deviceAllowed) {
       throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
     }
-    const { allowed, retryAfter } = await checkRateLimit(req.user.userId);
     if (!allowed) {
       throw new HttpException({ error: 'rate_limit', retryAfter }, 429);
     }
-    void getDB().query(
-      'INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)',
-      [req.user.userId, 'transcribe'],
-    );
+    logSession(req.user.userId, 'transcribe');
     const cleanAudio = sanitize(body.audio);
     const transcript = await this.aiService.transcribe({ audio: cleanAudio });
     return { transcript };
