@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld('zoomguru', {
     ipcRenderer.on(channel, (_e, ...args) => callback(...args));
   },
 
+  offTrigger: (event: string): void => {
+    ipcRenderer.removeAllListeners(`trigger:${event}`);
+  },
+
   captureScreen: (): Promise<string> =>
     ipcRenderer.invoke('capture:screen'),
 

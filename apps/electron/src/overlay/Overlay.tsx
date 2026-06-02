@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import AnswerStream from './AnswerStream';
+import { formatCountdown } from '../utils';
+import { useCVContext } from './hooks/useCVContext';
+import { useSessionCap } from './hooks/useSessionCap';
+import { useTrialCountdown } from './hooks/useTrialCountdown';
+import { useHotkeys } from './hooks/useHotkeys';
+import { useVAD } from './hooks/useVAD';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
-const CAP_MONTHLY = 50;
-const VAD_THRESHOLD = 0.015;
-const SILENCE_MS = 1500;
-const MIN_SPEECH_MS = 2500;
-const MIN_BLOB_BYTES = 25_000;
-const MIN_WORDS = 4;
-
 async function makeDeviceHeaders(): Promise<Record<string, string>> {
   const { keyId, timestamp, signature } = await window.zoomguru.signRequest();
   return {
@@ -31,34 +30,30 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-const TRIAL_DURATION_MS = 30 * 60_000;
-
-function formatCountdown(ms: number): string {
-  if (ms <= 0) return '0:00';
-  const totalSec = Math.ceil(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-}
-
 export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => void; onTrialExpired?: () => void }) {
   // --- state ---
+  const { cvText, jdText } = useCVContext();
+
   const [answer, setAnswer] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [micGranted, setMicGranted] = useState(true);
-  const [cvText, setCvText] = useState('');
-  const [jdText, setJdText] = useState('');
-  const [questionCount, setQuestionCount] = useState(0);
-  const [trialMsLeft, setTrialMsLeft] = useState<number | null>(null);
-  const [sessionCap, setSessionCap] = useState(CAP_MONTHLY);
-  const [isAutoMode, setIsAutoMode] = useState(false);
-  const [isAutoListening, setIsAutoListening] = useState(false);
+  const [micGranted, setMicGranted] = useState(false);
+  const {
+    questionCount,
+    questionCountRef,
+    sessionCap,
+    sessionCapRef,
+    setSessionCap,
+    sessionCapped,
+    increment: incrementQuestion,
+    reset: resetQuestionCount,
+  } = useSessionCap();
+
+  const { trialMsLeft } = useTrialCountdown(setSessionCap, onTrialExpired);
+
   const [hovered, setHovered] = useState<string | null>(null);
   const [screenshotContext, setScreenshotContext] = useState<string[]>([]);
-
-  const sessionCapped = questionCount >= sessionCap;
 
   // --- refs (manual listen) ---
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -67,30 +62,14 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
   const handleScreenshotRef = useRef<() => void>(() => {});
   const handleClearRef = useRef<() => void>(() => {});
   const handleAutoRef = useRef<() => void>(() => {});
-
-  // --- refs (auto VAD) ---
-  const questionCountRef = useRef(0);
-  const sessionCapRef = useRef(CAP_MONTHLY);
-  const isAutoModeRef = useRef(false);
-  const vadStateRef = useRef<'idle' | 'recording' | 'processing'>('idle');
-  const speechStartRef = useRef(0);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoStreamRef = useRef<MediaStream | null>(null);
-  const autoContextRef = useRef<AudioContext | null>(null);
-  const autoAnalyserRef = useRef<AnalyserNode | null>(null);
-  const autoRecorderRef = useRef<MediaRecorder | null>(null);
-  const autoChunksRef = useRef<BlobPart[]>([]);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const trialTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startSegmentRef = useRef<() => void>(() => {});
-  const processSegmentRef = useRef<(mimeType: string) => Promise<void>>(async () => {});
-
-  useEffect(() => { questionCountRef.current = questionCount; }, [questionCount]);
-  useEffect(() => { sessionCapRef.current = sessionCap; }, [sessionCap]);
+  const streamAbortRef = useRef<AbortController | null>(null);
 
   // --- streaming ---
 
   async function streamAnswer(transcript: string): Promise<void> {
+    streamAbortRef.current?.abort();
+    const abortCtrl = new AbortController();
+    streamAbortRef.current = abortCtrl;
     setAnswer('');
     setIsStreaming(true);
     try {
@@ -100,6 +79,7 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
       ]);
       const response = await fetch(`${API_URL}/ai/stream`, {
         method: 'POST',
+        signal: abortCtrl.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -119,12 +99,17 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
         return;
       }
       if (response.status === 429) {
-        const data = await response.json() as { retryAfter?: number };
-        setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
+        const data = await response.json() as { error?: string; retryAfter?: number };
+        if (data.error === 'session_cap') {
+          setAnswer('Daily session limit reached. Try again tomorrow.');
+        } else {
+          setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
+        }
         return;
       }
-      setQuestionCount((prev) => prev + 1);
-      const reader = response.body!.getReader();
+      if (!response.body) { setAnswer('No response from server.'); return; }
+      incrementQuestion();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       while (true) {
@@ -142,14 +127,19 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
           if (data.chunk) setAnswer((prev) => prev + data.chunk);
         }
       }
-    } catch {
-      setAnswer('Connection error. Check backend.');
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setAnswer('Connection error. Check backend.');
+      }
     } finally {
       setIsStreaming(false);
     }
   }
 
   async function streamScreenshot(imageBase64: string): Promise<void> {
+    streamAbortRef.current?.abort();
+    const abortCtrl = new AbortController();
+    streamAbortRef.current = abortCtrl;
     setAnswer('');
     setIsStreaming(true);
     try {
@@ -159,6 +149,7 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
       ]);
       const response = await fetch(`${API_URL}/ai/screenshot`, {
         method: 'POST',
+        signal: abortCtrl.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -179,12 +170,17 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
         return;
       }
       if (response.status === 429) {
-        const data = await response.json() as { retryAfter?: number };
-        setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
+        const data = await response.json() as { error?: string; retryAfter?: number };
+        if (data.error === 'session_cap') {
+          setAnswer('Daily session limit reached. Try again tomorrow.');
+        } else {
+          setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
+        }
         return;
       }
-      setQuestionCount((prev) => prev + 1);
-      const reader = response.body!.getReader();
+      if (!response.body) { setAnswer('No response from server.'); return; }
+      incrementQuestion();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       while (true) {
@@ -207,182 +203,31 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
           if (data.chunk) setAnswer((prev) => prev + data.chunk);
         }
       }
-    } catch {
-      setAnswer('Connection error. Check backend.');
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setAnswer('Connection error. Check backend.');
+      }
     } finally {
       setIsStreaming(false);
     }
   }
 
-  // --- auto VAD ---
+  // --- VAD ---
 
-  function stopAutoMode(): void {
-    isAutoModeRef.current = false;
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (autoRecorderRef.current?.state === 'recording') {
-      autoRecorderRef.current.stop();
-    }
-    autoStreamRef.current?.getTracks().forEach((t) => t.stop());
-    void autoContextRef.current?.close();
-    autoStreamRef.current = null;
-    autoContextRef.current = null;
-    autoAnalyserRef.current = null;
-    autoRecorderRef.current = null;
-    vadStateRef.current = 'idle';
-    setIsAutoMode(false);
-    setIsAutoListening(false);
-  }
-
-  processSegmentRef.current = async (mimeType: string): Promise<void> => {
-    vadStateRef.current = 'processing';
-    setIsAutoListening(false);
-
-    const duration = Date.now() - speechStartRef.current;
-    const blob = new Blob(autoChunksRef.current, { type: mimeType });
-
-    if (duration < MIN_SPEECH_MS) { vadStateRef.current = 'idle'; return; }
-    if (blob.size < MIN_BLOB_BYTES) { vadStateRef.current = 'idle'; return; }
-
-    try {
-      const [token, base64, deviceHeaders] = await Promise.all([
-        window.zoomguru.getToken(),
-        blobToBase64(blob),
-        makeDeviceHeaders(),
-      ]);
-      const res = await fetch(`${API_URL}/ai/transcribe`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          ...deviceHeaders,
-        },
-        body: JSON.stringify({ audio: base64 }),
-      });
-      if (res.status === 401) { stopAutoMode(); onLogout(); return; }
-      if (!res.ok) { vadStateRef.current = 'idle'; return; }
-
-      const data = await res.json() as { transcript?: string };
-      const transcript = data.transcript?.trim() ?? '';
-
-      if (transcript.split(/\s+/).filter(Boolean).length < MIN_WORDS) {
-        vadStateRef.current = 'idle';
-        return;
-      }
-
-      if (questionCountRef.current >= sessionCapRef.current) {
-        stopAutoMode();
-        return;
-      }
-
-      await streamAnswer(transcript);
-
-      if (questionCountRef.current >= sessionCapRef.current) {
-        stopAutoMode();
-      }
-    } catch {
-      // discard failed segments silently in auto mode
-    } finally {
-      if (vadStateRef.current === 'processing') vadStateRef.current = 'idle';
-    }
-  };
-
-  startSegmentRef.current = (): void => {
-    if (!autoStreamRef.current) return;
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : 'audio/webm';
-    const recorder = new MediaRecorder(autoStreamRef.current, { mimeType });
-    autoChunksRef.current = [];
-    speechStartRef.current = Date.now();
-
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) autoChunksRef.current.push(e.data);
-    };
-    recorder.onstop = () => { void processSegmentRef.current(mimeType); };
-
-    autoRecorderRef.current = recorder;
-    vadStateRef.current = 'recording';
-    setIsAutoListening(true);
-    recorder.start(100);
-  };
-
-  async function startAutoMode(): Promise<void> {
-    if (sessionCapped) return;
-
-    let stream: MediaStream;
-    try {
-      // Use Electron's desktopCapturer source ID to grab system audio (WASAPI
-      // loopback on Windows) without any OS picker dialog. Video is required
-      // by the underlying Chrome capture pipeline but discarded immediately.
-      const sourceId = await window.zoomguru.getSystemAudioSourceId();
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          // chromeMediaSource is an Electron/Chrome extension not in DOM types
-          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId },
-        } as unknown as MediaTrackConstraints,
-        video: {
-          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId },
-        } as unknown as MediaTrackConstraints,
-      });
-      stream.getVideoTracks().forEach((t) => t.stop());
-    } catch {
-      setMicGranted(false);
-      return;
-    }
-
-    const context = new AudioContext();
-    const analyser = context.createAnalyser();
-    analyser.fftSize = 512;
-    context.createMediaStreamSource(stream).connect(analyser);
-
-    autoStreamRef.current = stream;
-    autoContextRef.current = context;
-    autoAnalyserRef.current = analyser;
-    vadStateRef.current = 'idle';
-    isAutoModeRef.current = true;
-    setIsAutoMode(true);
-
-    const dataArray = new Uint8Array(analyser.fftSize);
-
-    pollIntervalRef.current = setInterval(() => {
-      if (!isAutoModeRef.current || !autoAnalyserRef.current) return;
-      if (vadStateRef.current === 'processing') return;
-
-      autoAnalyserRef.current.getByteTimeDomainData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        const norm = (dataArray[i] - 128) / 128;
-        sum += norm * norm;
-      }
-      const rms = Math.sqrt(sum / dataArray.length);
-      const speaking = rms > VAD_THRESHOLD;
-
-      if (speaking && vadStateRef.current === 'idle') {
-        startSegmentRef.current();
-      } else if (!speaking && vadStateRef.current === 'recording') {
-        if (!silenceTimerRef.current) {
-          silenceTimerRef.current = setTimeout(() => {
-            silenceTimerRef.current = null;
-            if (vadStateRef.current === 'recording') {
-              autoRecorderRef.current?.stop();
-            }
-          }, SILENCE_MS);
-        }
-      } else if (speaking && vadStateRef.current === 'recording') {
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = null;
-        }
-      }
-    }, 80);
-  }
+  const {
+    isAutoMode,
+    isAutoListening,
+    isAutoModeRef,
+    stopAutoMode,
+    startAutoMode,
+  } = useVAD({
+    sessionCapped,
+    questionCountRef,
+    sessionCapRef,
+    streamAnswer,
+    setMicGranted,
+    onLogout,
+  });
 
   // --- handler refs ---
 
@@ -489,12 +334,14 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
   };
 
   handleClearRef.current = () => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
     stopAutoMode();
     if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     setAnswer('');
     setIsStreaming(false);
     setIsListening(false);
-    setQuestionCount(0);
+    resetQuestionCount();
     setScreenshotContext([]);
     chunksRef.current = [];
   };
@@ -503,52 +350,16 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
     if (isAutoModeRef.current) { stopAutoMode(); } else { void startAutoMode(); }
   };
 
+  useHotkeys(
+    () => handleListenRef.current(),
+    () => handleScreenshotRef.current(),
+    () => handleClearRef.current(),
+    () => handleAutoRef.current(),
+  );
+
   // --- mount ---
 
   useEffect(() => {
-    void (async () => {
-      const token = await window.zoomguru.getToken();
-      try {
-        const res = await fetch(`${API_URL}/subscription/status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json() as {
-            plan: 'monthly' | 'yearly' | null;
-            trialStartedAt: string | null;
-            trialActive: boolean;
-          };
-          if (data.plan === 'yearly') {
-            setSessionCap(Infinity);
-            sessionCapRef.current = Infinity;
-          }
-          if (data.trialActive && data.trialStartedAt) {
-            const trialEnd = new Date(data.trialStartedAt).getTime() + TRIAL_DURATION_MS;
-            function tick() {
-              const remaining = trialEnd - Date.now();
-              if (remaining <= 0) {
-                setTrialMsLeft(0);
-                if (trialTimerRef.current) clearInterval(trialTimerRef.current);
-                onTrialExpired?.();
-              } else {
-                setTrialMsLeft(remaining);
-              }
-            }
-            tick();
-            trialTimerRef.current = setInterval(tick, 1000);
-          }
-        }
-      } catch { /* keep default cap */ }
-    })();
-
-    void window.zoomguru.loadCV().then((stored) => {
-      if (stored) setCvText(stored.text);
-    });
-
-    void window.zoomguru.loadJD().then((stored) => {
-      if (stored) setJdText(stored);
-    });
-
     void window.zoomguru.requestMicPermission().then((osGranted) => {
       if (!osGranted) {
         setMicGranted(false);
@@ -559,11 +370,6 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
         .catch(() => setMicGranted(false));
     });
 
-    window.zoomguru.onTrigger('listen', () => { void handleListenRef.current(); });
-    window.zoomguru.onTrigger('screenshot', () => { void handleScreenshotRef.current(); });
-    window.zoomguru.onTrigger('clear', () => handleClearRef.current());
-    window.zoomguru.onTrigger('auto', () => { void handleAutoRef.current(); });
-
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
     window.addEventListener('online', onOnline);
@@ -571,7 +377,6 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
 
     return () => {
       stopAutoMode();
-      if (trialTimerRef.current) clearInterval(trialTimerRef.current);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };

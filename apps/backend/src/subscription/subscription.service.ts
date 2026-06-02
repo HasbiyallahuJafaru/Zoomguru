@@ -11,6 +11,7 @@ export interface StatusResponse {
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
   trialStartedAt: string | null;
+  trialEndAt: string | null;
   trialActive: boolean;
 }
 
@@ -68,7 +69,7 @@ interface DeviceCacheEntry {
 }
 
 const KEY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DEVICE_CACHE_TTL_MS = 60_000;
+const DEVICE_CACHE_TTL_MS = 10_000;
 const TRIAL_DURATION_MS = 30 * 60_000;
 const deviceCache = new Map<string, DeviceCacheEntry>();
 
@@ -101,8 +102,10 @@ export class SubscriptionService {
     ]);
 
     const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
-    const trialActive = trialStartedAt !== null
-      && Date.now() < new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS;
+    const trialEndAt = trialStartedAt
+      ? new Date(new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS).toISOString()
+      : null;
+    const trialActive = trialEndAt !== null && Date.now() < new Date(trialEndAt).getTime();
 
     if (subResult.rows.length === 0) {
       return {
@@ -111,6 +114,7 @@ export class SubscriptionService {
         daysRemaining: null,
         currentPeriodEnd: null,
         trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
+        trialEndAt,
         trialActive,
       };
     }
@@ -132,6 +136,7 @@ export class SubscriptionService {
         ? new Date(row.current_period_end).toISOString()
         : null,
       trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
+      trialEndAt,
       trialActive,
     };
   }

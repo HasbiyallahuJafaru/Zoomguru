@@ -28,9 +28,28 @@ const SSE_HEADERS = {
 
 const RATE_LIMIT = 15;
 const WINDOW_SEC = 60;
+const SESSION_CAP_MONTHLY = 50;
 
 interface AuthenticatedRequest extends FastifyRequest {
   user: { userId: string; email: string };
+}
+
+async function checkSessionCap(userId: string): Promise<{ capped: boolean }> {
+  const pool = getDB();
+  const subResult = await pool.query<{ plan: string | null }>(
+    'SELECT plan FROM subscriptions WHERE user_id = $1 LIMIT 1',
+    [userId],
+  );
+  const plan = subResult.rows[0]?.plan ?? null;
+  if (plan !== 'monthly') return { capped: false };
+  const countResult = await pool.query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM ai_sessions
+     WHERE user_id = $1 AND type IN ('stream', 'screenshot')
+     AND created_at > NOW() - INTERVAL '24 hours'`,
+    [userId],
+  );
+  const count = countResult.rows[0]?.count ?? 0;
+  return { capped: count >= SESSION_CAP_MONTHLY };
 }
 
 async function checkRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
@@ -89,6 +108,11 @@ export class AiController {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
     }
+    const { capped } = await checkSessionCap(req.user.userId);
+    if (capped) {
+      await reply.code(429).send({ error: 'session_cap' });
+      return;
+    }
     logSession(req.user.userId, 'stream');
     const cleanTranscript = sanitize(body.transcript);
     const cleanCv         = body.cvText ? sanitize(body.cvText) : undefined;
@@ -134,6 +158,11 @@ export class AiController {
     }
     if (!allowed) {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
+      return;
+    }
+    const { capped } = await checkSessionCap(req.user.userId);
+    if (capped) {
+      await reply.code(429).send({ error: 'session_cap' });
       return;
     }
     logSession(req.user.userId, 'screenshot');

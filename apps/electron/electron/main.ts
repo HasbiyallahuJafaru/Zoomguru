@@ -33,7 +33,6 @@ let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-initDeviceKey();
 const store = new Store<WindowStore>();
 
 // Suppress AMD VideoProcessorGetOutputExtension DirectComposition error on Windows.
@@ -375,6 +374,8 @@ if (!gotLock) {
     ipcMain.handle('protection:status', () => contentProtected);
   }
 
+  app.once('ready', () => { createSplash(); });
+
   void app.whenReady().then(() => {
     session.defaultSession.setPermissionRequestHandler(
       (_webContents, permission, callback) => {
@@ -410,7 +411,7 @@ if (!gotLock) {
       });
     });
 
-    createSplash();
+    initDeviceKey();
     createWindow();
     createTray();
     registerHotkeys();

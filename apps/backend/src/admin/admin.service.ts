@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { getDB } from '../database/db';
 
+// Keep in sync with apps/admin/src/types.ts
 export interface StatsResult {
   total_users: number;
   total_downloads: number;

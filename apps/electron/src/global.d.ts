@@ -15,6 +15,7 @@ interface SignedRequest {
 
 interface ZoomGuruBridge {
   onTrigger(event: string, callback: (...args: any[]) => void): void;
+  offTrigger(event: string): void;
   captureScreen(): Promise<string>;
   getDevicePublicKey(): Promise<{ keyId: string; publicKey: string }>;
   signRequest(): Promise<SignedRequest>;

@@ -12,26 +12,21 @@ const App = () => {
 
   useEffect(() => {
     void (async () => {
-      let token = await window.zoomguru.getToken();
-      if (!token) {
-        const legacy = localStorage.getItem('access_token');
-        if (legacy) {
-          await window.zoomguru.setToken(legacy);
-          localStorage.removeItem('access_token');
-          token = legacy;
-        }
-      }
+      const token = await window.zoomguru.getToken();
       setStep(token ? 'dashboard' : 'login');
     })();
   }, []);
 
   function handleLogout(): void {
     void window.zoomguru.clearToken();
-    localStorage.removeItem('session_id');
     setStep('login');
   }
 
-  if (step === 'loading') return null;
+  if (step === 'loading') {
+    return (
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(7,7,11,0.97)', borderRadius: '16px' }} />
+    );
+  }
 
   if (step === 'login') {
     return (

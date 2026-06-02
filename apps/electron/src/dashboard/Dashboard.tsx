@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { formatCountdown } from '../utils';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -15,6 +16,7 @@ interface SubData {
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
   trialStartedAt: string | null;
+  trialEndAt: string | null;
   trialActive: boolean;
 }
 
@@ -40,7 +42,6 @@ interface PaystackPopInterface {
   setup(config: PaystackSetupConfig): PaystackHandler;
 }
 
-const TRIAL_DURATION_MS = 30 * 60_000;
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
@@ -66,14 +67,6 @@ function loadPaystackScript(): Promise<void> {
   });
 }
 
-function formatCountdown(ms: number): string {
-  if (ms <= 0) return '0:00';
-  const totalSec = Math.ceil(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-}
-
 export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
@@ -90,12 +83,12 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
-    if (!sub?.trialStartedAt || !sub.trialActive) {
+    if (!sub?.trialEndAt || !sub.trialActive) {
       setTrialMsLeft(null);
       return;
     }
 
-    const trialEnd = new Date(sub.trialStartedAt).getTime() + TRIAL_DURATION_MS;
+    const trialEnd = new Date(sub.trialEndAt).getTime();
 
     function tick() {
       const remaining = trialEnd - Date.now();
@@ -112,7 +105,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     tick();
     timerRef.current = setInterval(tick, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [sub?.trialStartedAt, sub?.trialActive]);
+  }, [sub?.trialEndAt, sub?.trialActive]);
 
   async function refreshStatus(): Promise<void> {
     const token = await window.zoomguru.getToken();
@@ -188,7 +181,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   async function handleSubscribe(): Promise<void> {
     const token = await window.zoomguru.getToken();
     const email = getEmailFromJwt(token);
-    const pubKey = 'pk_live_5187e2c64d0f6e607ae278857461ee7a0e5c8d55';
+    const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string;
     const isYearly = selectedPlan === 'yearly';
 
     if (!email) return;
@@ -218,12 +211,15 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
         setVerifying(true);
         void (async () => {
           try {
-            const { keyId } = await window.zoomguru.getDevicePublicKey();
+            const [freshToken, { keyId }] = await Promise.all([
+              window.zoomguru.getToken(),
+              window.zoomguru.getDevicePublicKey(),
+            ]);
             const res = await fetch(`${API_URL}/subscription/verify`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
+                Authorization: `Bearer ${freshToken}`,
                 'X-Key-ID': keyId,
               },
               body: JSON.stringify({ reference: response.reference }),
