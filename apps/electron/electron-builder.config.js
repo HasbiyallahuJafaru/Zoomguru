@@ -42,4 +42,11 @@ module.exports = {
   dmg: {
     sign: false,
   },
+
+  publish: {
+    provider: 'github',
+    owner: 'HasbiyallahuJafaru',
+    repo: 'Zoomguru',
+    releaseType: 'release',
+  },
 };
