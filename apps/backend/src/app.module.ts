@@ -7,6 +7,7 @@ import { DeviceModule } from './device/device.module';
 import { CronModule } from './cron/cron.module';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { ReferralModule } from './referral/referral.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -19,6 +20,7 @@ import { HealthController } from './health.controller';
     CronModule,
     AdminModule,
     AnalyticsModule,
+    ReferralModule,
   ],
   controllers: [HealthController],
 })

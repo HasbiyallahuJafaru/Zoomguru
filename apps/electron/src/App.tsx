@@ -4,8 +4,9 @@ import Register from './auth/Register';
 import Dashboard from './dashboard/Dashboard';
 import CvSetup from './onboarding/CvSetup';
 import Overlay from './overlay/Overlay';
+import Referral from './referral/Referral';
 
-type Step = 'loading' | 'login' | 'register' | 'dashboard' | 'cv' | 'overlay';
+type Step = 'loading' | 'login' | 'register' | 'dashboard' | 'cv' | 'overlay' | 'referral';
 
 const App = () => {
   const [step, setStep] = useState<Step>('loading');
@@ -59,7 +60,17 @@ const App = () => {
     return <CvSetup onDone={() => setStep('overlay')} />;
   }
 
-  return <Overlay onLogout={handleLogout} onTrialExpired={() => setStep('dashboard')} />;
+  if (step === 'referral') {
+    return <Referral onBack={() => setStep('overlay')} />;
+  }
+
+  return (
+    <Overlay
+      onLogout={handleLogout}
+      onTrialExpired={() => setStep('dashboard')}
+      onOpenReferral={() => setStep('referral')}
+    />
+  );
 };
 
 export default App;

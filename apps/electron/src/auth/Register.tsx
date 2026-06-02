@@ -20,6 +20,7 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -29,10 +30,13 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
     setLoading(true);
     try {
+      const body: Record<string, string> = { email, name, password };
+      if (referralCode.trim()) body['referralCode'] = referralCode.trim().toUpperCase();
+
       const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, password }),
+        body: JSON.stringify(body),
       });
       const data: RegisterApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Registration failed'); return; }
@@ -92,6 +96,10 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
             <input className="zg-field" type="password" placeholder="Password — 8 characters min"
               value={password} onChange={(e) => setPassword(e.target.value)}
               disabled={loading} autoComplete="new-password" required />
+            <input className="zg-field" type="text" placeholder="Referral code (optional)"
+              value={referralCode} onChange={(e) => setReferralCode(e.target.value)}
+              disabled={loading} autoComplete="off"
+              style={{ textTransform: 'uppercase', letterSpacing: '0.12em' }} />
 
             {error && <p style={s.error}>{error}</p>}
 

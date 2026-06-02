@@ -58,7 +58,7 @@ export class AuthController {
 
   @Post('register')
   async register(
-    @Body() body: { email: string; name: string; password: string },
+    @Body() body: { email: string; name: string; password: string; referralCode?: string },
     @Req() req: FastifyRequest,
   ) {
     await checkIpRateLimit(req.ip, 'register', 5, 60);
@@ -73,15 +73,18 @@ export class AuthController {
       throw new BadRequestException('Invalid password');
     }
 
-    const cleanEmail    = sanitizeLine(body.email);
-    const cleanName     = sanitizeLine(body.name);
-    const cleanPassword = sanitize(body.password);
+    const cleanEmail      = sanitizeLine(body.email);
+    const cleanName       = sanitizeLine(body.name);
+    const cleanPassword   = sanitize(body.password);
+    const cleanReferral   = body.referralCode
+      ? sanitizeLine(body.referralCode).slice(0, 20)
+      : undefined;
 
     if (!EMAIL_RE.test(cleanEmail)) {
       throw new BadRequestException('Invalid email format');
     }
 
-    return this.authService.register(cleanEmail, cleanName, cleanPassword);
+    return this.authService.register(cleanEmail, cleanName, cleanPassword, cleanReferral);
   }
 
   @Post('login')

@@ -23,6 +23,16 @@ export interface LoginResult {
   };
 }
 
+function generateReferralCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  const bytes = randomBytes(8);
+  for (let i = 0; i < 8; i++) {
+    code += chars[bytes[i] % chars.length];
+  }
+  return code;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -30,17 +40,42 @@ export class AuthService {
     private emailService: EmailService,
   ) {}
 
-  async register(email: string, name: string, password: string): Promise<LoginResult> {
+  async register(email: string, name: string, password: string, referralCode?: string): Promise<LoginResult> {
     const pool = getDB();
     const passwordHash = await bcrypt.hash(password, 10);
+
+    let referredByUserId: string | null = null;
+    if (referralCode) {
+      const refResult = await pool.query<{ id: string }>(
+        `SELECT id FROM users WHERE referral_code = $1 LIMIT 1`,
+        [referralCode.toUpperCase().trim()],
+      );
+      if (refResult.rows[0]) {
+        referredByUserId = refResult.rows[0].id;
+      }
+    }
+
+    // Generate a unique referral code for the new user
+    let newReferralCode: string | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = generateReferralCode();
+      const check = await pool.query<{ id: string }>(
+        `SELECT id FROM users WHERE referral_code = $1 LIMIT 1`,
+        [candidate],
+      );
+      if (check.rows.length === 0) {
+        newReferralCode = candidate;
+        break;
+      }
+    }
 
     let user: UserRow;
     try {
       const result = await pool.query<UserRow>(
-        `INSERT INTO users (email, name, password_hash)
-         VALUES ($1, $2, $3)
+        `INSERT INTO users (email, name, password_hash, referral_code, referred_by_user_id)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id, email, name, username, password_hash`,
-        [email, name, passwordHash],
+        [email, name, passwordHash, newReferralCode, referredByUserId],
       );
       user = result.rows[0];
     } catch (err: unknown) {

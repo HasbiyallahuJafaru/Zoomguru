@@ -400,13 +400,30 @@ export class SubscriptionService {
 
     this.invalidateDeviceCache(userId);
 
-    const userResult = await pool.query<{ email: string; name: string | null }>(
-      `SELECT email, name FROM users WHERE id = $1 LIMIT 1`,
+    const userResult = await pool.query<{ email: string; name: string | null; referred_by_user_id: string | null }>(
+      `SELECT email, name, referred_by_user_id FROM users WHERE id = $1 LIMIT 1`,
       [userId],
     );
     const user = userResult.rows[0];
     if (user) {
       void this.emailService.sendPaymentConfirmation(user.email, user.name ?? 'there', plan);
+    }
+
+    // Commission: 10% of first payment to the referrer
+    if (user?.referred_by_user_id) {
+      const existingCommission = await pool.query<{ id: string }>(
+        `SELECT id FROM referral_commissions WHERE referred_user_id = $1 LIMIT 1`,
+        [userId],
+      );
+      if (existingCommission.rows.length === 0) {
+        const commissionKobo = Math.floor(txData.amount * 0.1);
+        await pool.query(
+          `INSERT INTO referral_commissions
+             (referrer_user_id, referred_user_id, amount_kobo, payment_reference)
+           VALUES ($1, $2, $3, $4)`,
+          [user.referred_by_user_id, userId, commissionKobo, reference],
+        );
+      }
     }
 
     return { success: true };

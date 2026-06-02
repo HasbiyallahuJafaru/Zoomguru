@@ -136,6 +136,68 @@ export async function initDB(): Promise<void> {
         `),
       ]);
 
+      // ── Referral system (additive — all nullable, safe for existing data) ──
+
+      await pool.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE
+      `);
+
+      await pool.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_user_id UUID REFERENCES users(id)
+      `);
+
+      await pool.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_started_at TIMESTAMPTZ
+      `);
+
+      await pool.query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_key_id TEXT
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS referral_commissions (
+          id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          referrer_user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          referred_user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          amount_kobo       INTEGER NOT NULL,
+          payment_reference TEXT NOT NULL,
+          status            TEXT NOT NULL DEFAULT 'pending'
+                              CHECK (status IN ('pending', 'requested', 'paid')),
+          created_at        TIMESTAMPTZ DEFAULT NOW(),
+          paid_at           TIMESTAMPTZ
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS referral_bank_accounts (
+          id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id        UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          account_number TEXT NOT NULL,
+          bank_code      TEXT NOT NULL,
+          bank_name      TEXT NOT NULL,
+          account_name   TEXT NOT NULL,
+          recipient_code TEXT,
+          created_at     TIMESTAMPTZ DEFAULT NOW(),
+          updated_at     TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      await Promise.all([
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_referral_commissions_referrer
+            ON referral_commissions(referrer_user_id)
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_referral_commissions_referred
+            ON referral_commissions(referred_user_id)
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_users_referral_code
+            ON users(referral_code)
+            WHERE referral_code IS NOT NULL
+        `),
+      ]);
+
       console.log('✅ ZoomGuru DB ready');
       return;
     } catch (err) {

@@ -30,7 +30,7 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => void; onTrialExpired?: () => void }) {
+export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { onLogout: () => void; onTrialExpired?: () => void; onOpenReferral?: () => void }) {
   // --- state ---
   const { cvText, jdText } = useCVContext();
 
@@ -418,7 +418,19 @@ export default function Overlay({ onLogout, onTrialExpired }: { onLogout: () => 
 
         {/* ── Header ── */}
         <div style={s.header}>
-          <span style={s.wordmark}>ZoomGuru</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={s.wordmark}>ZoomGuru</span>
+            {onOpenReferral && (
+              <button
+                className="zg-ibtn"
+                style={s.referralBtn}
+                onClick={onOpenReferral}
+                aria-label="Referral programme"
+              >
+                Refer
+              </button>
+            )}
+          </div>
 
           <div style={s.headerRight}>
             {/* Status */}
@@ -688,6 +700,22 @@ const s: Record<string, ElectronStyle> = {
     background: 'transparent',
     border: 'none',
     color: 'rgba(255,255,255,0.28)',
+    fontSize: '10px',
+    fontWeight: 500,
+    letterSpacing: '0.2px',
+    lineHeight: '1',
+    cursor: 'pointer',
+    padding: '3px 6px',
+    borderRadius: '4px',
+    transition: 'background 120ms ease, color 120ms ease',
+    WebkitAppRegion: 'no-drag',
+    fontFamily: FONT,
+  },
+
+  referralBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.25)',
     fontSize: '10px',
     fontWeight: 500,
     letterSpacing: '0.2px',
