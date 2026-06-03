@@ -199,9 +199,9 @@ export default function Referral({ onBack }: ReferralProps) {
               value={selectedBankCode}
               onChange={(e) => { setSelectedBankCode(e.target.value); setVerifiedName(''); setVerifyError(''); }}
             >
-              <option value="">Select a bank…</option>
+              <option value="" style={{ background: '#1a1a2e', color: '#ffffff' }}>Select a bank…</option>
               {banks.map((b) => (
-                <option key={b.code} value={b.code}>{b.name}</option>
+                <option key={b.code} value={b.code} style={{ background: '#1a1a2e', color: '#ffffff' }}>{b.name}</option>
               ))}
             </select>
           </div>
@@ -544,10 +544,10 @@ const s: Record<string, ElectronStyle> = {
   },
   select: {
     width: '100%',
-    background: 'rgba(255,255,255,0.06)',
+    background: '#1a1a2e',
     border: '1px solid rgba(255,255,255,0.10)',
     borderRadius: '6px',
-    color: 'rgba(255,255,255,0.88)',
+    color: '#ffffff',
     fontSize: '13px',
     padding: '10px 12px',
     outline: 'none',
