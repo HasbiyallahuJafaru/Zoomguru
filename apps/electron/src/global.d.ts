@@ -34,6 +34,7 @@ interface ZoomGuruBridge {
   getToken(): Promise<string>;
   clearToken(): Promise<void>;
   getProtectionStatus(): Promise<boolean>;
+  platform: string;
 }
 
 declare global {

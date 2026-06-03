@@ -472,14 +472,24 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
             >
               Logout
             </button>
-            <button
-              className="zg-ibtn"
-              style={s.iconBtn}
-              onClick={() => { void window.zoomguru.quitApp(); }}
-              aria-label="Quit"
-            >
-              ×
-            </button>
+            {window.zoomguru.platform === 'darwin' ? (
+              /* Mac — traffic-light circle */
+              <button
+                style={s.macCloseBtn}
+                onClick={() => { void window.zoomguru.quitApp(); }}
+                aria-label="Quit"
+              />
+            ) : (
+              /* Windows — square × */
+              <button
+                className="zg-ibtn"
+                style={s.winCloseBtn}
+                onClick={() => { void window.zoomguru.quitApp(); }}
+                aria-label="Quit"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 
@@ -688,6 +698,35 @@ const s: Record<string, ElectronStyle> = {
     WebkitAppRegion: 'no-drag',
     fontFamily: FONT,
   },
+
+  // Mac traffic-light close button
+  macCloseBtn: {
+    width: '12px',
+    height: '12px',
+    borderRadius: '50%',
+    background: '#ff5f57',
+    border: '0.5px solid rgba(0,0,0,0.18)',
+    cursor: 'pointer',
+    padding: 0,
+    flexShrink: 0,
+    WebkitAppRegion: 'no-drag',
+    transition: 'filter 120ms ease',
+  } as ElectronStyle,
+
+  // Windows square × close button
+  winCloseBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: '11px',
+    lineHeight: '1',
+    cursor: 'pointer',
+    padding: '3px 6px',
+    borderRadius: '3px',
+    transition: 'background 120ms ease, color 120ms ease',
+    WebkitAppRegion: 'no-drag',
+    fontFamily: FONT,
+  } as ElectronStyle,
   trialTimer: {
     fontSize: '11px',
     fontWeight: 600,

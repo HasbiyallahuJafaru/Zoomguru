@@ -64,4 +64,6 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
   getProtectionStatus: (): Promise<boolean> =>
     ipcRenderer.invoke('protection:status'),
+
+  platform: process.platform,
 });
