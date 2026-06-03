@@ -5,6 +5,7 @@ import type {
   DailyUsage,
   DailyDownloads,
   UserRow,
+  ReferralCommissionRow,
 } from './types';
 
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://zoomguru.onrender.com';
@@ -41,4 +42,8 @@ export function fetchDownloads(key: string, days: number): Promise<DailyDownload
 
 export function fetchUsers(key: string): Promise<UserRow[]> {
   return get<UserRow[]>('/admin/users', key);
+}
+
+export function fetchReferrals(key: string): Promise<ReferralCommissionRow[]> {
+  return get<ReferralCommissionRow[]>('/admin/referrals', key);
 }

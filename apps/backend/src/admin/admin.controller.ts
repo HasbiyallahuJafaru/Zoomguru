@@ -18,6 +18,7 @@ import {
   DailyUsage,
   DailyDownloads,
   UserRow,
+  ReferralCommissionRow,
 } from './admin.service';
 
 function safeKeyEqual(a: string, b: string): boolean {
@@ -80,5 +81,10 @@ export class AdminController {
   getUsers(@Query('offset') offsetParam?: string): Promise<UserRow[]> {
     const offset = Math.max(0, parseInt(offsetParam ?? '0', 10) || 0);
     return this.adminService.getUsers(offset);
+  }
+
+  @Get('referrals')
+  getReferrals(): Promise<ReferralCommissionRow[]> {
+    return this.adminService.getReferrals();
   }
 }

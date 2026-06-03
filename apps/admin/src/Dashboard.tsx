@@ -6,9 +6,9 @@ import {
 } from 'recharts';
 import {
   fetchStats, fetchSignups, fetchPayments,
-  fetchUsage, fetchDownloads, fetchUsers,
+  fetchUsage, fetchDownloads, fetchUsers, fetchReferrals,
 } from './api';
-import type { DashboardData } from './types';
+import type { DashboardData, ReferralCommissionRow } from './types';
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -50,6 +50,43 @@ const CHART = {
 
 const DAYS = [7, 30, 90] as const;
 type Days = (typeof DAYS)[number];
+
+function downloadReferralsCsv(rows: ReferralCommissionRow[]): void {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const yyyy = now.getFullYear();
+  const dueDate = `${dd}/${mm}/${yyyy}`;
+  const monthTag = `${yyyy}${mm}`;
+
+  // Zenith Bank bulk payment format — no header row, strict column order:
+  // TxnRef, BeneficiaryName, Amount, DueDate, BeneficiaryCode, AccountNumber, SortCode, DebitAccount
+  const sanitize = (v: string | null | undefined): string => {
+    if (!v) return '';
+    // strip characters forbidden in mandatory fields: comma, semicolon, apostrophe, space
+    return v.replace(/[,;' ]/g, '_').slice(0, 100);
+  };
+
+  const lines = rows.map((r, i) => {
+    const idx = String(i + 1).padStart(3, '0');
+    const txnRef = `ZGREF_${monthTag}_${idx}`;
+    const beneName = sanitize(r.account_name ?? r.referrer_name).slice(0, 100);
+    const amount = r.pending_naira.toFixed(2);
+    const beneCode = sanitize(r.referrer_name ?? r.referrer_email).slice(0, 35).replace(/_+/g, '_').replace(/^_|_$/g, '');
+    const accountNo = r.account_number ?? '';
+    const sortCode = r.bank_code ?? '';
+    const debitAccount = '';
+    return [txnRef, beneName, amount, dueDate, beneCode, accountNo, sortCode, debitAccount].join(',');
+  });
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zoomguru_referral_payout_${monthTag}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 interface Props { adminKey: string; onLogout: () => void; }
 
@@ -154,12 +191,13 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
     setRefreshing(true);
     setError('');
     try {
-      const [stats, signups, payments, usage, downloads, users] = await Promise.all([
+      const [stats, signups, payments, usage, downloads, users, referrals] = await Promise.all([
         fetchStats(adminKey), fetchSignups(adminKey, d),
         fetchPayments(adminKey, d), fetchUsage(adminKey, d),
         fetchDownloads(adminKey, d), fetchUsers(adminKey),
+        fetchReferrals(adminKey),
       ]);
-      setData({ stats, signups, payments, usage, downloads, users });
+      setData({ stats, signups, payments, usage, downloads, users, referrals });
     } catch {
       setError('Failed to load data. Check backend connection.');
     } finally {
@@ -494,6 +532,123 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                   ))}
                 </tbody>
               </table>
+            )}
+          </div>
+        </Card>
+
+        {/* ── Referrals table ── */}
+        <Card style={{
+          marginTop: 18,
+          animation: `fadeSlideUp 0.55s cubic-bezier(0.16,1,0.3,1) 575ms both`,
+        }}>
+          <div style={{ padding: '22px 28px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+            <h2 style={{
+              fontFamily: F.heading, fontStyle: 'italic', fontWeight: 700,
+              fontSize: 22, color: C.primary, letterSpacing: '-0.015em',
+            }}>
+              Referral Payouts
+            </h2>
+            <p style={{ fontFamily: F.body, fontSize: 12, color: C.muted, marginTop: 3 }}>
+              Per referrer · sorted by amount owed (highest first)
+            </p>
+          </div>
+
+          <div className="table-scroll">
+            {!data ? (
+              <div style={{ padding: '24px 28px' }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 20, marginBottom: 18, opacity: 1 - i * 0.18 }}>
+                    <Skel w="22%" h={12} />
+                    <Skel w="8%"  h={12} r={20} />
+                    <Skel w="12%" h={12} />
+                    <Skel w="12%" h={12} />
+                    <Skel w="18%" h={12} />
+                  </div>
+                ))}
+              </div>
+            ) : data.referrals.length === 0 ? (
+              <div style={{ padding: '32px 28px', fontFamily: F.body, fontSize: 13, color: C.muted }}>
+                No referral commissions yet.
+              </div>
+            ) : (
+              <>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: F.body, fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#FAFAF8' }}>
+                      {['Name', 'Referrals', 'Amount Owed (₦)', 'Account Number', 'Bank'].map((h) => (
+                        <th key={h} style={{
+                          padding: '11px 20px',
+                          textAlign: 'left', fontWeight: 500, fontSize: 10,
+                          color: C.muted, textTransform: 'uppercase', letterSpacing: '0.09em',
+                          borderBottom: '1px solid rgba(0,0,0,0.04)', whiteSpace: 'nowrap',
+                        }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.referrals.map((r) => (
+                      <tr key={r.referrer_email} className="trow">
+                        <td style={{ padding: '13px 20px', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: C.primary, fontWeight: 600, fontSize: 13 }}>
+                            {r.referrer_name ?? '—'}
+                          </div>
+                          <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>
+                            {r.referrer_email}
+                          </div>
+                        </td>
+                        <td style={{ padding: '13px 20px', whiteSpace: 'nowrap' }}>
+                          <span style={{
+                            display: 'inline-block', padding: '3px 12px', borderRadius: 20,
+                            fontSize: 12, fontWeight: 700,
+                            background: 'rgba(59,130,246,0.09)', color: ACCENT.blue,
+                            border: '1px solid rgba(59,130,246,0.2)',
+                          }}>
+                            {r.referral_count}
+                          </span>
+                        </td>
+                        <td style={{ padding: '13px 20px', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: C.primary, fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em' }}>
+                            ₦{r.pending_naira.toLocaleString()}
+                          </div>
+                          {r.total_naira !== r.pending_naira && (
+                            <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>
+                              ₦{r.total_naira.toLocaleString()} all-time
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '13px 20px', color: C.secondary, whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 13 }}>
+                          {r.account_number ?? <span style={{ color: 'rgba(0,0,0,0.18)', fontFamily: F.body }}>—</span>}
+                        </td>
+                        <td style={{ padding: '13px 20px', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: C.secondary, fontSize: 13 }}>{r.bank_name ?? <span style={{ color: 'rgba(0,0,0,0.18)' }}>—</span>}</div>
+                          {r.account_name && (
+                            <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{r.account_name}</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div style={{ padding: '18px 24px', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                  <button
+                    onClick={() => downloadReferralsCsv(data.referrals)}
+                    style={{
+                      padding: '10px 24px',
+                      background: C.primary,
+                      border: 'none',
+                      borderRadius: 11,
+                      fontFamily: F.body, fontSize: 13, fontWeight: 600,
+                      color: '#FFFFFF',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Download CSV
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </Card>

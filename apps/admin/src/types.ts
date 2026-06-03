@@ -40,6 +40,18 @@ export interface UserRow {
   status: string | null;
 }
 
+export interface ReferralCommissionRow {
+  referrer_email: string;
+  referrer_name: string | null;
+  referral_count: number;
+  total_naira: number;
+  pending_naira: number;
+  account_name: string | null;
+  account_number: string | null;
+  bank_name: string | null;
+  bank_code: string | null;
+}
+
 export interface DashboardData {
   stats: StatsResult;
   signups: DailyCount[];
@@ -47,4 +59,5 @@ export interface DashboardData {
   usage: DailyUsage[];
   downloads: DailyDownloads[];
   users: UserRow[];
+  referrals: ReferralCommissionRow[];
 }

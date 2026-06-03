@@ -43,6 +43,18 @@ export interface UserRow {
   status: string | null;
 }
 
+export interface ReferralCommissionRow {
+  referrer_email: string;
+  referrer_name: string | null;
+  referral_count: number;
+  total_naira: number;
+  pending_naira: number;
+  account_name: string | null;
+  account_number: string | null;
+  bank_name: string | null;
+  bank_code: string | null;
+}
+
 @Injectable()
 export class AdminService {
   async getStats(): Promise<StatsResult> {
@@ -147,6 +159,29 @@ export class AdminService {
       else if (row.platform === 'mac') entry.mac = row.count;
     }
     return Array.from(map.values());
+  }
+
+  async getReferrals(): Promise<ReferralCommissionRow[]> {
+    const pool = getDB();
+    const result = await pool.query<ReferralCommissionRow>(
+      `SELECT
+         u.email                                       AS referrer_email,
+         u.name                                        AS referrer_name,
+         COUNT(rc.id)::int                             AS referral_count,
+         (SUM(rc.amount_kobo) / 100)::int              AS total_naira,
+         (SUM(CASE WHEN rc.status IN ('pending','requested')
+                   THEN rc.amount_kobo ELSE 0 END) / 100)::int AS pending_naira,
+         rba.account_name,
+         rba.account_number,
+         rba.bank_name,
+         rba.bank_code
+       FROM referral_commissions rc
+       JOIN users u ON u.id = rc.referrer_user_id
+       LEFT JOIN referral_bank_accounts rba ON rba.user_id = rc.referrer_user_id
+       GROUP BY u.id, u.email, u.name, rba.account_name, rba.account_number, rba.bank_name, rba.bank_code
+       ORDER BY pending_naira DESC, total_naira DESC`,
+    );
+    return result.rows;
   }
 
   async getUsers(offset = 0): Promise<UserRow[]> {
