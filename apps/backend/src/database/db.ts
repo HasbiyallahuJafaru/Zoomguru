@@ -10,7 +10,7 @@ export function getDB(): Pool {
     }
     _pool = new Pool({
       connectionString,
-      max: 5,
+      max: 12,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 5_000,
     });

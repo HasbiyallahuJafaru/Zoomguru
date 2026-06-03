@@ -42,10 +42,6 @@ export async function initDB(): Promise<void> {
       `);
 
       await pool.query(`
-        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_device_id TEXT
-      `);
-
-      await pool.query(`
         ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_device_id_2 TEXT
       `);
 
@@ -202,6 +198,7 @@ export async function initDB(): Promise<void> {
       return;
     } catch (err) {
       lastError = err;
+      console.error(`[DB init] attempt ${attempt}/${MAX_ATTEMPTS} failed:`, (err as Error).message);
       if (attempt < MAX_ATTEMPTS) {
         await new Promise((resolve) => setTimeout(resolve, BACKOFF_MS));
       }

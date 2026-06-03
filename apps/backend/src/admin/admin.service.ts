@@ -149,14 +149,15 @@ export class AdminService {
     return Array.from(map.values());
   }
 
-  async getUsers(): Promise<UserRow[]> {
+  async getUsers(offset = 0): Promise<UserRow[]> {
     const pool = getDB();
     const result = await pool.query<UserRow>(
       `SELECT u.id, u.email, u.name, u.created_at::text AS created_at, s.plan, s.status
        FROM users u
        LEFT JOIN subscriptions s ON s.user_id = u.id
        ORDER BY u.created_at DESC
-       LIMIT 50`,
+       LIMIT 50 OFFSET $1`,
+      [offset],
     );
     return result.rows;
   }

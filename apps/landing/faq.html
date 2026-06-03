@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQ — ZoomGuru</title>
+  <meta name="description" content="Answers to the most common questions about ZoomGuru — the AI interview coaching app." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .faq-page { max-width: 720px; margin: 0 auto; padding: 120px 24px 80px; }
+    .faq-page-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+    .faq-page-hed { font-family: var(--serif); font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; line-height: 1.15; margin-bottom: 12px; }
+    .faq-page-sub { font-family: var(--sans); font-size: 16px; line-height: 1.65; color: var(--muted); margin-bottom: 56px; padding-bottom: 32px; border-bottom: 1px solid var(--rule); max-width: 540px; }
+    .faq-page-back { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--muted); text-decoration: none; margin-bottom: 40px; }
+    .faq-page-back:hover { color: var(--ink); }
+    .faq-category { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 48px 0 16px; }
+    .faq-category:first-of-type { margin-top: 0; }
+    /* reuse existing faq styles from style.css */
+    .faq-standalone .faq-item { border-top: 1px solid var(--rule); }
+    .faq-standalone .faq-item:last-child { border-bottom: 1px solid var(--rule); }
+    .faq-cta-band { margin-top: 64px; padding: 40px; background: var(--cream); border: 1px solid var(--rule); border-radius: 4px; text-align: center; }
+    .faq-cta-band h2 { font-family: var(--serif); font-size: 1.5rem; font-weight: 700; margin-bottom: 10px; }
+    .faq-cta-band p { font-family: var(--sans); font-size: 15px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="index.html" class="nav-logo">Zoom<em>Guru</em></a>
+    <ul class="nav-links">
+      <li><a href="index.html#how">How it works</a></li>
+      <li><a href="index.html#pricing">Pricing</a></li>
+      <li><a href="faq.html" aria-current="page">FAQ</a></li>
+      <li><a href="index.html#pricing" class="nav-dl" data-dl>Download</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="site">
+  <div class="faq-page">
+
+    <a href="index.html" class="faq-page-back">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      Back to home
+    </a>
+
+    <p class="faq-page-eyebrow">Help</p>
+    <h1 class="faq-page-hed">Frequently asked<br /><em>questions.</em></h1>
+    <p class="faq-page-sub">Everything you want to know about ZoomGuru. Can't find what you're looking for? Email us at <a href="mailto:support@zoomguru.xyz" style="color:var(--ink);">support@zoomguru.xyz</a> and we'll get back to you.</p>
+
+    <!-- ABOUT THE PRODUCT -->
+    <p class="faq-category">About ZoomGuru</p>
+    <div class="faq-standalone">
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">What exactly is ZoomGuru?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>ZoomGuru is an AI-powered interview coaching app that runs on your desktop. You practise with it before and during your interviews — ask it questions out loud or screenshot a problem, and it coaches you through a strong, well-structured answer tailored to the role you are going for. Think of it as having a brilliant, patient coach available any time you need one.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">How is this different from just Googling answers?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>Google gives you information. ZoomGuru coaches you on how to deliver it. It structures answers the way a strong candidate would actually speak them in an interview — with the right framing, appropriate depth, and language that sounds natural coming from you. It also tailors everything to the specific role you are going for, so you are not reciting a generic answer.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">What kinds of questions can I practise?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>All of them. Behavioural questions like "Tell me about a time you failed." Technical questions like "How would you design a distributed cache." Situational, case study, system design, coding challenges — paste a screenshot and your coach walks you through it. If a human interviewer would ask it, ZoomGuru can help you prepare for it.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">Do I need to be a software engineer to use it?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>No. ZoomGuru works for any professional role. Paste in the job description and your coach understands the context. Whether you are interviewing for a product management role, a finance position, a marketing job, or a software engineering role, it adjusts its guidance accordingly.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- USING THE APP -->
+    <p class="faq-category">Using the app</p>
+    <div class="faq-standalone">
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">How do I get started?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>Download the app, create an account, and paste in the job description you are preparing for. From there, press Ctrl+Shift+L to speak a question, or Ctrl+Shift+S to screenshot something on your screen. Your coach responds in under two seconds. You can run as many practice sessions as you need before the real interview.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">How fast does the coaching response appear?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>The first words appear in under two seconds. The rest streams in as you read, so you never wait for a full page to load. It feels like a real conversation, which makes practice sessions fast and natural.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">What are the keyboard shortcuts?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>There are four main hotkeys:</p>
+          <p><strong>Ctrl+Shift+L</strong> — Speak a question and get a coached answer.<br />
+          <strong>Ctrl+Shift+S</strong> — Screenshot your screen and get a walk-through.<br />
+          <strong>Ctrl+Shift+D</strong> — Toggle auto mode, which listens continuously without pressing a button.<br />
+          <strong>Ctrl+Shift+H</strong> — Hide or show the overlay instantly.<br />
+          <strong>Ctrl+Shift+C</strong> — Clear the current answer from the screen.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">Can the interviewer see ZoomGuru on my screen?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>No. ZoomGuru uses OS-level content protection — the same mechanism used to prevent screen recording of protected content. Zoom, Google Meet, Microsoft Teams, and Webex are all blind to it. Your interviewer sees only your normal desktop.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">Does it work on both macOS and Windows?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>Windows 10 and 11 (64-bit) are fully supported right now. macOS support is in development and coming soon. Download the Windows version and you are set up in under two minutes.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PRIVACY & SECURITY -->
+    <p class="faq-category">Privacy &amp; security</p>
+    <div class="faq-standalone">
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">Is my data stored or used for training?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>No. Everything you practise lives only in memory during the session. When you close ZoomGuru, it is all gone. We do not store your questions, save your transcripts, or use anything from your sessions to train any AI model. Your preparation is completely private. See our <a href="privacy.html">Privacy Policy</a> for full details.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">Windows flagged the app. Should I be worried?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>Not at all. Windows Defender shows a warning the first time any new app without a paid publisher certificate is run. Click "More info" then "Run anyway" and the prompt will not appear again. The app only accesses your microphone and screen when you activate it with a hotkey — nothing runs in the background without your action.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">How many devices can I use my subscription on?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>Your subscription can be used on up to two devices. The first device you use after subscribing is registered automatically. Contact support if you need to switch to a different device.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BILLING -->
+    <p class="faq-category">Billing &amp; plans</p>
+    <div class="faq-standalone">
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">What plans are available?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>We offer two plans:</p>
+          <p><strong>Monthly — ₦50,000/month.</strong> Renews each month. Cancel anytime.<br />
+          <strong>Yearly — ₦500,000/year.</strong> Renews annually. Saves you the equivalent of two months compared to monthly billing.</p>
+          <p>Both plans include unlimited coaching sessions, all question types, role-specific tailoring, and all future updates. New users also get a free 30-minute trial with no payment required.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">Is there a free trial?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>Yes. Every new user gets a free 30-minute trial with full access to all features. No credit card required. One trial per device. After the trial ends you can subscribe to continue.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">Can I cancel anytime?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>Yes, with no penalty. Monthly plans end at the close of the current billing period. Yearly plans can be cancelled before renewal — you keep access through the end of the year you paid for. No awkward calls, no cancellation forms.</p>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-q" aria-expanded="false">
+          <span class="faq-q-text">What is your refund policy?</span>
+          <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+        </button>
+        <div class="faq-answer">
+          <p>If ZoomGuru does not work as described and we cannot fix it within 48 hours of your report, you are entitled to a full refund within the first 7 days of your subscription. See our full <a href="refund.html">Refund Policy</a> for details.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="faq-cta-band">
+      <h2>Still have a question?</h2>
+      <p>We are a small team and we actually read every email.<br />Reach out and we will get back to you within one business day.</p>
+      <a href="mailto:support@zoomguru.xyz" class="btn-dl outline" style="display:inline-flex;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        support@zoomguru.xyz
+      </a>
+    </div>
+
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <span class="footer-logo">Zoom<em>Guru</em></span>
+        <p class="footer-copy">&#169; 2025 ZoomGuru.xyz</p>
+        <ul class="footer-links">
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="terms.html">Terms</a></li>
+          <li><a href="refund.html">Refund Policy</a></li>
+          <li><a href="faq.html">FAQ</a></li>
+          <li><a href="mailto:support@zoomguru.xyz">Support</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>

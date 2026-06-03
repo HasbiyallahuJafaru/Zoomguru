@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { getDB } from '../database/db';
+import { getRedis } from '../redis/redis';
 import { EmailService } from '../email/email.service';
 
 type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
@@ -63,22 +64,19 @@ interface PaystackVerifyResponse {
   data: PaystackVerifyData;
 }
 
-interface DeviceCacheEntry {
-  allowed: boolean;
-  expiresAt: number;
+const KEY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEVICE_CACHE_TTL_SEC = 10;
+const TRIAL_DURATION_MS = 30 * 60_000;
+
+async function getDeviceCache(cacheKey: string): Promise<boolean | null> {
+  const val = await getRedis().get(`dc:${cacheKey}`);
+  if (val === null) return null;
+  return val === '1';
 }
 
-const KEY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DEVICE_CACHE_TTL_MS = 10_000;
-const TRIAL_DURATION_MS = 30 * 60_000;
-const deviceCache = new Map<string, DeviceCacheEntry>();
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of deviceCache.entries()) {
-    if (entry.expiresAt <= now) deviceCache.delete(key);
-  }
-}, 5 * 60_000);
+async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void> {
+  await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
+}
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 
@@ -205,16 +203,17 @@ export class SubscriptionService {
   async checkAccess(
     userId: string,
     keyId: string | undefined,
-  ): Promise<{ canUse: boolean; deviceAllowed: boolean }> {
+  ): Promise<{ canUse: boolean; deviceAllowed: boolean; plan: string | null }> {
     const pool = getDB();
 
     const [subResult, userResult] = await Promise.all([
       pool.query<{
         status: string;
+        plan: string | null;
         locked_key_id: string | null;
         locked_key_id_2: string | null;
       }>(
-        `SELECT status, locked_key_id, locked_key_id_2
+        `SELECT status, plan, locked_key_id, locked_key_id_2
          FROM subscriptions WHERE user_id = $1 LIMIT 1`,
         [userId],
       ),
@@ -239,20 +238,19 @@ export class SubscriptionService {
     let deviceAllowed = true;
     if (keyId && KEY_ID_RE.test(keyId) && sub?.status === 'active') {
       const cacheKey = `${userId}:${keyId}`;
-      const now = Date.now();
-      const cached = deviceCache.get(cacheKey);
-      if (cached && cached.expiresAt > now) {
-        deviceAllowed = cached.allowed;
+      const cached = await getDeviceCache(cacheKey);
+      if (cached !== null) {
+        deviceAllowed = cached;
       } else if (sub.locked_key_id === keyId || sub.locked_key_id_2 === keyId) {
         deviceAllowed = true;
-        deviceCache.set(cacheKey, { allowed: true, expiresAt: now + DEVICE_CACHE_TTL_MS });
+        await setDeviceCache(cacheKey, true);
       } else if (!sub.locked_key_id) {
         await pool.query(
           `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id IS NULL`,
           [keyId, userId],
         );
-        this.invalidateDeviceCache(userId);
+        await this.invalidateDeviceCache(userId);
         deviceAllowed = true;
       } else if (!sub.locked_key_id_2) {
         await pool.query(
@@ -260,74 +258,26 @@ export class SubscriptionService {
            WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
           [keyId, userId],
         );
-        this.invalidateDeviceCache(userId);
+        await this.invalidateDeviceCache(userId);
         deviceAllowed = true;
       } else {
         deviceAllowed = false;
-        deviceCache.set(cacheKey, { allowed: false, expiresAt: now + DEVICE_CACHE_TTL_MS });
+        await setDeviceCache(cacheKey, false);
       }
     }
 
-    return { canUse, deviceAllowed };
+    return { canUse, deviceAllowed, plan: sub?.plan ?? null };
   }
 
-  async checkDevice(userId: string, keyId: string | undefined): Promise<boolean> {
-    if (!keyId || !KEY_ID_RE.test(keyId)) return true;
-
-    const cacheKey = `${userId}:${keyId}`;
-    const now = Date.now();
-    const cached = deviceCache.get(cacheKey);
-    if (cached && cached.expiresAt > now) return cached.allowed;
-
-    const pool = getDB();
-    const result = await pool.query<{
-      status: string;
-      locked_key_id: string | null;
-      locked_key_id_2: string | null;
-    }>(
-      `SELECT status, locked_key_id, locked_key_id_2
-       FROM subscriptions WHERE user_id = $1 LIMIT 1`,
-      [userId],
-    );
-
-    let allowed: boolean;
-    if (result.rows.length === 0) {
-      allowed = true;
-    } else {
-      const row = result.rows[0];
-      if (row.status !== 'active') {
-        allowed = true;
-      } else if (row.locked_key_id === keyId || row.locked_key_id_2 === keyId) {
-        allowed = true;
-      } else if (!row.locked_key_id) {
-        await pool.query(
-          `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
-           WHERE user_id = $2 AND locked_key_id IS NULL`,
-          [keyId, userId],
-        );
-        this.invalidateDeviceCache(userId);
-        allowed = true;
-      } else if (!row.locked_key_id_2) {
-        await pool.query(
-          `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
-           WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
-          [keyId, userId],
-        );
-        this.invalidateDeviceCache(userId);
-        allowed = true;
-      } else {
-        allowed = false;
-      }
-    }
-
-    deviceCache.set(cacheKey, { allowed, expiresAt: now + DEVICE_CACHE_TTL_MS });
-    return allowed;
-  }
-
-  invalidateDeviceCache(userId: string): void {
-    for (const key of deviceCache.keys()) {
-      if (key.startsWith(`${userId}:`)) deviceCache.delete(key);
-    }
+  async invalidateDeviceCache(userId: string): Promise<void> {
+    const redis = getRedis();
+    // Scan for all dc:{userId}:* keys and delete them.
+    let cursor = '0';
+    do {
+      const [next, keys] = await redis.scan(cursor, 'MATCH', `dc:${userId}:*`, 'COUNT', 100);
+      cursor = next;
+      if (keys.length > 0) await redis.del(...keys);
+    } while (cursor !== '0');
   }
 
   async verify(userId: string, userEmail: string, reference: string, keyId?: string): Promise<{ success: boolean }> {
@@ -398,7 +348,7 @@ export class SubscriptionService {
       [userId, txData.customer.customer_code, reference, plan, periodEnd, lockedKeyId],
     );
 
-    this.invalidateDeviceCache(userId);
+    await this.invalidateDeviceCache(userId);
 
     const userResult = await pool.query<{ email: string; name: string | null; referred_by_user_id: string | null }>(
       `SELECT email, name, referred_by_user_id FROM users WHERE id = $1 LIMIT 1`,
@@ -491,7 +441,7 @@ export class SubscriptionService {
            updated_at              = NOW()`,
         [uid, data.customer.customer_code, ref, plan, periodEnd],
       );
-      this.invalidateDeviceCache(uid);
+      await this.invalidateDeviceCache(uid);
     } else if (event.event === 'subscription.create') {
       const data = event.data as SubscriptionCreateData;
       const plan = 'monthly';

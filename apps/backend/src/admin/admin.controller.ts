@@ -77,7 +77,8 @@ export class AdminController {
   }
 
   @Get('users')
-  getUsers(): Promise<UserRow[]> {
-    return this.adminService.getUsers();
+  getUsers(@Query('offset') offsetParam?: string): Promise<UserRow[]> {
+    const offset = Math.max(0, parseInt(offsetParam ?? '0', 10) || 0);
+    return this.adminService.getUsers(offset);
   }
 }

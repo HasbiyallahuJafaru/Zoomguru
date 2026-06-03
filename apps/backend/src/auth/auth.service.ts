@@ -55,46 +55,39 @@ export class AuthService {
       }
     }
 
-    // Generate a unique referral code for the new user
-    let newReferralCode: string | null = null;
+    let user: UserRow | undefined;
     for (let attempt = 0; attempt < 5; attempt++) {
-      const candidate = generateReferralCode();
-      const check = await pool.query<{ id: string }>(
-        `SELECT id FROM users WHERE referral_code = $1 LIMIT 1`,
-        [candidate],
-      );
-      if (check.rows.length === 0) {
-        newReferralCode = candidate;
+      const newReferralCode = generateReferralCode();
+      try {
+        const result = await pool.query<UserRow>(
+          `INSERT INTO users (email, name, password_hash, referral_code, referred_by_user_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, email, name, username, password_hash`,
+          [email, name, passwordHash, newReferralCode, referredByUserId],
+        );
+        user = result.rows[0];
         break;
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          if (err.message.includes('referral_code')) continue;
+          if (err.message.includes('unique')) throw new ConflictException('Email already in use');
+        }
+        throw err;
       }
     }
-
-    let user: UserRow;
-    try {
-      const result = await pool.query<UserRow>(
-        `INSERT INTO users (email, name, password_hash, referral_code, referred_by_user_id)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, email, name, username, password_hash`,
-        [email, name, passwordHash, newReferralCode, referredByUserId],
-      );
-      user = result.rows[0];
-    } catch (err: unknown) {
-      if (err instanceof Error && err.message.includes('unique')) {
-        throw new ConflictException('Email already in use');
-      }
-      throw err;
-    }
+    if (!user) throw new ConflictException('Email already in use');
+    const registeredUser = user;
 
     const accessToken = this.jwtService.sign(
-      { sub: user.id, email: user.email },
+      { sub: registeredUser.id, email: registeredUser.email },
       { expiresIn: '30d' },
     );
 
-    void this.emailService.sendWelcome(user.email, user.name ?? 'there');
+    void this.emailService.sendWelcome(registeredUser.email, registeredUser.name ?? 'there');
 
     return {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name, username: user.username },
+      user: { id: registeredUser.id, email: registeredUser.email, name: registeredUser.name, username: registeredUser.username },
     };
   }
 

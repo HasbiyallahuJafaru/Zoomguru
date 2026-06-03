@@ -11,6 +11,9 @@ export function getRedis(): Redis {
       maxRetriesPerRequest: 2,
       enableReadyCheck: false,
     });
+    _redis.on('error', (err) => {
+      console.error('[Redis] client error:', err.message);
+    });
   }
   return _redis;
 }

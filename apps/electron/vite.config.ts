@@ -14,6 +14,8 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
       'import.meta.env.VITE_PAYSTACK_PUBLIC_KEY': JSON.stringify(env.VITE_PAYSTACK_PUBLIC_KEY),
+      'import.meta.env.VITE_PAYSTACK_PLAN_MONTHLY': JSON.stringify(env.VITE_PAYSTACK_PLAN_MONTHLY),
+      'import.meta.env.VITE_PAYSTACK_PLAN_ANNUAL': JSON.stringify(env.VITE_PAYSTACK_PLAN_ANNUAL),
       'import.meta.env.VITE_APP_ENV': JSON.stringify(env.VITE_APP_ENV),
     },
     plugins: [

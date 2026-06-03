@@ -19,11 +19,13 @@ function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
 }
 
+const SSE_ORIGIN = process.env.ELECTRON_ORIGIN ?? 'app://zoomguru';
+
 const SSE_HEADERS = {
   'Content-Type': 'text/event-stream',
   'Cache-Control': 'no-cache',
   'Connection': 'keep-alive',
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': SSE_ORIGIN,
 } as const;
 
 const RATE_LIMIT = 15;
@@ -34,34 +36,37 @@ interface AuthenticatedRequest extends FastifyRequest {
   user: { userId: string; email: string };
 }
 
-async function checkSessionCap(userId: string): Promise<{ capped: boolean }> {
-  const pool = getDB();
-  const subResult = await pool.query<{ plan: string | null }>(
-    'SELECT plan FROM subscriptions WHERE user_id = $1 LIMIT 1',
-    [userId],
-  );
-  const plan = subResult.rows[0]?.plan ?? null;
+async function checkSessionCap(
+  userId: string,
+  plan: string | null,
+): Promise<{ capped: boolean }> {
   if (plan !== 'monthly') return { capped: false };
-  const countResult = await pool.query<{ count: number }>(
-    `SELECT COUNT(*)::int AS count FROM ai_sessions
-     WHERE user_id = $1 AND type IN ('stream', 'screenshot')
-     AND created_at > NOW() - INTERVAL '24 hours'`,
-    [userId],
-  );
-  const count = countResult.rows[0]?.count ?? 0;
-  return { capped: count >= SESSION_CAP_MONTHLY };
+  const redis = getRedis();
+  // Key resets at midnight UTC by using the current UTC date.
+  const date = new Date().toISOString().slice(0, 10);
+  const key = `cap:${userId}:${date}`;
+  const [[, count]] = (await redis
+    .pipeline()
+    .incr(key)
+    // TTL of 25h so the key is definitely gone before the next day's key matters.
+    .expire(key, 90_000)
+    .exec()) as [[null, number], [null, number]];
+  return { capped: count > SESSION_CAP_MONTHLY };
 }
 
 async function checkRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
   const redis = getRedis();
   const key = `rl:${userId}`;
-  const count = await redis.incr(key);
-  if (count === 1) {
-    await redis.expire(key, WINDOW_SEC);
-  }
+  // Pipeline sends INCR + EXPIRE in one round trip and always sets the TTL,
+  // so a crashed process that skipped EXPIRE can never leave a keyless entry.
+  const [[, count], , [, ttlAfter]] = (await redis
+    .pipeline()
+    .incr(key)
+    .expire(key, WINDOW_SEC)
+    .ttl(key)
+    .exec()) as [[null, number], [null, number], [null, number]];
   if (count > RATE_LIMIT) {
-    const ttl = await redis.ttl(key);
-    return { allowed: false, retryAfter: ttl > 0 ? ttl : WINDOW_SEC };
+    return { allowed: false, retryAfter: ttlAfter > 0 ? ttlAfter : WINDOW_SEC };
   }
   return { allowed: true, retryAfter: 0 };
 }
@@ -87,7 +92,7 @@ export class AiController {
     if (!body.transcript || body.transcript.length > 4000) {
       throw new BadRequestException('Invalid transcript');
     }
-    const [sigValid, { canUse, deviceAllowed }, { allowed, retryAfter }] = await Promise.all([
+    const [sigValid, { canUse, deviceAllowed, plan }, { allowed, retryAfter }] = await Promise.all([
       this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
       this.subscriptionService.checkAccess(req.user.userId, keyId),
       checkRateLimit(req.user.userId),
@@ -108,7 +113,7 @@ export class AiController {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
     }
-    const { capped } = await checkSessionCap(req.user.userId);
+    const { capped } = await checkSessionCap(req.user.userId, plan);
     if (capped) {
       await reply.code(429).send({ error: 'session_cap' });
       return;
@@ -139,7 +144,7 @@ export class AiController {
     if (!body.image || body.image.length > 10_000_000) {
       throw new BadRequestException('Invalid image');
     }
-    const [sigValid, { canUse, deviceAllowed }, { allowed, retryAfter }] = await Promise.all([
+    const [sigValid, { canUse, deviceAllowed, plan }, { allowed, retryAfter }] = await Promise.all([
       this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
       this.subscriptionService.checkAccess(req.user.userId, keyId),
       checkRateLimit(req.user.userId),
@@ -160,7 +165,7 @@ export class AiController {
       await reply.code(429).send({ error: 'rate_limit', retryAfter });
       return;
     }
-    const { capped } = await checkSessionCap(req.user.userId);
+    const { capped } = await checkSessionCap(req.user.userId, plan);
     if (capped) {
       await reply.code(429).send({ error: 'session_cap' });
       return;
