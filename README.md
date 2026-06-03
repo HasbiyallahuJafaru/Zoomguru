@@ -1,6 +1,6 @@
 # ZoomGuru
 
-A desktop overlay app that sits transparently over your screen during job interviews. It listens to questions via microphone, captures screenshots on demand, and streams answers in real time. The overlay is invisible to screen share software — the user sees it, the interviewer does not.
+A desktop overlay app that sits transparently over your screen during job interviews. It listens to questions via microphone, captures screenshots on demand, and streams AI-generated answers in real time. The overlay is invisible to screen share software — the user sees it, the interviewer does not.
 
 ---
 
@@ -8,8 +8,9 @@ A desktop overlay app that sits transparently over your screen during job interv
 
 1. Launch the app. A transparent overlay appears above all other windows.
 2. Join your interview call. The overlay is hidden from Zoom, Meet, Teams, and Webex via OS content protection.
-3. Press `Ctrl+Shift+A`, speak the question you just heard. An answer streams onto the overlay word by word in under two seconds.
-4. For coding challenges, press `Ctrl+Shift+S` to capture the screen. The vision model reads the problem and streams a full solution.
+3. Press `Ctrl+Shift+L`, speak the question you just heard. An answer streams onto the overlay word by word.
+4. For coding challenges or visual problems, press `Ctrl+Shift+S` to capture the screen. The vision model reads the problem and streams a full solution.
+5. Toggle hands-free mode with `Ctrl+Shift+D` — VAD detects speech automatically, no hotkey needed per question.
 
 ---
 
@@ -18,9 +19,10 @@ A desktop overlay app that sits transparently over your screen during job interv
 ```
 zoomguru/
 ├── apps/
-│   ├── electron/       Desktop overlay app (Electron + Vite + React)
-│   ├── backend/        Local API server (NestJS + Fastify, port 3000)
-│   └── landing/        Marketing page (plain HTML, no build step)
+│   ├── electron/       Desktop overlay app (Electron + Vite + React 18)
+│   ├── backend/        API server (NestJS + Fastify, deployed on Render)
+│   ├── admin/          Admin dashboard (React + Vite)
+│   └── landing/        Marketing and download page
 └── .claude/            Project context and specs
 ```
 
@@ -31,23 +33,27 @@ zoomguru/
 | Layer | Technology |
 |---|---|
 | Desktop app | Electron, Vite, React 18, TypeScript strict |
-| Backend | NestJS, Fastify adapter, TypeScript |
+| Backend | NestJS, Fastify adapter, TypeScript, deployed on Render |
 | Database | Neon PostgreSQL, `@neondatabase/serverless`, raw SQL |
 | Auth | JWT via `@nestjs/jwt`, 30-day expiry |
-| Text answers | DeepSeek V3 (`deepseek-chat`) and R1 (`deepseek-reasoner`) |
-| Screenshot reading | Groq vision (`llama-4-scout-17b-16e-instruct`) |
+| Text answers | Gemini 2.0 Flash (primary), DeepSeek V3 (fallback), with key rotation |
+| Screenshot reading | Groq vision (`llama-4-scout`) |
 | Voice transcription | Groq Whisper (`whisper-large-v3-turbo`) |
-| Payments | Paystack |
+| Payments | Paystack (inline.js, monthly recurring + lifetime one-time) |
+| Email | Resend |
+| Cache / rate limiting | Redis via ioredis |
 
 ---
 
 ## Prerequisites
 
 - Node.js 20+
-- A Neon PostgreSQL database (free tier works)
-- A DeepSeek API key
+- A Neon PostgreSQL database
+- A Gemini API key (required) and DeepSeek API key (fallback)
 - A Groq API key
-- A Paystack account (test keys are fine for development)
+- A Paystack account
+- A Redis instance
+- A Resend account (for transactional email)
 
 ---
 
@@ -58,33 +64,33 @@ zoomguru/
 ```bash
 cd apps/backend && npm install
 cd ../electron && npm install
+cd ../admin && npm install
 ```
 
 ### 2. Configure the backend
 
-```bash
-cp apps/backend/.env.example apps/backend/.env
-```
-
-Fill in `apps/backend/.env`:
+Create `apps/backend/.env`:
 
 ```env
 DATABASE_URL=postgresql://user:password@ep-xxx.neon.tech/dbname?sslmode=require
 JWT_SECRET=any_long_random_string
+REDIS_URL=redis://...
 
+GEMINI_API_KEY=...
+GEMINI_API_KEY_2=...        # optional key rotation
 DEEPSEEK_API_KEY=sk-...
 GROQ_API_KEY=gsk_...
 
 PAYSTACK_SECRET_KEY=sk_test_...
-PAYSTACK_PLAN_MONTHLY=PLN_...
-PAYSTACK_PLAN_ANNUAL=PLN_...
-PAYSTACK_SUCCESS_URL=http://localhost:5173/payment-success
+RESEND_API_KEY=re_...
+FROM_EMAIL=noreply@yourdomain.com
+ADMIN_KEY=any_secret_string
+APP_URL=http://localhost:3000
+ADMIN_CORS_ORIGIN=http://localhost:5174
 
-PORT=3000
-NODE_ENV=development
+R2_DOWNLOAD_URL_WINDOWS=    # GitHub release asset URL for Windows installer
+R2_DOWNLOAD_URL_MAC=        # GitHub release asset URL for Mac dmg
 ```
-
-The backend validates all required variables on startup and exits immediately if any are missing.
 
 ### 3. Configure the Electron app
 
@@ -92,34 +98,17 @@ Create `apps/electron/.env`:
 
 ```env
 VITE_API_URL=http://localhost:3000
-VITE_APP_ENV=development
+VITE_PAYSTACK_PUBLIC_KEY=pk_test_...
+VITE_PAYSTACK_PLAN_MONTHLY=PLN_...
 ```
 
-### 4. Seed the database
+### 4. Database
 
-The backend runs `CREATE TABLE IF NOT EXISTS` on first boot — no migration step needed. Connect to your Neon database and insert a user manually to log in:
-
-```sql
-INSERT INTO users (email, password_hash, name, is_active)
-VALUES (
-  'you@example.com',
-  '$2b$10$...',
-  'Your Name',
-  true
-);
-```
-
-To generate a bcrypt hash:
-
-```bash
-node -e "const b=require('bcrypt'); b.hash('yourpassword', 10).then(console.log)"
-```
+The backend runs `CREATE TABLE IF NOT EXISTS` on first boot — no migration step needed.
 
 ---
 
 ## Running
-
-Both processes must be running simultaneously.
 
 ```bash
 # Terminal 1 — backend
@@ -129,6 +118,10 @@ npm run start:dev
 # Terminal 2 — Electron app
 cd apps/electron
 npm run dev
+
+# Terminal 3 — Admin dashboard (optional)
+cd apps/admin
+npm run dev
 ```
 
 The backend starts on `http://localhost:3000`. The Electron app connects to it automatically.
@@ -137,44 +130,46 @@ The backend starts on `http://localhost:3000`. The Electron app connects to it a
 
 ## Hotkeys
 
-| Hotkey | Action |
-|---|---|
-| `Ctrl+Shift+A` | Start microphone, speak your question |
-| `Ctrl+Shift+S` | Capture screen and solve what is visible |
-| `Ctrl+Shift+H` | Toggle overlay visibility |
-| `Ctrl+Shift+C` | Clear current answer |
+| Hotkey | Fallback | Action |
+|---|---|---|
+| `Ctrl+Shift+L` | `Ctrl+Alt+L` | Toggle manual listen mode |
+| `Ctrl+Shift+S` | `Ctrl+Alt+S` | Capture screen and answer |
+| `Ctrl+Shift+H` | `Ctrl+Alt+H` | Hide / show overlay |
+| `Ctrl+Shift+C` | `Ctrl+Alt+C` | Clear current answer |
+| `Ctrl+Shift+D` | `Ctrl+Alt+D` | Toggle auto VAD mode |
 
 ---
 
 ## API endpoints
 
 ```
-POST /auth/login
-  Body:    { email, password }
-  Returns: { accessToken, user }
+Auth
+  POST /auth/register         { email, name, password }
+  POST /auth/login            { email, password } + X-Device-ID header
+  POST /auth/forgot-password  { email }
+  POST /auth/reset-password   { token, newPassword }
 
-POST /ai/stream
-  Auth:    Bearer token
-  Body:    { transcript, sessionId? }
-  Returns: text/event-stream — chunks: { chunk, done }
+AI  (Bearer token + X-Device-ID required)
+  POST /ai/stream             { transcript, cvText?, jdText? }  → SSE
+  POST /ai/screenshot         { image (base64), cvText?, jdText? }  → SSE
+  POST /ai/transcribe         { audio (base64) }  → { transcript }
 
-POST /ai/screenshot
-  Auth:    Bearer token
-  Body:    { image (base64), sessionId? }
-  Returns: text/event-stream — same format as /ai/stream
+Subscription  (Bearer token required)
+  GET  /subscription/status
+  POST /subscription/verify   { reference } + X-Device-ID header
 
-POST /subscription/initialize
-  Auth:    Bearer token
-  Returns: { checkoutUrl } — Paystack hosted checkout
+Admin  (X-Admin-Key header required)
+  GET /admin/stats
+  GET /admin/users
+  GET /admin/signups?days=30
+  GET /admin/payments?days=30
+  GET /admin/usage?days=30
 
-POST /subscription/verify
-  Auth:    Bearer token
-  Body:    { reference }
-  Returns: { active, plan, expiresAt }
+Analytics  (public)
+  GET /analytics/download?platform=windows|mac
 
-GET /subscription/status
-  Auth:    Bearer token
-  Returns: { active, plan, expiresAt }
+Health
+  GET /health
 ```
 
 ---
@@ -191,30 +186,22 @@ cd apps/electron
 npm run dist:mac
 ```
 
-Output lands in `apps/electron/dist-release/`.
+Output lands in `apps/electron/dist-release/`. Upload the output file to a GitHub Release, then update `R2_DOWNLOAD_URL_WINDOWS` / `R2_DOWNLOAD_URL_MAC` on Render with the new asset URL.
 
 ---
 
 ## Screen share invisibility
 
-The overlay is hidden from screen share software using `win.setContentProtection(true)` — the same OS API used by banking apps to block screen capture. This is called before the window is shown, and re-applied after the first `show` event on Windows. It works on Zoom, Google Meet, Microsoft Teams, and Webex without any configuration.
+The overlay is hidden from screen share software using `win.setContentProtection(true)` — the same OS API used by banking apps to block screen capture. Works on Zoom, Google Meet, Microsoft Teams, and Webex without any configuration.
 
 ---
 
-## Model routing
+## Device locking
 
-The backend routes each question to the appropriate model automatically:
-
-- Coding, algorithms, system design, maths — DeepSeek R1 (`deepseek-reasoner`)
-- Behavioural, situational, general — DeepSeek V3 (`deepseek-chat`)
-- Screenshots — Groq vision reads the image, R1 solves the problem
+Each active subscription is locked to one device. The device fingerprint is derived from CPU model, platform, architecture, hostname, total memory, and MAC address, then SHA-256 hashed. The hash is sent as the `X-Device-ID` header on every AI request. The first AI call after activation binds the subscription to that device.
 
 ---
 
-## Landing page
+## Rate limiting
 
-`apps/landing/index.html` is a single self-contained file with no build step. Open it directly in a browser or serve it from any static host.
-
-```bash
-npx serve apps/landing
-```
+AI endpoints are limited to 15 requests per 60 seconds per user, enforced via Redis.
