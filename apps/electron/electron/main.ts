@@ -178,11 +178,9 @@ if (!gotLock) {
       mainWindow?.show();
     });
 
-    mainWindow.on('close', (event) => {
-      if (!isQuitting) {
-        event.preventDefault();
-        mainWindow?.hide();
-      }
+    mainWindow.on('close', () => {
+      isQuitting = true;
+      app.quit();
     });
   }
 
