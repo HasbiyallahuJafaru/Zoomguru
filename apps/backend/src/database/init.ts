@@ -194,6 +194,13 @@ export async function initDB(): Promise<void> {
         `),
       ]);
 
+      // Backfill referral codes for existing users who have none
+      await pool.query(`
+        UPDATE users
+        SET referral_code = upper(substring(encode(gen_random_bytes(6), 'hex') FROM 1 FOR 8))
+        WHERE referral_code IS NULL
+      `);
+
       console.log('✅ ZoomGuru DB ready');
       return;
     } catch (err) {
