@@ -20,6 +20,7 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,6 +29,7 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
     e.preventDefault();
     setError('');
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    if (password !== confirmPassword) { setError('Passwords do not match'); return; }
     setLoading(true);
     try {
       const body: Record<string, string> = { email, name, password };
@@ -95,6 +97,9 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
               disabled={loading} autoComplete="email" required />
             <input className="zg-field" type="password" placeholder="Password — 8 characters min"
               value={password} onChange={(e) => setPassword(e.target.value)}
+              disabled={loading} autoComplete="new-password" required />
+            <input className="zg-field" type="password" placeholder="Confirm password"
+              value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading} autoComplete="new-password" required />
             <input className="zg-field" type="text" placeholder="Referral code (optional)"
               value={referralCode} onChange={(e) => setReferralCode(e.target.value)}

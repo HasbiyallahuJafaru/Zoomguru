@@ -405,6 +405,10 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
           0%, 100% { opacity: 1 }
           50% { opacity: 0.3 }
         }
+        @keyframes zg-refer-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.55); }
+          50% { box-shadow: 0 0 0 5px rgba(251,191,36,0); }
+        }
         .zg-fbtn:active:not([disabled]) {
           transform: scale(0.96) !important;
         }
@@ -713,19 +717,20 @@ const s: Record<string, ElectronStyle> = {
   },
 
   referralBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(255,255,255,0.25)',
+    background: 'rgba(251,191,36,0.15)',
+    border: '1px solid rgba(251,191,36,0.40)',
+    color: 'rgba(251,191,36,0.90)',
     fontSize: '10px',
-    fontWeight: 500,
+    fontWeight: 600,
     letterSpacing: '0.2px',
     lineHeight: '1',
     cursor: 'pointer',
-    padding: '3px 6px',
+    padding: '3px 8px',
     borderRadius: '4px',
-    transition: 'background 120ms ease, color 120ms ease',
+    transition: 'background 120ms ease',
     WebkitAppRegion: 'no-drag',
     fontFamily: FONT,
+    animation: 'zg-refer-pulse 2s ease-in-out infinite',
   },
 
   // Session cap
