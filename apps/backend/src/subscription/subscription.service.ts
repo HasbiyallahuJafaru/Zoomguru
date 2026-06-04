@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 import { EmailService } from '../email/email.service';
+import { QuotaService, PlanType } from '../quota/quota.service';
 
 type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
@@ -82,7 +83,10 @@ const PAYSTACK_BASE = 'https://api.paystack.co';
 
 @Injectable()
 export class SubscriptionService {
-  constructor(private readonly emailService: EmailService) {}
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly quotaService: QuotaService,
+  ) {}
 
   async getStatus(userId: string): Promise<StatusResponse> {
     const pool = getDB();
@@ -349,6 +353,7 @@ export class SubscriptionService {
     );
 
     await this.invalidateDeviceCache(userId);
+    await this.quotaService.resetUserUsage(userId, plan as PlanType, new Date());
 
     const userResult = await pool.query<{ email: string; name: string | null; referred_by_user_id: string | null }>(
       `SELECT email, name, referred_by_user_id FROM users WHERE id = $1 LIMIT 1`,
@@ -478,19 +483,27 @@ export class SubscriptionService {
     } else if (event.event === 'invoice.update') {
       const data = event.data as InvoiceUpdateData;
       if (!data.paid_at) return;
-      await pool.query(
+      const paidAt = new Date(data.paid_at);
+      const renewResult = await pool.query<{ user_id: string; plan: string | null }>(
         `UPDATE subscriptions SET
            status = 'active',
            current_period_start = $1,
            current_period_end = $2,
            updated_at = NOW()
-         WHERE paystack_customer_code = $3`,
+         WHERE paystack_customer_code = $3
+         RETURNING user_id, plan`,
         [
-          new Date(data.paid_at).toISOString(),
+          paidAt.toISOString(),
           new Date(data.subscription.next_payment_date).toISOString(),
           data.subscription.customer.customer_code,
         ],
       );
+      const renewed = renewResult.rows[0];
+      if (renewed?.plan && ['weekly', 'monthly', 'yearly'].includes(renewed.plan)) {
+        await this.quotaService.resetUserUsage(
+          renewed.user_id, renewed.plan as PlanType, paidAt,
+        );
+      }
     } else if (event.event === 'invoice.payment_failed') {
       const data = event.data as InvoicePaymentFailedData;
       const upd = await pool.query<{ user_id: string }>(

@@ -17,6 +17,7 @@ import path from 'path';
 import fs from 'fs';
 import pdfParse from 'pdf-parse';
 import Store from 'electron-store';
+import { autoUpdater } from 'electron-updater';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
 
@@ -27,13 +28,26 @@ interface WindowStore {
   cvFilename?: string;
   jdText?: string;
   accessToken?: string;
+  noiseSuppressor?: boolean;
 }
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let isSessionActive = false;
 const store = new Store<WindowStore>();
+
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.logger = null;
+
+function scheduleUpdateChecks(): void {
+  autoUpdater.checkForUpdates().catch(() => undefined);
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => undefined);
+  }, 4 * 60 * 60 * 1000);
+}
 
 // Suppress AMD VideoProcessorGetOutputExtension DirectComposition error on Windows.
 if (process.platform === 'win32') {
@@ -370,6 +384,18 @@ if (!gotLock) {
     ipcMain.handle('token:clear', () => store.delete('accessToken'));
 
     ipcMain.handle('protection:status', () => contentProtected);
+
+    ipcMain.handle('session:setActive', (_event, active: boolean) => {
+      isSessionActive = typeof active === 'boolean' ? active : false;
+    });
+
+    ipcMain.handle('settings:getNoiseSuppressor', () => {
+      return store.get('noiseSuppressor', true);
+    });
+
+    ipcMain.handle('settings:setNoiseSuppressor', (_event, enabled: boolean) => {
+      if (typeof enabled === 'boolean') store.set('noiseSuppressor', enabled);
+    });
   }
 
   app.once('ready', () => { createSplash(); });
@@ -415,6 +441,7 @@ if (!gotLock) {
     registerHotkeys();
     registerIpcHandlers();
     initCapture(mainWindow!);
+    if (app.isPackaged) scheduleUpdateChecks();
   });
 
   app.on('window-all-closed', () => {

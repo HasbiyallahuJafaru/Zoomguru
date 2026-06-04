@@ -201,6 +201,26 @@ export async function initDB(): Promise<void> {
         WHERE referral_code IS NULL
       `);
 
+      // ── Usage & quota tracking ──
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS usage (
+          id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id              UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          plan_type            TEXT NOT NULL DEFAULT 'monthly',
+          copilot_requests     INTEGER NOT NULL DEFAULT 0,
+          interviewer_sessions INTEGER NOT NULL DEFAULT 0,
+          scorer_reports       INTEGER NOT NULL DEFAULT 0,
+          doc_copilot_requests INTEGER NOT NULL DEFAULT 0,
+          period_start         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage(user_id)
+      `);
+
       console.log('✅ ZoomGuru DB ready');
       return;
     } catch (err) {

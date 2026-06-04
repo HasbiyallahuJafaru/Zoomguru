@@ -65,5 +65,14 @@ contextBridge.exposeInMainWorld('zoomguru', {
   getProtectionStatus: (): Promise<boolean> =>
     ipcRenderer.invoke('protection:status'),
 
+  setSessionActive: (active: boolean): Promise<void> =>
+    ipcRenderer.invoke('session:setActive', active),
+
+  getNoiseSuppressor: (): Promise<boolean> =>
+    ipcRenderer.invoke('settings:getNoiseSuppressor'),
+
+  setNoiseSuppressor: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('settings:setNoiseSuppressor', enabled),
+
   platform: process.platform,
 });

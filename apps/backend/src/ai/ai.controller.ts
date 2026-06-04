@@ -4,6 +4,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { AiService } from './ai.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { DeviceService } from '../device/device.service';
+import { QuotaService } from '../quota/quota.service';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 
@@ -77,6 +78,7 @@ export class AiController {
     private aiService: AiService,
     private subscriptionService: SubscriptionService,
     private deviceService: DeviceService,
+    private quotaService: QuotaService,
   ) {}
 
   @UseGuards(AuthGuard('jwt'))
@@ -117,6 +119,24 @@ export class AiController {
     if (capped) {
       await reply.code(429).send({ error: 'session_cap' });
       return;
+    }
+    const planInfo = await this.quotaService.getPlanType(req.user.userId);
+    if (planInfo) {
+      const quota = await this.quotaService.checkQuota(
+        req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
+      );
+      if (!quota.allowed) {
+        await reply.code(429).send({
+          error: 'quota_exceeded',
+          feature: quota.feature,
+          planType: quota.planType,
+          limit: quota.limit,
+          used: quota.used,
+          resetAt: quota.resetAt,
+          upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
+        });
+        return;
+      }
     }
     logSession(req.user.userId, 'stream');
     const cleanTranscript = sanitize(body.transcript);
@@ -169,6 +189,24 @@ export class AiController {
     if (capped) {
       await reply.code(429).send({ error: 'session_cap' });
       return;
+    }
+    const planInfo = await this.quotaService.getPlanType(req.user.userId);
+    if (planInfo) {
+      const quota = await this.quotaService.checkQuota(
+        req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
+      );
+      if (!quota.allowed) {
+        await reply.code(429).send({
+          error: 'quota_exceeded',
+          feature: quota.feature,
+          planType: quota.planType,
+          limit: quota.limit,
+          used: quota.used,
+          resetAt: quota.resetAt,
+          upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
+        });
+        return;
+      }
     }
     logSession(req.user.userId, 'screenshot');
     const cleanImage = sanitize(body.image);

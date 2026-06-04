@@ -34,6 +34,9 @@ interface ZoomGuruBridge {
   getToken(): Promise<string>;
   clearToken(): Promise<void>;
   getProtectionStatus(): Promise<boolean>;
+  setSessionActive(active: boolean): Promise<void>;
+  getNoiseSuppressor(): Promise<boolean>;
+  setNoiseSuppressor(enabled: boolean): Promise<void>;
   platform: string;
 }
 

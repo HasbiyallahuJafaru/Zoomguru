@@ -6,6 +6,7 @@ import { useSessionCap } from './hooks/useSessionCap';
 import { useTrialCountdown } from './hooks/useTrialCountdown';
 import { useHotkeys } from './hooks/useHotkeys';
 import { useVAD } from './hooks/useVAD';
+import { createDenoisedStream } from './noise-suppressor';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -54,6 +55,8 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
 
   const [hovered, setHovered] = useState<string | null>(null);
   const [screenshotContext, setScreenshotContext] = useState<string[]>([]);
+  const [noiseEnabled, setNoiseEnabled] = useState(true);
+  const noiseEnabledRef = useRef(true);
 
   // --- refs (manual listen) ---
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -227,6 +230,7 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
     streamAnswer,
     setMicGranted,
     onLogout,
+    noiseEnabled,
   });
 
   // --- handler refs ---
@@ -248,11 +252,24 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
       return;
     }
 
+    // Apply noise suppression before encoding
+    let recordStream = stream;
+    let noiseCleanup: (() => void) | null = null;
+    if (noiseEnabledRef.current) {
+      try {
+        const result = await createDenoisedStream(stream);
+        recordStream = result.denoisedStream;
+        noiseCleanup = result.cleanup;
+      } catch {
+        recordStream = stream;
+      }
+    }
+
     chunksRef.current = [];
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : 'audio/webm';
-    const recorder = new MediaRecorder(stream, { mimeType });
+    const recorder = new MediaRecorder(recordStream, { mimeType });
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -260,6 +277,7 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
 
     recorder.onstop = () => {
       stream.getTracks().forEach((t) => t.stop());
+      noiseCleanup?.();
       setIsListening(false);
 
       void (async () => {
@@ -350,6 +368,13 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
     if (isAutoModeRef.current) { stopAutoMode(); } else { void startAutoMode(); }
   };
 
+  function toggleNoise(): void {
+    const next = !noiseEnabledRef.current;
+    noiseEnabledRef.current = next;
+    setNoiseEnabled(next);
+    void window.zoomguru.setNoiseSuppressor(next);
+  }
+
   useHotkeys(
     () => handleListenRef.current(),
     () => handleScreenshotRef.current(),
@@ -360,6 +385,11 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
   // --- mount ---
 
   useEffect(() => {
+    void window.zoomguru.getNoiseSuppressor().then((v) => {
+      noiseEnabledRef.current = v;
+      setNoiseEnabled(v);
+    });
+
     void window.zoomguru.requestMicPermission().then((osGranted) => {
       if (!osGranted) {
         setMicGranted(false);
@@ -464,6 +494,18 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
             )}
 
             {/* Buttons */}
+            <button
+              className="zg-ibtn"
+              style={{
+                ...s.logoutBtn,
+                color: noiseEnabled ? 'rgba(16,185,129,0.70)' : 'rgba(255,255,255,0.22)',
+              }}
+              onClick={toggleNoise}
+              aria-label={noiseEnabled ? 'Noise suppressor on — click to disable' : 'Noise suppressor off — click to enable'}
+              title={noiseEnabled ? 'Noise: ON' : 'Noise: OFF'}
+            >
+              NS
+            </button>
             <button
               className="zg-ibtn"
               style={s.logoutBtn}
