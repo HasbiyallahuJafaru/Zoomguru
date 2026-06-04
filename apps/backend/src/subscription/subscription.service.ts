@@ -442,7 +442,6 @@ export class SubscriptionService {
            status                  = 'active',
            plan                    = $4,
            current_period_end      = $5,
-           locked_device_id        = COALESCE(subscriptions.locked_device_id, NULL),
            updated_at              = NOW()`,
         [uid, data.customer.customer_code, ref, plan, periodEnd],
       );

@@ -5,3 +5,12 @@ export function formatCountdown(ms: number): string {
   const sec = totalSec % 60;
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
+
+export async function makeDeviceHeaders(): Promise<Record<string, string>> {
+  const { keyId, timestamp, signature } = await window.zoomguru.signRequest();
+  return {
+    'X-Key-ID': keyId,
+    'X-Timestamp': String(timestamp),
+    'X-Signature': signature,
+  };
+}

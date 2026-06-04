@@ -1,5 +1,6 @@
 import { useState, useRef, type MutableRefObject } from 'react';
 import { createDenoisedStream } from '../noise-suppressor';
+import { makeDeviceHeaders } from '../../utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const VAD_THRESHOLD = 0.015;
@@ -7,15 +8,6 @@ const SILENCE_MS = 1500;
 const MIN_SPEECH_MS = 2500;
 const MIN_BLOB_BYTES = 25_000;
 const MIN_WORDS = 4;
-
-async function makeDeviceHeaders(): Promise<Record<string, string>> {
-  const { keyId, timestamp, signature } = await window.zoomguru.signRequest();
-  return {
-    'X-Key-ID': keyId,
-    'X-Timestamp': String(timestamp),
-    'X-Signature': signature,
-  };
-}
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {

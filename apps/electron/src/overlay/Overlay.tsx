@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import AnswerStream from './AnswerStream';
-import { formatCountdown } from '../utils';
+import { formatCountdown, makeDeviceHeaders } from '../utils';
 import { useCVContext } from './hooks/useCVContext';
 import { useSessionCap } from './hooks/useSessionCap';
 import { useTrialCountdown } from './hooks/useTrialCountdown';
@@ -13,15 +13,6 @@ type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
-async function makeDeviceHeaders(): Promise<Record<string, string>> {
-  const { keyId, timestamp, signature } = await window.zoomguru.signRequest();
-  return {
-    'X-Key-ID': keyId,
-    'X-Timestamp': String(timestamp),
-    'X-Signature': signature,
-  };
-}
-
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -98,6 +89,7 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
       if (response.status === 403) {
         const body = await response.json().catch(() => ({})) as { error?: string };
         if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
+        if (body.error === 'invalid_signature') { setAnswer('Device verification failed. Restart the app and try again.'); return; }
         setAnswer('Subscription is locked to another device.');
         return;
       }
@@ -169,6 +161,7 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
       if (response.status === 403) {
         const body = await response.json().catch(() => ({})) as { error?: string };
         if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
+        if (body.error === 'invalid_signature') { setAnswer('Device verification failed. Restart the app and try again.'); return; }
         setAnswer('Subscription is locked to another device.');
         return;
       }
