@@ -37,12 +37,22 @@ interface ZoomGuruBridge {
   setSessionActive(active: boolean): Promise<void>;
   getNoiseSuppressor(): Promise<boolean>;
   setNoiseSuppressor(enabled: boolean): Promise<void>;
+  kokoroCheckReady(): Promise<boolean>;
+  kokoroSetReady(ready: boolean): Promise<void>;
+  openInterviewer(): Promise<void>;
+  closeInterviewer(): Promise<void>;
   platform: string;
 }
 
 declare global {
   interface Window {
     zoomguru: ZoomGuruBridge;
+  }
+}
+
+declare module 'react' {
+  interface CSSProperties {
+    WebkitAppRegion?: 'drag' | 'no-drag';
   }
 }
 

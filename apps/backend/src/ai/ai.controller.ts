@@ -230,6 +230,94 @@ export class AiController {
 
   @UseGuards(AuthGuard('jwt'))
   @HttpCode(200)
+  @Post('interviewer-start')
+  async interviewerStart(
+    @Req() req: AuthenticatedRequest,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
+  ): Promise<{ quotaUsed: number; quotaLimit: number; resetAt: string }> {
+    const [sigValid, { canUse, deviceAllowed }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    ]);
+    if (!sigValid) throw new HttpException({ error: 'invalid_signature' }, HttpStatus.FORBIDDEN);
+    if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
+    if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
+
+    const planInfo = await this.quotaService.getPlanType(req.user.userId);
+    if (!planInfo) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
+
+    const quota = await this.quotaService.checkQuota(
+      req.user.userId, 'interviewer_sessions', planInfo.planType, planInfo.periodStart,
+    );
+    if (!quota.allowed) {
+      throw new HttpException({
+        error: 'quota_exceeded',
+        feature: quota.feature,
+        planType: quota.planType,
+        limit: quota.limit,
+        used: quota.used,
+        resetAt: quota.resetAt,
+        upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
+      }, 429);
+    }
+    return { quotaUsed: quota.used, quotaLimit: quota.limit, resetAt: quota.resetAt };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('interviewer-question')
+  async interviewerQuestion(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: {
+      cvText?: string;
+      jdText?: string;
+      difficulty: 'easy' | 'medium' | 'hard' | 'dynamic';
+      questionNumber: number;
+      priorQuestions: string[];
+      lastAnswerQuality?: 'good' | 'average' | 'poor';
+    },
+    @Res() reply: FastifyReply,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
+  ): Promise<void> {
+    const difficulty = body.difficulty;
+    if (!['easy', 'medium', 'hard', 'dynamic'].includes(difficulty)) {
+      throw new BadRequestException('Invalid difficulty');
+    }
+    const qNum = Number(body.questionNumber);
+    if (!Number.isInteger(qNum) || qNum < 1 || qNum > 100) {
+      throw new BadRequestException('Invalid question number');
+    }
+    const priorQuestions = Array.isArray(body.priorQuestions)
+      ? body.priorQuestions.slice(0, 30).map((q) => sanitize(String(q).slice(0, 500)))
+      : [];
+
+    const [sigValid, { canUse, deviceAllowed }, { allowed, retryAfter }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+      checkRateLimit(req.user.userId),
+    ]);
+    if (!sigValid) { await reply.code(403).send({ error: 'invalid_signature' }); return; }
+    if (!canUse) { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter }); return; }
+
+    reply.raw.writeHead(200, SSE_HEADERS);
+    await this.aiService.generateInterviewerQuestion({
+      cvText: body.cvText ? sanitize(body.cvText) : undefined,
+      jdText: body.jdText ? sanitize(body.jdText) : undefined,
+      difficulty,
+      questionNumber: qNum,
+      priorQuestions,
+      lastAnswerQuality: body.lastAnswerQuality,
+      reply: reply.raw,
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(200)
   @Post('transcribe')
   async transcribe(
     @Req() req: AuthenticatedRequest,

@@ -66,6 +66,7 @@ function sseEnd(reply: ServerResponse, extra?: Record<string, unknown>): void {
 }
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=';
+const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -99,6 +100,100 @@ interface GroqDelta {
 
 interface GroqChunk {
   choices: Array<{ delta: GroqDelta; finish_reason?: string | null }>;
+}
+
+function buildInterviewerPrompt(
+  cvText: string | undefined,
+  jdText: string | undefined,
+  difficulty: 'easy' | 'medium' | 'hard' | 'dynamic',
+  questionNumber: number,
+  priorQuestions: string[],
+  lastAnswerQuality: 'good' | 'average' | 'poor' | undefined,
+): { systemPrompt: string; userMessage: string } {
+  const cv = cvText ? truncateAtWord(cvText, 1500) : undefined;
+  const jd = jdText ? truncateAtWord(jdText, 1000) : undefined;
+
+  let system = `You are a senior interviewer conducting a professional job interview. Your role is to generate exactly ONE clear, focused interview question. Do not answer it. Do not introduce yourself or add preamble. Output only the question text — nothing else.\n\n`;
+
+  if (cv) system += `CANDIDATE CV:\n<cv_content>\n${cv}\n</cv_content>\n\n`;
+  if (jd) system += `ROLE BEING INTERVIEWED FOR:\n<jd_content>\n${jd}\n</jd_content>\n\n`;
+
+  const difficultyInstructions: Record<string, string> = {
+    easy: 'Ask a foundational question — suitable for a junior candidate or as a warm-up.',
+    medium: 'Ask a standard mid-level interview question appropriate for most roles.',
+    hard: 'Ask a challenging, senior-level question that requires deep expertise or critical thinking.',
+    dynamic: lastAnswerQuality === 'poor'
+      ? 'The candidate struggled with the last answer. Ask a slightly easier or more foundational question to help them regain confidence.'
+      : lastAnswerQuality === 'good'
+      ? 'The candidate answered well. Increase the difficulty — ask a more challenging follow-up or deeper question.'
+      : 'Ask a standard mid-level question.',
+  };
+
+  system += `DIFFICULTY GUIDANCE: ${difficultyInstructions[difficulty] ?? difficultyInstructions['medium']}\n\n`;
+  system += `This is question ${questionNumber} of approximately 30. Vary the category — cover technical skills, problem-solving, behavioral, and situational questions across the session. Do not repeat any prior question.\n`;
+
+  const priorList = priorQuestions.length > 0
+    ? `PRIOR QUESTIONS (do not repeat):\n${priorQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+    : '';
+
+  const userMessage = priorList
+    ? `${priorList}\n\nGenerate question ${questionNumber}.`
+    : `Generate question ${questionNumber}.`;
+
+  return { systemPrompt: system, userMessage };
+}
+
+type AnswerQuality = 'good' | 'average' | 'poor';
+type Difficulty = 'easy' | 'medium' | 'hard' | 'dynamic';
+
+function buildInterviewerSystemPrompt(): string {
+  return `You are a professional interviewer conducting a structured job interview. Your job is to generate ONE interview question. Follow these rules strictly:
+- Output only the question text — no preamble, no labels, no numbering, no "Question:", no quotes around the question.
+- Ask one focused, complete question. Never chain multiple questions.
+- Vary question types: technical, behavioural, situational, role-specific.
+- Do not repeat or rephrase any question from the prior list.
+- Match the difficulty level precisely.
+- Write in plain, professional English. No markdown, no formatting characters.`;
+}
+
+function buildInterviewerUserMessage(params: {
+  cvText?: string;
+  jdText?: string;
+  difficulty: Difficulty;
+  questionNumber: number;
+  priorQuestions: string[];
+  lastAnswerQuality?: AnswerQuality;
+}): string {
+  const { cvText, jdText, difficulty, questionNumber, priorQuestions, lastAnswerQuality } = params;
+
+  let msg = '';
+
+  if (cvText) {
+    msg += `CANDIDATE CV (excerpt):\n<cv>\n${truncateAtWord(cvText, 1200)}\n</cv>\n\n`;
+  }
+  if (jdText) {
+    msg += `JOB DESCRIPTION (excerpt):\n<jd>\n${truncateAtWord(jdText, 800)}\n</jd>\n\n`;
+  }
+
+  const diffLabel =
+    difficulty === 'dynamic'
+      ? lastAnswerQuality === 'good'
+        ? 'hard'
+        : lastAnswerQuality === 'poor'
+          ? 'easy'
+          : 'medium'
+      : difficulty;
+
+  msg += `Difficulty level: ${diffLabel}\n`;
+  msg += `This is question number ${questionNumber} of approximately 30.\n`;
+
+  if (priorQuestions.length > 0) {
+    msg += `\nQuestions already asked (do NOT repeat or rephrase these):\n`;
+    priorQuestions.forEach((q, i) => { msg += `${i + 1}. ${q}\n`; });
+  }
+
+  msg += `\nGenerate the next interview question now.`;
+  return msg;
 }
 
 @Injectable()
@@ -550,6 +645,159 @@ export class AiService {
     if (!geminiHandled) {
       await this.streamToGroqVision({ imageBase64: image, reply, cvText, jdText, priorContext });
     }
+  }
+
+  private async streamToDeepSeekQuestion(params: {
+    userMessage: string;
+    systemPrompt: string;
+    reply: ServerResponse;
+  }): Promise<void> {
+    const { userMessage, systemPrompt, reply } = params;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    const doFetch = (key: string) =>
+      fetch(DEEPSEEK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          stream: true,
+          max_tokens: 300,
+          temperature: 0.8,
+        }),
+        signal: controller.signal,
+      });
+
+    try {
+      let response = await doFetch(this.nextDeepSeekKey());
+      if (response.status === 429) response = await doFetch(this.nextDeepSeekKey());
+
+      if (!response.body) {
+        sseWrite(reply, { chunk: 'Could not generate question. Please try again.', done: false });
+        sseEnd(reply);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streaming = true;
+
+      while (streaming) {
+        if (reply.destroyed) break;
+        const result = await reader.read();
+        if (result.done) break;
+        buffer += decoder.decode(result.value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (reply.destroyed) { streaming = false; break; }
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') { streaming = false; break; }
+          try {
+            const parsed = JSON.parse(data) as DeepSeekChunk;
+            const content = parsed.choices[0]?.delta?.content;
+            if (content) sseWrite(reply, { chunk: content, done: false });
+          } catch { /* skip */ }
+        }
+      }
+      sseEnd(reply);
+    } catch (err) {
+      const message =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Request timed out. Please try again.'
+          : 'AI service error. Please try again.';
+      sseWrite(reply, { chunk: message, done: false });
+      sseEnd(reply);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async generateInterviewerQuestion(params: {
+    cvText?: string;
+    jdText?: string;
+    difficulty: Difficulty;
+    questionNumber: number;
+    priorQuestions: string[];
+    lastAnswerQuality?: AnswerQuality;
+    reply: ServerResponse;
+  }): Promise<void> {
+    const { reply, ...rest } = params;
+    const systemPrompt = buildInterviewerSystemPrompt();
+    const userMessage = buildInterviewerUserMessage(rest);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    let streamingStarted = false;
+
+    try {
+      const response = await fetch(`${GEMINI_25_BASE}${this.nextGeminiKey()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: { maxOutputTokens: 300, temperature: 0.85 },
+        }),
+        signal: controller.signal,
+      });
+
+      if (response.status !== 200 || !response.body) {
+        throw new Error(`Gemini 2.5 returned ${response.status}`);
+      }
+
+      streamingStarted = true;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streaming = true;
+
+      while (streaming) {
+        if (reply.destroyed) break;
+        const result = await reader.read();
+        if (result.done) break;
+        buffer += decoder.decode(result.value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (reply.destroyed) { streaming = false; break; }
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') { streaming = false; break; }
+          try {
+            const parsed = JSON.parse(data) as GeminiChunk;
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) sseWrite(reply, { chunk: text, done: false });
+          } catch { /* skip */ }
+        }
+      }
+      sseEnd(reply);
+    } catch (err) {
+      clearTimeout(timeout);
+      if (streamingStarted) {
+        sseWrite(reply, { chunk: ' (error generating question)', done: false });
+        sseEnd(reply);
+        return;
+      }
+      // Fall back to DeepSeek
+      const systemPromptFb = buildInterviewerSystemPrompt();
+      const userMessageFb = buildInterviewerUserMessage(rest);
+      await this.streamToDeepSeekQuestion({ userMessage: userMessageFb, systemPrompt: systemPromptFb, reply });
+      return;
+    }
+    clearTimeout(timeout);
   }
 
   async transcribe(params: { audio: string }): Promise<string> {

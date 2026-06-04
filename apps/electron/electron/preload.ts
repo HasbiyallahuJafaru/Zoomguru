@@ -74,5 +74,17 @@ contextBridge.exposeInMainWorld('zoomguru', {
   setNoiseSuppressor: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke('settings:setNoiseSuppressor', enabled),
 
+  kokoroCheckReady: (): Promise<boolean> =>
+    ipcRenderer.invoke('kokoro:checkReady'),
+
+  kokoroSetReady: (ready: boolean): Promise<void> =>
+    ipcRenderer.invoke('kokoro:setReady', ready),
+
+  openInterviewer: (): Promise<void> =>
+    ipcRenderer.invoke('interviewer:open'),
+
+  closeInterviewer: (): Promise<void> =>
+    ipcRenderer.invoke('interviewer:close'),
+
   platform: process.platform,
 });

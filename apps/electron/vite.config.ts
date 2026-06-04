@@ -8,6 +8,12 @@ export default defineConfig(() => {
     build: {
       outDir: 'dist-renderer',
       emptyOutDir: true,
+      rollupOptions: {
+        input: {
+          main: 'index.html',
+          interviewer: 'interviewer.html',
+        },
+      },
     },
     define: {
       'import.meta.env.VITE_API_URL': JSON.stringify('https://zoomguru.onrender.com'),

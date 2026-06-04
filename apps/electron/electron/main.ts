@@ -20,6 +20,7 @@ import Store from 'electron-store';
 import { autoUpdater } from 'electron-updater';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
+import { registerInterviewerIpcHandlers } from './interviewer';
 
 interface WindowStore {
   windowX: number;
@@ -29,6 +30,7 @@ interface WindowStore {
   jdText?: string;
   accessToken?: string;
   noiseSuppressor?: boolean;
+  kokoroModelReady?: boolean;
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -422,10 +424,10 @@ if (!gotLock) {
           'Content-Security-Policy': [
             [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' https://js.paystack.co",
+              "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.paystack.co",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://zoomguru.onrender.com http://localhost:5173 https://api.deepseek.com https://api.groq.com https://*.paystack.co https://*.paystack.com",
+              "connect-src 'self' https://zoomguru.onrender.com http://localhost:5173 https://api.deepseek.com https://api.groq.com https://*.paystack.co https://*.paystack.com https://huggingface.co https://*.huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co",
               "img-src 'self' data: blob: https://*.paystack.co https://*.paystack.com",
               "media-src 'self' blob:",
               "frame-src https://checkout.paystack.com",
@@ -441,6 +443,7 @@ if (!gotLock) {
     registerHotkeys();
     registerIpcHandlers();
     initCapture(mainWindow!);
+    registerInterviewerIpcHandlers();
     if (app.isPackaged) scheduleUpdateChecks();
   });
 
