@@ -2,12 +2,13 @@ import { useState, useEffect, type CSSProperties } from 'react';
 
 interface CvSetupProps {
   onDone: () => void;
+  onBack: () => void;
 }
 
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 
-export default function CvSetup({ onDone }: CvSetupProps) {
+export default function CvSetup({ onDone, onBack }: CvSetupProps) {
   const [uploading, setUploading] = useState(false);
   const [filename, setFilename] = useState('');
   const [jdText, setJdText] = useState('');
@@ -58,6 +59,9 @@ export default function CvSetup({ onDone }: CvSetupProps) {
         <button className="zg-close" style={s.closeBtn}
           onClick={() => { void window.zoomguru.quitApp(); }} aria-label="Close">
           ×
+        </button>
+        <button className="zg-ghost" style={s.backBtn} onClick={onBack} aria-label="Back">
+          ← Back
         </button>
 
         <div style={s.content}>
@@ -141,6 +145,20 @@ const s: Record<string, CSSProperties> = {
     borderRadius: '16px',
     position: 'relative',
     overflow: 'hidden',
+    fontFamily: SANS,
+  },
+  backBtn: {
+    position: 'absolute',
+    top: '12px',
+    left: '14px',
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.22)',
+    fontSize: '11px',
+    lineHeight: '1',
+    cursor: 'pointer',
+    padding: '2px 4px',
+    transition: 'color 120ms ease',
     fontFamily: SANS,
   },
   closeBtn: {

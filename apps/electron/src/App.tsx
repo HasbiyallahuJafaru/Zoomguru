@@ -57,7 +57,7 @@ const App = () => {
   }
 
   if (step === 'cv') {
-    return <CvSetup onDone={() => setStep('overlay')} />;
+    return <CvSetup onDone={() => setStep('overlay')} onBack={() => setStep('dashboard')} />;
   }
 
   if (step === 'referral') {

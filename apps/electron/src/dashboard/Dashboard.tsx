@@ -283,14 +283,14 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   }
 
   const isActive = sub?.status === 'active';
-  const isSubscribeDisabled = loadingSub || isActive || sub?.trialActive || checkingOut || verifying;
+  const isSubscribeDisabled = loadingSub || isActive || checkingOut || verifying;
 
   function subscribeLabel(): string {
     if (loadingSub) return 'Loading…';
     if (isActive) return 'Active subscription';
-    if (sub?.trialActive) return 'Trial in progress';
     if (verifying) return 'Verifying…';
     if (checkingOut) return 'Opening checkout…';
+    if (sub?.trialActive) return 'Upgrade now';
     return 'Subscribe';
   }
 
@@ -366,8 +366,8 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
             <p style={s.errorMsg}>{trialError}</p>
           )}
 
-          {/* Plan selector — hidden when active sub or trial running */}
-          {!isActive && !sub?.trialActive && (
+          {/* Plan selector — hidden only when subscription is fully active */}
+          {!isActive && (
             <div style={s.planSelector}>
               <button
                 className="zg-plan"
