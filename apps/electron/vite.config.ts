@@ -12,6 +12,7 @@ export default defineConfig(() => {
         input: {
           main: 'index.html',
           interviewer: 'interviewer.html',
+          'doc-copilot': 'doc-copilot.html',
         },
       },
     },
@@ -29,7 +30,7 @@ export default defineConfig(() => {
             build: {
               outDir: 'dist-electron',
               rollupOptions: {
-                external: ['electron', 'electron-updater', 'electron-store', 'pdf-parse'],
+                external: ['electron', 'electron-updater', 'electron-store', 'pdf-parse', 'adm-zip', 'xml2js'],
               },
             },
           },

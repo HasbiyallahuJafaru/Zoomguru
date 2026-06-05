@@ -42,6 +42,7 @@ interface ZoomGuruBridge {
   openInterviewer(): Promise<void>;
   closeInterviewer(): Promise<void>;
   openDocCopilot(): Promise<void>;
+  docCopilotParseFiles(): Promise<ParsedDoc[]>;
   printReport(): Promise<void>;
   tourHasCompleted(): Promise<boolean>;
   tourSetCompleted(): Promise<void>;
@@ -49,6 +50,31 @@ interface ZoomGuruBridge {
 }
 
 declare global {
+  interface ParsedSlide {
+    slideNumber: number;
+    title: string | null;
+    textBlocks: string[];
+    tables: Array<{ headers: string[]; rows: string[][] }>;
+    chartWarnings: string[];
+  }
+
+  interface ParsedPdfPage {
+    pageNumber: number;
+    text: string;
+    isEmpty: boolean;
+  }
+
+  interface ParsedDoc {
+    docId: string;
+    fileName: string;
+    fileType: 'pdf' | 'pptx';
+    pageCount?: number;
+    slideCount?: number;
+    parsedContent: ParsedSlide[] | ParsedPdfPage[];
+    warnings: string[];
+    loadedAt: string;
+  }
+
   interface Window {
     zoomguru: ZoomGuruBridge;
   }

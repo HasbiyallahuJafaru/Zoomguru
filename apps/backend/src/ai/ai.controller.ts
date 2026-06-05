@@ -368,6 +368,69 @@ export class AiController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Post('doc-copilot')
+  async docCopilot(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: {
+      transcript: string;
+      documents: Array<{ docId: string; fileName: string; serializedContent: string }>;
+      cacheKey?: string;
+    },
+    @Res() reply: FastifyReply,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
+  ): Promise<void> {
+    if (!body.transcript || body.transcript.length > 4000) {
+      throw new BadRequestException('Invalid transcript');
+    }
+    if (!Array.isArray(body.documents) || body.documents.length === 0 || body.documents.length > 3) {
+      throw new BadRequestException('documents must be an array of 1–3 items');
+    }
+
+    const [sigValid, { canUse, deviceAllowed }, { allowed, retryAfter }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+      checkRateLimit(req.user.userId),
+    ]);
+    if (!sigValid) { await reply.code(403).send({ error: 'invalid_signature' }); return; }
+    if (!canUse)   { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!allowed)  { await reply.code(429).send({ error: 'rate_limit', retryAfter }); return; }
+
+    const planInfo = await this.quotaService.getPlanType(req.user.userId);
+    if (planInfo) {
+      const quota = await this.quotaService.checkQuota(
+        req.user.userId, 'doc_copilot_requests', planInfo.planType, planInfo.periodStart,
+      );
+      if (!quota.allowed) {
+        await reply.code(429).send({
+          error: 'quota_exceeded',
+          feature: quota.feature,
+          limit: quota.limit,
+          used: quota.used,
+          resetAt: quota.resetAt,
+        });
+        return;
+      }
+    }
+
+    const cleanDocs = body.documents.slice(0, 3).map((d) => ({
+      docId:             sanitize(String(d.docId   ?? '').slice(0, 64)),
+      fileName:          sanitize(String(d.fileName ?? '').slice(0, 256)),
+      serializedContent: sanitize(String(d.serializedContent ?? '').slice(0, 200_000)),
+    }));
+
+    reply.raw.writeHead(200, SSE_HEADERS);
+    await this.aiService.streamDocCopilot({
+      transcript: sanitize(body.transcript),
+      documents:  cleanDocs,
+      cacheKey:   body.cacheKey ? sanitize(body.cacheKey.slice(0, 128)) : undefined,
+      reply:      reply.raw,
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @HttpCode(200)
   @Post('transcribe')
   async transcribe(

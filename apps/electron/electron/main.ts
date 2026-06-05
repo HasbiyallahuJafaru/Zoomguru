@@ -21,6 +21,7 @@ import { autoUpdater } from 'electron-updater';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
 import { registerInterviewerIpcHandlers } from './interviewer';
+import { createDocCopilotWindow, getDocCopilotWindow, registerDocCopilotIpcHandlers } from './docCopilot';
 
 interface WindowStore {
   windowX: number;
@@ -282,56 +283,16 @@ if (!gotLock) {
       () => mainWindow?.webContents.send('trigger:auto'),
       'Auto',
     );
-  }
-
-  let docCopilotWindow: BrowserWindow | null = null;
-
-  function registerDocCopilotIpcHandlers(): void {
-    ipcMain.handle('doccopilot:open', () => {
-      if (docCopilotWindow && !docCopilotWindow.isDestroyed()) {
-        docCopilotWindow.focus();
-        return;
-      }
-
-      docCopilotWindow = new BrowserWindow({
-        width: 900,
-        height: 680,
-        minWidth: 680,
-        minHeight: 480,
-        frame: false,
-        transparent: false,
-        backgroundColor: '#0a0a0a',
-        alwaysOnTop: true,
-        skipTaskbar: false,
-        resizable: true,
-        movable: true,
-        show: false,
-        webPreferences: {
-          preload: path.join(__dirname, 'preload.js'),
-          contextIsolation: true,
-          nodeIntegration: false,
-          devTools: !app.isPackaged,
-        },
-      });
-
-      try { docCopilotWindow.setContentProtection(true); } catch { /* not supported */ }
-
-      if (!app.isPackaged) {
-        void docCopilotWindow.loadURL('http://localhost:5173/doc-copilot.html');
-      } else {
-        void docCopilotWindow.loadFile(
-          path.join(__dirname, '../dist-renderer/doc-copilot.html'),
-        );
-      }
-
-      docCopilotWindow.once('ready-to-show', () => {
-        docCopilotWindow?.show();
-      });
-
-      docCopilotWindow.on('closed', () => {
-        docCopilotWindow = null;
-      });
-    });
+    tryRegister(
+      'CommandOrControl+Shift+M', 'CommandOrControl+Alt+M',
+      () => getDocCopilotWindow()?.webContents.send('trigger:doccopilot-listen'),
+      'DocCopilot-Listen',
+    );
+    tryRegister(
+      'CommandOrControl+Shift+N', 'CommandOrControl+Alt+N',
+      () => getDocCopilotWindow()?.webContents.send('trigger:doccopilot-clear'),
+      'DocCopilot-Clear',
+    );
   }
 
   function registerIpcHandlers(): void {

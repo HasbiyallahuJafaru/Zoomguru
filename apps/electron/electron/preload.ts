@@ -89,6 +89,9 @@ contextBridge.exposeInMainWorld('zoomguru', {
   openDocCopilot: (): Promise<void> =>
     ipcRenderer.invoke('doccopilot:open'),
 
+  docCopilotParseFiles: (): Promise<unknown[]> =>
+    ipcRenderer.invoke('doccopilot:parse-files'),
+
   printReport: (): Promise<void> =>
     ipcRenderer.invoke('report:print'),
 
