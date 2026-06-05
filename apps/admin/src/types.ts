@@ -61,3 +61,33 @@ export interface DashboardData {
   users: UserRow[];
   referrals: ReferralCommissionRow[];
 }
+
+export type BroadcastStatus = 'scheduled' | 'sending' | 'sent' | 'failed' | 'cancelled';
+
+export interface TargetFilter {
+  plans?: Array<'weekly' | 'monthly' | 'yearly'>;
+}
+
+export interface BroadcastRow {
+  id: string;
+  subject: string;
+  body: string;
+  target_filter: TargetFilter;
+  status: BroadcastStatus;
+  scheduled_at: string;
+  sent_at: string | null;
+  recipient_count: number | null;
+  open_count: number;
+  created_at: string;
+}
+
+export interface CreateBroadcastPayload {
+  subject: string;
+  body: string;
+  targetFilter?: TargetFilter;
+  scheduledAt?: string;
+}
+
+export interface BroadcastCreatedRow extends BroadcastRow {
+  estimatedMinutes: number;
+}

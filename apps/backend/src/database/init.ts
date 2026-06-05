@@ -221,6 +221,56 @@ export async function initDB(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage(user_id)
       `);
 
+      // ── Broadcast mail ──
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS broadcasts (
+          id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          subject          TEXT NOT NULL,
+          body             TEXT NOT NULL,
+          target_filter    JSONB NOT NULL DEFAULT '{}',
+          status           TEXT NOT NULL DEFAULT 'scheduled'
+                             CHECK (status IN ('scheduled','sending','sent','failed','cancelled')),
+          scheduled_at     TIMESTAMPTZ NOT NULL,
+          sent_at          TIMESTAMPTZ,
+          recipient_count  INTEGER,
+          open_count       INTEGER NOT NULL DEFAULT 0,
+          created_at       TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS broadcast_batches (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          broadcast_id  UUID NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+          batch_index   INTEGER NOT NULL,
+          status        TEXT NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending','sending','sent','failed')),
+          recipients    TEXT[] NOT NULL,
+          scheduled_at  TIMESTAMPTZ NOT NULL,
+          sent_at       TIMESTAMPTZ,
+          error         TEXT,
+          retry_count   INTEGER NOT NULL DEFAULT 0,
+          created_at    TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      await Promise.all([
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_broadcasts_status
+            ON broadcasts(status)
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_broadcast_batches_due
+            ON broadcast_batches(scheduled_at)
+            WHERE status = 'pending'
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_broadcast_batches_broadcast_id
+            ON broadcast_batches(broadcast_id)
+        `),
+      ]);
+
       console.log('✅ ZoomGuru DB ready');
       return;
     } catch (err) {

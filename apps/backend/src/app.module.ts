@@ -8,6 +8,7 @@ import { CronModule } from './cron/cron.module';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { ReferralModule } from './referral/referral.module';
+import { BroadcastModule } from './broadcast/broadcast.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -21,6 +22,7 @@ import { HealthController } from './health.controller';
     AdminModule,
     AnalyticsModule,
     ReferralModule,
+    BroadcastModule,
   ],
   controllers: [HealthController],
 })
