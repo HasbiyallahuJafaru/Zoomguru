@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Res, Req, Headers, UseGuards, HttpCode, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { AiService } from './ai.service';
+import { AiService, ScorerReport } from './ai.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { DeviceService } from '../device/device.service';
 import { QuotaService } from '../quota/quota.service';
@@ -314,6 +314,57 @@ export class AiController {
       lastAnswerQuality: body.lastAnswerQuality,
       reply: reply.raw,
     });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(200)
+  @Post('score-session')
+  async scoreSession(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { entries: Array<{ question: string; answer: string }> },
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
+  ): Promise<ScorerReport> {
+    if (
+      !Array.isArray(body.entries) ||
+      body.entries.length === 0 ||
+      body.entries.length > 30
+    ) {
+      throw new BadRequestException('Invalid entries');
+    }
+
+    const [sigValid, { canUse, deviceAllowed }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    ]);
+    if (!sigValid) throw new HttpException({ error: 'invalid_signature' }, HttpStatus.FORBIDDEN);
+    if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
+    if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
+
+    const planInfo = await this.quotaService.getPlanType(req.user.userId);
+    if (planInfo) {
+      const quota = await this.quotaService.checkQuota(
+        req.user.userId, 'scorer_reports', planInfo.planType, planInfo.periodStart,
+      );
+      if (!quota.allowed) {
+        throw new HttpException({
+          error: 'quota_exceeded',
+          feature: quota.feature,
+          limit: quota.limit,
+          used: quota.used,
+          resetAt: quota.resetAt,
+          upgradeCta: 'Upgrade your plan to unlock more feedback reports.',
+        }, 429);
+      }
+    }
+
+    const cleanEntries = body.entries.slice(0, 30).map((e) => ({
+      question: sanitize(String(e.question ?? '').slice(0, 500)),
+      answer: sanitize(String(e.answer ?? '').slice(0, 1000)),
+    }));
+
+    return this.aiService.scoreSession(cleanEntries);
   }
 
   @UseGuards(AuthGuard('jwt'))

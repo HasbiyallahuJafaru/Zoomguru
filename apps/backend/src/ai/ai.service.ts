@@ -67,10 +67,26 @@ function sseEnd(reply: ServerResponse, extra?: Record<string, unknown>): void {
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=';
 const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
+const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+export interface PerAnswerScore {
+  questionNumber: number;
+  question: string;
+  score: number;
+  assessment: string;
+}
+
+export interface ScorerReport {
+  overallScore: number;
+  answers: PerAnswerScore[];
+  strengths: string[];
+  improvements: string[];
+  nextFocus: string;
+}
 
 interface GeminiPart {
   text?: string;
@@ -798,6 +814,127 @@ export class AiService {
       return;
     }
     clearTimeout(timeout);
+  }
+
+  async scoreSession(
+    entries: Array<{ question: string; answer: string }>,
+  ): Promise<ScorerReport> {
+    const system = `You are an expert interview coach. Evaluate a candidate's interview session and return a JSON report.
+
+Return ONLY valid JSON in this exact structure — no surrounding text, no markdown fences:
+{
+  "overallScore": <integer 0-100>,
+  "answers": [
+    { "questionNumber": <integer>, "question": "<text>", "score": <integer 0-100>, "assessment": "<one concise sentence>" }
+  ],
+  "strengths": ["<strength>", "<strength>", "<strength>"],
+  "improvements": ["<area>", "<area>", "<area>"],
+  "nextFocus": "<one sentence recommendation for the candidate's next practice session>"
+}
+
+Scoring guide: 0-39 = poor, 40-59 = needs work, 60-79 = adequate, 80-89 = good, 90-100 = excellent.
+If the answer is empty or very short, score it 0-20.`;
+
+    const pairs = entries
+      .map((e, i) => `Q${i + 1}: ${e.question}\nA: ${e.answer.trim() || '(no answer recorded)'}`)
+      .join('\n\n');
+    const userMessage = `Evaluate this interview session (${entries.length} question${entries.length !== 1 ? 's' : ''}):\n\n${pairs}`;
+
+    const parsed = await this.callGemini25ForJson(system, userMessage)
+      ?? await this.callDeepSeekForJson(system, userMessage);
+
+    return this.validateScorerReport(parsed, entries);
+  }
+
+  private async callGemini25ForJson(system: string, userMessage: string): Promise<unknown> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    try {
+      const response = await fetch(`${GEMINI_25_CONTENT_BASE}${this.nextGeminiKey()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+          systemInstruction: { parts: [{ text: system }] },
+          generationConfig: {
+            maxOutputTokens: 2000,
+            temperature: 0.3,
+            responseMimeType: 'application/json',
+          },
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) return null;
+      const data = await response.json() as {
+        candidates?: Array<{ content?: { parts: Array<{ text?: string }> } }>;
+      };
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) return null;
+      return JSON.parse(text) as unknown;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async callDeepSeekForJson(system: string, userMessage: string): Promise<unknown> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    try {
+      const response = await fetch(DEEPSEEK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.nextDeepSeekKey()}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: userMessage },
+          ],
+          stream: false,
+          max_tokens: 2000,
+          temperature: 0.3,
+          response_format: { type: 'json_object' },
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`DeepSeek returned ${response.status}`);
+      const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+      const text = data.choices[0]?.message?.content;
+      if (!text) throw new Error('Empty response');
+      return JSON.parse(text) as unknown;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private validateScorerReport(
+    raw: unknown,
+    entries: Array<{ question: string; answer: string }>,
+  ): ScorerReport {
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const overallScore = Math.min(100, Math.max(0, Number(r['overallScore']) || 0));
+    const rawAnswers = Array.isArray(r['answers']) ? (r['answers'] as unknown[]) : [];
+    const answers: PerAnswerScore[] = entries.map((e, i) => {
+      const a = (rawAnswers[i] ?? {}) as Record<string, unknown>;
+      return {
+        questionNumber: i + 1,
+        question: e.question,
+        score: Math.min(100, Math.max(0, Number(a['score']) || 0)),
+        assessment: typeof a['assessment'] === 'string' ? a['assessment'] : 'No assessment.',
+      };
+    });
+    const strengths = Array.isArray(r['strengths'])
+      ? (r['strengths'] as unknown[]).slice(0, 3).map(String)
+      : [];
+    const improvements = Array.isArray(r['improvements'])
+      ? (r['improvements'] as unknown[]).slice(0, 3).map(String)
+      : [];
+    const nextFocus = typeof r['nextFocus'] === 'string' ? r['nextFocus'] : '';
+    return { overallScore, answers, strengths, improvements, nextFocus };
   }
 
   async transcribe(params: { audio: string }): Promise<string> {

@@ -7,9 +7,15 @@ const API_URL = import.meta.env.VITE_API_URL as string;
 const VOICE = 'af_heart';
 const MAX_QUESTIONS = 30;
 
+export interface TranscriptEntry {
+  questionNumber: number;
+  question: string;
+  answer: string;
+}
+
 interface Props {
   config: SessionConfig;
-  onEnd: () => void;
+  onEnd: (transcript: TranscriptEntry[]) => void;
 }
 
 type SessionPhase =
@@ -42,6 +48,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef(false);
+  const sessionTranscriptRef = useRef<TranscriptEntry[]>([]);
 
   const cleanup = useCallback(() => {
     abortRef.current = true;
@@ -209,7 +216,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
       .catch(() => {
         if (timerRef.current) clearInterval(timerRef.current);
         setIsListening(false);
-        // Proceed without mic
+        sessionTranscriptRef.current.push({ questionNumber: q.number, question: q.text, answer: '' });
         void moveToNextQuestion(q, prior, undefined);
       });
   }
@@ -254,6 +261,11 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
       }
     }
 
+    sessionTranscriptRef.current.push({
+      questionNumber: q.number,
+      question: q.text,
+      answer: transcript,
+    });
     const quality = inferQuality(transcript, answerDuration);
     setLastAnswerQuality(quality);
     await moveToNextQuestion(q, prior, quality);
@@ -271,6 +283,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
     if (q.number >= MAX_QUESTIONS) {
       setPhase('ended');
       await window.zoomguru.setSessionActive(false);
+      onEnd(sessionTranscriptRef.current);
       return;
     }
 
@@ -302,7 +315,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
   async function handleEndSession(): Promise<void> {
     cleanup();
     await window.zoomguru.setSessionActive(false);
-    onEnd();
+    onEnd(sessionTranscriptRef.current);
   }
 
   function formatDuration(sec: number): string {
@@ -344,9 +357,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
           <span style={styles.statusText}>
             You answered {priorQuestions.length} question{priorQuestions.length !== 1 ? 's' : ''}
           </span>
-          <button style={styles.btnPrimary} onClick={() => void handleEndSession()}>
-            Done
-          </button>
+          <div style={styles.spinner} />
         </div>
       </div>
     );

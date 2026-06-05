@@ -77,4 +77,10 @@ export function registerInterviewerIpcHandlers(): void {
       interviewerWindow.close();
     }
   });
+
+  ipcMain.handle('report:print', () => {
+    if (interviewerWindow && !interviewerWindow.isDestroyed()) {
+      interviewerWindow.webContents.print({ silent: false, printBackground: true });
+    }
+  });
 }

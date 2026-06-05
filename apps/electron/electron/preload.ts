@@ -86,5 +86,8 @@ contextBridge.exposeInMainWorld('zoomguru', {
   closeInterviewer: (): Promise<void> =>
     ipcRenderer.invoke('interviewer:close'),
 
+  printReport: (): Promise<void> =>
+    ipcRenderer.invoke('report:print'),
+
   platform: process.platform,
 });
