@@ -284,6 +284,56 @@ if (!gotLock) {
     );
   }
 
+  let docCopilotWindow: BrowserWindow | null = null;
+
+  function registerDocCopilotIpcHandlers(): void {
+    ipcMain.handle('doccopilot:open', () => {
+      if (docCopilotWindow && !docCopilotWindow.isDestroyed()) {
+        docCopilotWindow.focus();
+        return;
+      }
+
+      docCopilotWindow = new BrowserWindow({
+        width: 900,
+        height: 680,
+        minWidth: 680,
+        minHeight: 480,
+        frame: false,
+        transparent: false,
+        backgroundColor: '#0a0a0a',
+        alwaysOnTop: true,
+        skipTaskbar: false,
+        resizable: true,
+        movable: true,
+        show: false,
+        webPreferences: {
+          preload: path.join(__dirname, 'preload.js'),
+          contextIsolation: true,
+          nodeIntegration: false,
+          devTools: !app.isPackaged,
+        },
+      });
+
+      try { docCopilotWindow.setContentProtection(true); } catch { /* not supported */ }
+
+      if (!app.isPackaged) {
+        void docCopilotWindow.loadURL('http://localhost:5173/doc-copilot.html');
+      } else {
+        void docCopilotWindow.loadFile(
+          path.join(__dirname, '../dist-renderer/doc-copilot.html'),
+        );
+      }
+
+      docCopilotWindow.once('ready-to-show', () => {
+        docCopilotWindow?.show();
+      });
+
+      docCopilotWindow.on('closed', () => {
+        docCopilotWindow = null;
+      });
+    });
+  }
+
   function registerIpcHandlers(): void {
     ipcMain.handle('window:hide', () => {
       mainWindow?.hide();
@@ -453,6 +503,7 @@ if (!gotLock) {
     registerIpcHandlers();
     initCapture(mainWindow!);
     registerInterviewerIpcHandlers();
+    registerDocCopilotIpcHandlers();
     if (app.isPackaged) scheduleUpdateChecks();
   });
 

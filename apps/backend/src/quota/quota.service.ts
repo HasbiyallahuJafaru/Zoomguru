@@ -46,6 +46,14 @@ function windowDays(plan: PlanType): number {
   return 30;
 }
 
+export function getPlanLimits(planType: PlanType): Record<QuotaFeature, number> {
+  return LIMITS[planType];
+}
+
+export function windowDaysForPlan(planType: PlanType): number {
+  return windowDays(planType);
+}
+
 @Injectable()
 export class QuotaService {
   // Ensures a usage row exists for the user, seeding plan_type and period_start.

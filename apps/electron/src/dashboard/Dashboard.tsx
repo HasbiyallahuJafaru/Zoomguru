@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { formatCountdown } from '../utils';
+import UsageMeter from './UsageMeter';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -10,15 +11,31 @@ interface DashboardProps {
 }
 
 type SubStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
+type PlanType = 'weekly' | 'monthly' | 'yearly';
 
 interface SubData {
   status: SubStatus;
-  plan: 'monthly' | 'yearly' | null;
+  plan: PlanType | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
   trialStartedAt: string | null;
   trialEndAt: string | null;
   trialActive: boolean;
+  isAdmin: boolean;
+}
+
+interface FeatureUsage {
+  used: number;
+  limit: number;
+  resetAt: string;
+}
+
+interface UsageData {
+  planType: PlanType | null;
+  copilot_requests: FeatureUsage;
+  interviewer_sessions: FeatureUsage;
+  scorer_reports: FeatureUsage;
+  doc_copilot_requests: FeatureUsage;
 }
 
 interface PaystackResponse {
@@ -68,9 +85,16 @@ function loadPaystackScript(): Promise<void> {
   });
 }
 
+const PLAN_LABELS: Record<PlanType, string> = {
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+};
+
 export default function Dashboard({ onContinue, onLogout, onStartTour }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
+  const [usage, setUsage] = useState<UsageData | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState(false);
@@ -80,7 +104,6 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
   const [trialMsLeft, setTrialMsLeft] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Start/update the countdown ticker whenever trialStartedAt changes
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
@@ -96,7 +119,6 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
       if (remaining <= 0) {
         setTrialMsLeft(0);
         if (timerRef.current) clearInterval(timerRef.current);
-        // Refresh status so UI switches to expired state
         void refreshStatus();
       } else {
         setTrialMsLeft(remaining);
@@ -124,7 +146,6 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
       try {
         const token = await window.zoomguru.getToken();
 
-        // Register this device's public key with the backend (idempotent).
         void window.zoomguru.getDevicePublicKey().then(({ keyId, publicKey }) =>
           fetch(`${API_URL}/device/register`, {
             method: 'POST',
@@ -133,13 +154,23 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
           }),
         );
 
-        const res = await fetch(`${API_URL}/subscription/status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.status === 401) { onLogout(); return; }
-        if (res.ok) {
-          const data = await res.json() as SubData;
+        const [statusRes, usageRes] = await Promise.all([
+          fetch(`${API_URL}/subscription/status`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API_URL}/subscription/usage`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        if (statusRes.status === 401) { onLogout(); return; }
+        if (statusRes.ok) {
+          const data = await statusRes.json() as SubData;
           setSub(data);
+        }
+        if (usageRes.ok) {
+          const data = await usageRes.json() as UsageData;
+          setUsage(data);
         }
       } finally {
         setLoadingSub(false);
@@ -197,7 +228,6 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
       return;
     }
 
-    // PaystackPop has no npm package — injected via script tag at runtime
     const pop = (window as unknown as { PaystackPop: PaystackPopInterface }).PaystackPop;
 
     const payConfig: PaystackSetupConfig = {
@@ -277,7 +307,7 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
   function billingLabel(): string {
     if (loadingSub) return 'Loading…';
     if (!sub) return '—';
-    if (sub.status === 'active') return sub.plan === 'monthly' ? 'Monthly' : 'Yearly';
+    if (sub.status === 'active') return sub.plan ? PLAN_LABELS[sub.plan] : '—';
     if (sub.trialActive) return 'Free trial';
     if (sub.trialStartedAt && !sub.trialActive) return 'Trial used';
     return '—';
@@ -297,6 +327,8 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
 
   const showTrialButton = !loadingSub && !isActive && !sub?.trialStartedAt;
   const showContinue = isActive || (sub?.trialActive ?? false);
+  const showUpgradeCta = isActive && sub?.plan !== 'yearly';
+  const showUsage = isActive && usage !== null;
 
   return (
     <>
@@ -307,6 +339,9 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
         .zg-plan:hover { opacity: 0.85; }
         .zg-trial:hover:not(:disabled) { opacity: 0.85; }
+        .zg-tool:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+        .zg-tool:active:not(:disabled) { transform: scale(0.97); }
+        .zg-admin:hover { color: rgba(255,255,255,0.45) !important; }
       `}</style>
 
       <div style={s.root}>
@@ -344,9 +379,72 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
 
             <div style={s.cardRow}>
               <span style={s.cardLabel}>Billing</span>
-              <span style={s.cardValue}>{billingLabel()}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {isActive && sub.plan && (
+                  <span style={s.planBadge}>{PLAN_LABELS[sub.plan]}</span>
+                )}
+                <span style={s.cardValue}>{billingLabel()}</span>
+              </div>
             </div>
           </div>
+
+          {/* Tool launchers — only shown when active or trial */}
+          {showContinue && (
+            <div id="tour-tools" style={s.toolGrid}>
+              <button
+                className="zg-tool"
+                style={s.toolBtn}
+                onClick={onContinue}
+              >
+                <span style={s.toolIcon}>🎙</span>
+                <span style={s.toolLabel}>Teleprompter</span>
+              </button>
+              <button
+                className="zg-tool"
+                style={s.toolBtn}
+                onClick={() => { void window.zoomguru.openInterviewer(); }}
+              >
+                <span style={s.toolIcon}>🤖</span>
+                <span style={s.toolLabel}>AI Interviewer</span>
+              </button>
+              <button
+                className="zg-tool"
+                style={s.toolBtn}
+                onClick={() => { void window.zoomguru.openDocCopilot(); }}
+              >
+                <span style={s.toolIcon}>📄</span>
+                <span style={s.toolLabel}>Doc Copilot</span>
+              </button>
+            </div>
+          )}
+
+          {/* Usage meters */}
+          {showUsage && (
+            <div style={s.usageSection}>
+              <span style={s.usageSectionLabel}>Usage this period</span>
+              <UsageMeter label="Copilot Requests" data={usage.copilot_requests} />
+              <UsageMeter label="Interviewer Sessions" data={usage.interviewer_sessions} />
+              <UsageMeter label="Scorer Reports" data={usage.scorer_reports} />
+              <UsageMeter label="Doc Copilot Requests" data={usage.doc_copilot_requests} />
+            </div>
+          )}
+
+          {/* Upgrade CTA for weekly / monthly */}
+          {showUpgradeCta && (
+            <div style={s.upgradeCta}>
+              <span style={s.upgradeText}>Upgrade to Yearly for 4× more quota</span>
+              <button
+                className="zg-primary"
+                style={s.upgradeBtn}
+                onClick={() => {
+                  setSelectedPlan('yearly');
+                  void handleSubscribe();
+                }}
+              >
+                Upgrade to Yearly
+              </button>
+            </div>
+          )}
 
           {/* Free trial button — only shown when eligible */}
           {showTrialButton && (
@@ -388,17 +486,19 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
           )}
 
           {/* Subscribe button */}
-          <button
-            className="zg-primary"
-            style={{
-              ...s.subscribeBtn,
-              ...(isSubscribeDisabled ? s.subscribeBtnDisabled : s.subscribeBtnEnabled),
-            }}
-            disabled={isSubscribeDisabled}
-            onClick={() => { void handleSubscribe(); }}
-          >
-            {subscribeLabel()}
-          </button>
+          {!isActive && (
+            <button
+              className="zg-primary"
+              style={{
+                ...s.subscribeBtn,
+                ...(isSubscribeDisabled ? s.subscribeBtnDisabled : s.subscribeBtnEnabled),
+              }}
+              disabled={isSubscribeDisabled}
+              onClick={() => { void handleSubscribe(); }}
+            >
+              {subscribeLabel()}
+            </button>
+          )}
 
           {verifyError && (
             <p style={s.errorMsg}>
@@ -406,9 +506,9 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
             </p>
           )}
 
-          {/* Continue to app — shown when subscription is active or trial is running */}
+          {/* Actions row */}
           <div style={s.actions}>
-            {showContinue && (
+            {showContinue && !sub?.trialActive && (
               <button
                 id="tour-continue-btn"
                 className="zg-primary"
@@ -431,6 +531,18 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
                 onClick={onStartTour}
               >
                 Take the Tour
+              </button>
+            )}
+            {sub?.isAdmin && (
+              <button
+                className="zg-admin"
+                style={s.adminBtn}
+                onClick={() => {
+                  const adminUrl = (import.meta.env.VITE_ADMIN_URL as string | undefined) ?? `${API_URL.replace(':3000', ':5174')}`;
+                  void window.zoomguru.openExternal(`${adminUrl}/broadcast`);
+                }}
+              >
+                Broadcast Mail
               </button>
             )}
             <button
@@ -478,12 +590,15 @@ const s: Record<string, ElectronStyle> = {
   },
   content: {
     width: '100%',
-    maxWidth: '290px',
+    maxWidth: '310px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: '16px',
+    gap: '14px',
     WebkitAppRegion: 'no-drag',
+    overflowY: 'auto',
+    maxHeight: 'calc(100vh - 32px)',
+    paddingBottom: '8px',
   },
   brand: {
     display: 'flex',
@@ -543,6 +658,93 @@ const s: Record<string, ElectronStyle> = {
     padding: '3px 8px',
     borderRadius: '4px',
     fontFamily: SANS,
+  },
+  planBadge: {
+    fontSize: '9px',
+    fontWeight: 600,
+    letterSpacing: '0.3px',
+    color: 'rgba(99,179,237,0.85)',
+    background: 'rgba(99,179,237,0.12)',
+    padding: '2px 6px',
+    borderRadius: '3px',
+    fontFamily: SANS,
+    textTransform: 'uppercase' as const,
+  },
+  toolGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: '8px',
+  },
+  toolBtn: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '12px 6px',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'opacity 120ms ease, transform 100ms ease',
+    fontFamily: SANS,
+  },
+  toolIcon: {
+    fontSize: '18px',
+    lineHeight: '1',
+  },
+  toolLabel: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.45)',
+    fontFamily: SANS,
+    letterSpacing: '0.1px',
+    textAlign: 'center' as const,
+  },
+  usageSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    padding: '12px 14px',
+    border: '1px solid rgba(255,255,255,0.06)',
+    borderRadius: '8px',
+    background: 'rgba(255,255,255,0.02)',
+  },
+  usageSectionLabel: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.25)',
+    fontFamily: SANS,
+    letterSpacing: '0.3px',
+    textTransform: 'uppercase' as const,
+    marginBottom: '2px',
+  },
+  upgradeCta: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    padding: '12px 14px',
+    border: '1px solid rgba(99,179,237,0.15)',
+    borderRadius: '8px',
+    background: 'rgba(99,179,237,0.04)',
+  },
+  upgradeText: {
+    fontSize: '10px',
+    color: 'rgba(99,179,237,0.70)',
+    fontFamily: SANS,
+    textAlign: 'center' as const,
+  },
+  upgradeBtn: {
+    width: '100%',
+    padding: '9px',
+    borderRadius: '6px',
+    fontSize: '11px',
+    fontWeight: 500,
+    fontFamily: SANS,
+    letterSpacing: '0.1px',
+    textAlign: 'center' as const,
+    background: 'rgba(99,179,237,0.15)',
+    color: 'rgba(99,179,237,0.90)',
+    border: '1px solid rgba(99,179,237,0.25)',
+    cursor: 'pointer',
+    transition: 'opacity 120ms ease, transform 100ms ease',
   },
   trialBtn: {
     width: '100%',
@@ -626,7 +828,7 @@ const s: Record<string, ElectronStyle> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '6px',
+    gap: '4px',
   },
   continueBtn: {
     width: '100%',
@@ -641,7 +843,7 @@ const s: Record<string, ElectronStyle> = {
     fontFamily: SANS,
     transition: 'opacity 120ms ease, transform 100ms ease',
     letterSpacing: '-0.1px',
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
   tourBtn: {
     width: '100%',
@@ -649,6 +851,19 @@ const s: Record<string, ElectronStyle> = {
     background: 'transparent',
     border: 'none',
     color: 'rgba(255,255,255,0.35)',
+    fontSize: '11px',
+    cursor: 'pointer',
+    fontFamily: SANS,
+    transition: 'color 120ms ease',
+    letterSpacing: '0.1px',
+    textAlign: 'center' as const,
+  },
+  adminBtn: {
+    width: '100%',
+    padding: '8px',
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(248,113,113,0.50)',
     fontSize: '11px',
     cursor: 'pointer',
     fontFamily: SANS,

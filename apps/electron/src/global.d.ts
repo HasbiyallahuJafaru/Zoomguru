@@ -41,6 +41,7 @@ interface ZoomGuruBridge {
   kokoroSetReady(ready: boolean): Promise<void>;
   openInterviewer(): Promise<void>;
   closeInterviewer(): Promise<void>;
+  openDocCopilot(): Promise<void>;
   printReport(): Promise<void>;
   tourHasCompleted(): Promise<boolean>;
   tourSetCompleted(): Promise<void>;

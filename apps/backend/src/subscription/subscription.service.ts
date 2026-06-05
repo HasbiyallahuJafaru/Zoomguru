@@ -3,18 +3,33 @@ import { createHmac } from 'node:crypto';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 import { EmailService } from '../email/email.service';
-import { QuotaService, PlanType } from '../quota/quota.service';
+import { QuotaService, PlanType, QuotaFeature, getPlanLimits, windowDaysForPlan } from '../quota/quota.service';
 
 type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
+export interface FeatureUsage {
+  used: number;
+  limit: number;
+  resetAt: string;
+}
+
+export interface UsageResponse {
+  planType: PlanType | null;
+  copilot_requests: FeatureUsage;
+  interviewer_sessions: FeatureUsage;
+  scorer_reports: FeatureUsage;
+  doc_copilot_requests: FeatureUsage;
+}
+
 export interface StatusResponse {
   status: SubscriptionStatus;
-  plan: 'monthly' | 'yearly' | null;
+  plan: 'weekly' | 'monthly' | 'yearly' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
   trialStartedAt: string | null;
   trialEndAt: string | null;
   trialActive: boolean;
+  isAdmin: boolean;
 }
 
 interface SubscriptionRow {
@@ -97,11 +112,14 @@ export class SubscriptionService {
          FROM subscriptions WHERE user_id = $1 LIMIT 1`,
         [userId],
       ),
-      pool.query<{ trial_started_at: string | null }>(
-        `SELECT trial_started_at FROM users WHERE id = $1 LIMIT 1`,
+      pool.query<{ trial_started_at: string | null; email: string }>(
+        `SELECT trial_started_at, email FROM users WHERE id = $1 LIMIT 1`,
         [userId],
       ),
     ]);
+
+    const adminEmails = (process.env.ADMIN_EMAIL ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    const isAdmin = adminEmails.includes((userResult.rows[0]?.email ?? '').toLowerCase());
 
     const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
     const trialEndAt = trialStartedAt
@@ -118,6 +136,7 @@ export class SubscriptionService {
         trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
         trialEndAt,
         trialActive,
+        isAdmin,
       };
     }
 
@@ -132,7 +151,7 @@ export class SubscriptionService {
 
     return {
       status: row.status as SubscriptionStatus,
-      plan: row.plan as 'monthly' | 'yearly' | null,
+      plan: row.plan as 'weekly' | 'monthly' | 'yearly' | null,
       daysRemaining,
       currentPeriodEnd: row.current_period_end
         ? new Date(row.current_period_end).toISOString()
@@ -140,6 +159,7 @@ export class SubscriptionService {
       trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
       trialEndAt,
       trialActive,
+      isAdmin,
     };
   }
 
@@ -173,6 +193,59 @@ export class SubscriptionService {
     }
 
     return { trialStartedAt: new Date(result.rows[0].trial_started_at).toISOString() };
+  }
+
+  async getUsage(userId: string): Promise<UsageResponse> {
+    const pool = getDB();
+
+    const [planInfo, usageResult] = await Promise.all([
+      this.quotaService.getPlanType(userId),
+      pool.query<{
+        plan_type: string;
+        copilot_requests: number;
+        interviewer_sessions: number;
+        scorer_reports: number;
+        doc_copilot_requests: number;
+        period_start: string;
+      }>(
+        `SELECT plan_type, copilot_requests, interviewer_sessions,
+                scorer_reports, doc_copilot_requests, period_start
+         FROM usage WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      ),
+    ]);
+
+    const planType = (planInfo?.planType ?? null) as PlanType | null;
+    const resolvedPlan: PlanType = planType ?? 'monthly';
+    const limits = getPlanLimits(resolvedPlan);
+    const windowDays = windowDaysForPlan(resolvedPlan);
+
+    const row = usageResult.rows[0];
+    const periodStart = row?.period_start
+      ? new Date(row.period_start)
+      : (planInfo?.periodStart ?? new Date());
+    const resetAt = new Date(periodStart.getTime() + windowDays * 86_400_000).toISOString();
+
+    const features: QuotaFeature[] = [
+      'copilot_requests',
+      'interviewer_sessions',
+      'scorer_reports',
+      'doc_copilot_requests',
+    ];
+
+    const result: Partial<Record<QuotaFeature, FeatureUsage>> = {};
+    for (const f of features) {
+      result[f] = {
+        used: row?.[f] ?? 0,
+        limit: limits[f],
+        resetAt,
+      };
+    }
+
+    return {
+      planType,
+      ...(result as Record<QuotaFeature, FeatureUsage>),
+    };
   }
 
   async canUseAI(userId: string): Promise<boolean> {
