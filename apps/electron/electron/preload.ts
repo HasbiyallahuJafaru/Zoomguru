@@ -89,5 +89,11 @@ contextBridge.exposeInMainWorld('zoomguru', {
   printReport: (): Promise<void> =>
     ipcRenderer.invoke('report:print'),
 
+  tourHasCompleted: (): Promise<boolean> =>
+    ipcRenderer.invoke('tour:hasCompleted'),
+
+  tourSetCompleted: (): Promise<void> =>
+    ipcRenderer.invoke('tour:setCompleted'),
+
   platform: process.platform,
 });

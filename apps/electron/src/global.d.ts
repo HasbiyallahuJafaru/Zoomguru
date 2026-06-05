@@ -42,6 +42,8 @@ interface ZoomGuruBridge {
   openInterviewer(): Promise<void>;
   closeInterviewer(): Promise<void>;
   printReport(): Promise<void>;
+  tourHasCompleted(): Promise<boolean>;
+  tourSetCompleted(): Promise<void>;
   platform: string;
 }
 

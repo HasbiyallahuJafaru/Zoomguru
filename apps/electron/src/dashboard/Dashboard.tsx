@@ -6,6 +6,7 @@ type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 interface DashboardProps {
   onContinue: () => void;
   onLogout: () => void;
+  onStartTour?: () => void;
 }
 
 type SubStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
@@ -67,7 +68,7 @@ function loadPaystackScript(): Promise<void> {
   });
 }
 
-export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
+export default function Dashboard({ onContinue, onLogout, onStartTour }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
@@ -326,7 +327,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
           </div>
 
           {/* Subscription card */}
-          <div style={s.card}>
+          <div id="tour-plan-status" style={s.card}>
             <div style={s.cardRow}>
               <span style={s.cardLabel}>Status</span>
               <span style={statusBadgeStyle()}>{statusLabel()}</span>
@@ -409,6 +410,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
           <div style={s.actions}>
             {showContinue && (
               <button
+                id="tour-continue-btn"
                 className="zg-primary"
                 style={s.continueBtn}
                 onClick={onContinue}
@@ -421,6 +423,15 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
                 <span style={s.trialCountdownLabel}>Free trial ends in</span>
                 <span style={s.trialCountdownValue}>{formatCountdown(trialMsLeft)}</span>
               </div>
+            )}
+            {onStartTour && (
+              <button
+                className="zg-ghost"
+                style={s.tourBtn}
+                onClick={onStartTour}
+              >
+                Take the Tour
+              </button>
             )}
             <button
               className="zg-ghost"
@@ -631,6 +642,19 @@ const s: Record<string, ElectronStyle> = {
     transition: 'opacity 120ms ease, transform 100ms ease',
     letterSpacing: '-0.1px',
     textAlign: 'center',
+  },
+  tourBtn: {
+    width: '100%',
+    padding: '8px',
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: '11px',
+    cursor: 'pointer',
+    fontFamily: SANS,
+    transition: 'color 120ms ease',
+    letterSpacing: '0.1px',
+    textAlign: 'center' as const,
   },
   logoutBtn: {
     width: '100%',

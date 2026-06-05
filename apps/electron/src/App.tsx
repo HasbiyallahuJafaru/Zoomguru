@@ -5,22 +5,42 @@ import Dashboard from './dashboard/Dashboard';
 import CvSetup from './onboarding/CvSetup';
 import Overlay from './overlay/Overlay';
 import Referral from './referral/Referral';
+import { useTour } from './tour/useTour';
 
 type Step = 'loading' | 'login' | 'register' | 'dashboard' | 'cv' | 'overlay' | 'referral';
 
 const App = () => {
   const [step, setStep] = useState<Step>('loading');
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [tourAutoLaunch, setTourAutoLaunch] = useState(false);
+
+  const { startTour } = useTour({
+    isSessionActive,
+    autoLaunch: tourAutoLaunch,
+  });
 
   useEffect(() => {
     void (async () => {
       const token = await window.zoomguru.getToken();
-      setStep(token ? 'dashboard' : 'login');
+      if (token) {
+        setTourAutoLaunch(true);
+        setStep('dashboard');
+      } else {
+        setStep('login');
+      }
     })();
   }, []);
 
   function handleLogout(): void {
     void window.zoomguru.clearToken();
+    setIsSessionActive(false);
+    setTourAutoLaunch(false);
     setStep('login');
+  }
+
+  function handleReachDashboard(): void {
+    setTourAutoLaunch(true);
+    setStep('dashboard');
   }
 
   if (step === 'loading') {
@@ -32,7 +52,7 @@ const App = () => {
   if (step === 'login') {
     return (
       <Login
-        onLogin={() => setStep('dashboard')}
+        onLogin={handleReachDashboard}
         onShowRegister={() => setStep('register')}
       />
     );
@@ -41,7 +61,7 @@ const App = () => {
   if (step === 'register') {
     return (
       <Register
-        onRegistered={() => setStep('dashboard')}
+        onRegistered={handleReachDashboard}
         onShowLogin={() => setStep('login')}
       />
     );
@@ -52,6 +72,7 @@ const App = () => {
       <Dashboard
         onContinue={() => setStep('cv')}
         onLogout={handleLogout}
+        onStartTour={startTour}
       />
     );
   }
@@ -69,6 +90,7 @@ const App = () => {
       onLogout={handleLogout}
       onTrialExpired={() => setStep('dashboard')}
       onOpenReferral={() => setStep('referral')}
+      onSessionActiveChange={setIsSessionActive}
     />
   );
 };

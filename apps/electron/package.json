@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@types/pdf-parse": "^1.1.5",
+    "driver.js": "^1.4.0",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.1.8",
     "kokoro-js": "^1.2.1",

@@ -31,6 +31,7 @@ interface WindowStore {
   accessToken?: string;
   noiseSuppressor?: boolean;
   kokoroModelReady?: boolean;
+  tourCompleted?: boolean;
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -397,6 +398,14 @@ if (!gotLock) {
 
     ipcMain.handle('settings:setNoiseSuppressor', (_event, enabled: boolean) => {
       if (typeof enabled === 'boolean') store.set('noiseSuppressor', enabled);
+    });
+
+    ipcMain.handle('tour:hasCompleted', () => {
+      return store.get('tourCompleted', false);
+    });
+
+    ipcMain.handle('tour:setCompleted', () => {
+      store.set('tourCompleted', true);
     });
   }
 

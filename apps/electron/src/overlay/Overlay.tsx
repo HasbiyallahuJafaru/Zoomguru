@@ -22,7 +22,7 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { onLogout: () => void; onTrialExpired?: () => void; onOpenReferral?: () => void }) {
+export default function Overlay({ onLogout, onTrialExpired, onOpenReferral, onSessionActiveChange }: { onLogout: () => void; onTrialExpired?: () => void; onOpenReferral?: () => void; onSessionActiveChange?: (active: boolean) => void }) {
   // --- state ---
   const { cvText, jdText } = useCVContext();
 
@@ -374,6 +374,14 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral }: { 
     () => handleClearRef.current(),
     () => handleAutoRef.current(),
   );
+
+  // --- session active signal ---
+
+  useEffect(() => {
+    const active = isStreaming || isListening || isAutoListening;
+    onSessionActiveChange?.(active);
+    void window.zoomguru.setSessionActive(active);
+  }, [isStreaming, isListening, isAutoListening]);
 
   // --- mount ---
 
