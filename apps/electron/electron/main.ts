@@ -287,8 +287,8 @@ if (!gotLock) {
       return getPublicKeyInfo();
     });
 
-    ipcMain.handle('device:sign', () => {
-      return signRequest();
+    ipcMain.handle('device:sign', (_event, userId: string) => {
+      return signRequest(userId);
     });
 
     ipcMain.handle('permissions:request-mic', async () => {

@@ -116,7 +116,7 @@ export class AuthController {
       throw new BadRequestException('Invalid identifier');
     }
 
-    return this.authService.login(cleanIdentifier, cleanPassword);
+    return this.authService.login(cleanIdentifier, cleanPassword, req.ip);
   }
 
   @Post('forgot-password')

@@ -124,10 +124,10 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
     abortRef.current = false;
 
     async function getHeaders(): Promise<Record<string, string>> {
-      const [token, sig] = await Promise.all([
-        window.zoomguru.getToken(),
-        window.zoomguru.signRequest(),
-      ]);
+      const token = await window.zoomguru.getToken();
+      let userId = '';
+      try { userId = (JSON.parse(atob(token.split('.')[1])) as { sub?: string }).sub ?? ''; } catch { /* ignore */ }
+      const sig = await window.zoomguru.signRequest(userId);
       return {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,

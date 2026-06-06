@@ -4,6 +4,7 @@ import * as bcrypt from 'bcryptjs';
 import { randomBytes, createHash } from 'node:crypto';
 import { getDB } from '../database/db';
 import { EmailService } from '../email/email.service';
+import { getRedis } from '../redis/redis';
 
 interface UserRow {
   id: string;
@@ -21,6 +22,21 @@ export interface LoginResult {
     name: string | null;
     username: string | null;
   };
+}
+
+async function checkLoginRateLimit(ip: string): Promise<boolean> {
+  try {
+    const redis = getRedis();
+    const key = `lr:${ip}`;
+    const [[, count]] = (await redis
+      .pipeline()
+      .incr(key)
+      .expire(key, 900)
+      .exec()) as [[null, number], [null, number]];
+    return count <= 20;
+  } catch {
+    return true;
+  }
 }
 
 function generateReferralCode(): string {
@@ -91,7 +107,10 @@ export class AuthService {
     };
   }
 
-  async login(identifier: string, password: string): Promise<LoginResult> {
+  async login(identifier: string, password: string, ip?: string): Promise<LoginResult> {
+    if (ip && !(await checkLoginRateLimit(ip))) {
+      throw new UnauthorizedException('Too many login attempts. Try again in 15 minutes.');
+    }
     const pool = getDB();
 
     const result = await pool.query<UserRow>(
@@ -143,18 +162,21 @@ export class AuthService {
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
-    await pool.query('BEGIN');
+    const client = await pool.connect();
     try {
-      await pool.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [user.id]);
-      await pool.query(
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [user.id]);
+      await client.query(
         `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
          VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
         [user.id, tokenHash],
       );
-      await pool.query('COMMIT');
+      await client.query('COMMIT');
     } catch (e) {
-      await pool.query('ROLLBACK');
+      await client.query('ROLLBACK');
       throw e;
+    } finally {
+      client.release();
     }
 
     const baseUrl = (process.env['APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '');

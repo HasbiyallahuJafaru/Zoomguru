@@ -20,7 +20,6 @@ export function getDB(): Pool {
     // without this handler Node.js throws an uncaught error and exits.
     _pool.on('error', (err) => {
       console.error('[DB pool] idle client error:', err.message);
-      process.exit(1);
     });
   }
   return _pool;

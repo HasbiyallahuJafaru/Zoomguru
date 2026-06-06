@@ -137,22 +137,24 @@ export class AiController {
       return;
     }
 
-    const planInfo = await this.quotaService.getPlanType(req.user.userId);
-    if (planInfo) {
-      const quota = await this.quotaService.checkQuota(
-        req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
-      );
-      if (!quota.allowed) {
-        await reply.code(429).send({
-          error: 'quota_exceeded',
-          feature: quota.feature,
-          planType: quota.planType,
-          limit: quota.limit,
-          used: quota.used,
-          resetAt: quota.resetAt,
-          upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
-        });
-        return;
+    if (plan) {
+      const planInfo = await this.quotaService.getPlanType(req.user.userId);
+      if (planInfo) {
+        const quota = await this.quotaService.checkQuota(
+          req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
+        );
+        if (!quota.allowed) {
+          await reply.code(429).send({
+            error: 'quota_exceeded',
+            feature: quota.feature,
+            planType: quota.planType,
+            limit: quota.limit,
+            used: quota.used,
+            resetAt: quota.resetAt,
+            upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
+          });
+          return;
+        }
       }
     }
     logSession(req.user.userId, 'stream');
@@ -180,6 +182,9 @@ export class AiController {
   ): Promise<void> {
     if (!body.image || body.image.length > 10_000_000) {
       throw new BadRequestException('Invalid image');
+    }
+    if (!/^[A-Za-z0-9+/=]+$/.test(body.image)) {
+      throw new BadRequestException('Invalid image encoding');
     }
 
     // A2-4: checkRateLimit wrapped in try-catch — Redis crash fails open
@@ -223,26 +228,25 @@ export class AiController {
       return;
     }
 
-    const planInfo = await this.quotaService.getPlanType(req.user.userId);
-    if (planInfo) {
-      const quota = await this.quotaService.checkQuota(
-        req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
-      );
-      if (!quota.allowed) {
-        await reply.code(429).send({
-          error: 'quota_exceeded',
-          feature: quota.feature,
-          planType: quota.planType,
-          limit: quota.limit,
-          used: quota.used,
-          resetAt: quota.resetAt,
-          upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
-        });
-        return;
+    if (plan) {
+      const planInfo = await this.quotaService.getPlanType(req.user.userId);
+      if (planInfo) {
+        const quota = await this.quotaService.checkQuota(
+          req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
+        );
+        if (!quota.allowed) {
+          await reply.code(429).send({
+            error: 'quota_exceeded',
+            feature: quota.feature,
+            planType: quota.planType,
+            limit: quota.limit,
+            used: quota.used,
+            resetAt: quota.resetAt,
+            upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
+          });
+          return;
+        }
       }
-    }
-    if (!/^[A-Za-z0-9+/=]+$/.test(body.image)) {
-      throw new BadRequestException('Invalid image encoding');
     }
     logSession(req.user.userId, 'screenshot');
     const cleanImage = body.image;
@@ -273,13 +277,17 @@ export class AiController {
     @Headers('x-timestamp') timestamp: string | undefined,
     @Headers('x-signature') signature: string | undefined,
   ): Promise<{ quotaUsed: number; quotaLimit: number; resetAt: string }> {
-    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
+    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
       this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
       this.subscriptionService.checkAccess(req.user.userId, keyId),
     ]);
     if (!sigResult.valid) throw new HttpException({ error: sigResult.reason }, HttpStatus.FORBIDDEN);
     if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
     if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
+
+    if (!plan) {
+      return { quotaUsed: 0, quotaLimit: 0, resetAt: '' };
+    }
 
     const planInfo = await this.quotaService.getPlanType(req.user.userId);
     if (!planInfo) {
@@ -390,7 +398,7 @@ export class AiController {
       console.warn('Redis unavailable — rate limit skipped:', err);
     }
 
-    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
+    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
       this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
       this.subscriptionService.checkAccess(req.user.userId, keyId),
     ]);
@@ -398,20 +406,22 @@ export class AiController {
     if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
     if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
 
-    const planInfo = await this.quotaService.getPlanType(req.user.userId);
-    if (planInfo) {
-      const quota = await this.quotaService.checkQuota(
-        req.user.userId, 'scorer_reports', planInfo.planType, planInfo.periodStart,
-      );
-      if (!quota.allowed) {
-        throw new HttpException({
-          error: 'quota_exceeded',
-          feature: quota.feature,
-          limit: quota.limit,
-          used: quota.used,
-          resetAt: quota.resetAt,
-          upgradeCta: 'Upgrade your plan to unlock more feedback reports.',
-        }, 429);
+    if (plan) {
+      const planInfo = await this.quotaService.getPlanType(req.user.userId);
+      if (planInfo) {
+        const quota = await this.quotaService.checkQuota(
+          req.user.userId, 'scorer_reports', planInfo.planType, planInfo.periodStart,
+        );
+        if (!quota.allowed) {
+          throw new HttpException({
+            error: 'quota_exceeded',
+            feature: quota.feature,
+            limit: quota.limit,
+            used: quota.used,
+            resetAt: quota.resetAt,
+            upgradeCta: 'Upgrade your plan to unlock more feedback reports.',
+          }, 429);
+        }
       }
     }
 
@@ -528,7 +538,7 @@ export class AiController {
       console.warn('Redis unavailable — rate limit skipped:', err);
     }
 
-    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
+    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
       this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
       this.subscriptionService.checkAccess(req.user.userId, keyId),
     ]);
@@ -537,20 +547,22 @@ export class AiController {
     if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed)  { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
-    const planInfo = await this.quotaService.getPlanType(req.user.userId);
-    if (planInfo) {
-      const quota = await this.quotaService.checkQuota(
-        req.user.userId, 'doc_copilot_requests', planInfo.planType, planInfo.periodStart,
-      );
-      if (!quota.allowed) {
-        await reply.code(429).send({
-          error: 'quota_exceeded',
-          feature: quota.feature,
-          limit: quota.limit,
-          used: quota.used,
-          resetAt: quota.resetAt,
-        });
-        return;
+    if (plan) {
+      const planInfo = await this.quotaService.getPlanType(req.user.userId);
+      if (planInfo) {
+        const quota = await this.quotaService.checkQuota(
+          req.user.userId, 'doc_copilot_requests', planInfo.planType, planInfo.periodStart,
+        );
+        if (!quota.allowed) {
+          await reply.code(429).send({
+            error: 'quota_exceeded',
+            feature: quota.feature,
+            limit: quota.limit,
+            used: quota.used,
+            resetAt: quota.resetAt,
+          });
+          return;
+        }
       }
     }
 

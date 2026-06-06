@@ -15,8 +15,19 @@ export function formatCountdown(ms: number): string {
   return `${min}:${sec.toString().padStart(2, '0')}`;
 }
 
+function decodeJwtUserId(token: string): string {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1])) as { sub?: string };
+    return payload.sub ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export async function makeDeviceHeaders(): Promise<Record<string, string>> {
-  const { keyId, timestamp, signature } = await window.zoomguru.signRequest();
+  const token = await window.zoomguru.getToken();
+  const userId = decodeJwtUserId(token);
+  const { keyId, timestamp, signature } = await window.zoomguru.signRequest(userId);
   return {
     'X-Key-ID': keyId,
     'X-Timestamp': String(timestamp),

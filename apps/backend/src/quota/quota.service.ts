@@ -90,15 +90,14 @@ export class QuotaService {
     const col = COLUMN_MAP[feature];
     if (!col) throw new Error(`Unknown feature: ${feature}`);
 
-    await this.ensureRow(userId, planType, periodStart);
-
     const pool = getDB();
     const limit = LIMITS[planType][feature];
     const days = windowDays(planType);
     const resetAt = new Date(periodStart.getTime() + days * 86_400_000).toISOString();
 
-    // Atomic increment: only succeeds if we are below the limit.
-    const result = await pool.query<{ val: number }>(
+    // Optimistic path: attempt increment without ensureRow.
+    // Succeeds on the fast path (row exists, under limit) with no extra write.
+    let result = await pool.query<{ val: number }>(
       `UPDATE usage
        SET ${col} = ${col} + 1, updated_at = NOW()
        WHERE user_id = $1 AND ${col} < $2
@@ -106,28 +105,36 @@ export class QuotaService {
       [userId, limit],
     );
 
-    if (result.rows.length === 0) {
-      // Already at or above limit — read current count without modifying.
-      const cur = await pool.query<{ val: number }>(
-        `SELECT ${col} AS val FROM usage WHERE user_id = $1 LIMIT 1`,
-        [userId],
-      );
-      return {
-        allowed: false,
-        planType,
-        feature,
-        limit,
-        used: cur.rows[0]?.val ?? limit,
-        resetAt,
-      };
+    if (result.rows.length > 0) {
+      return { allowed: true, planType, feature, limit, used: result.rows[0].val, resetAt };
     }
 
+    // Row may not exist yet — ensure it and retry once.
+    await this.ensureRow(userId, planType, periodStart);
+
+    result = await pool.query<{ val: number }>(
+      `UPDATE usage
+       SET ${col} = ${col} + 1, updated_at = NOW()
+       WHERE user_id = $1 AND ${col} < $2
+       RETURNING ${col} AS val`,
+      [userId, limit],
+    );
+
+    if (result.rows.length > 0) {
+      return { allowed: true, planType, feature, limit, used: result.rows[0].val, resetAt };
+    }
+
+    // Quota exceeded — read current count without modifying.
+    const cur = await pool.query<{ val: number }>(
+      `SELECT ${col} AS val FROM usage WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    );
     return {
-      allowed: true,
+      allowed: false,
       planType,
       feature,
       limit,
-      used: result.rows[0].val,
+      used: cur.rows[0]?.val ?? limit,
       resetAt,
     };
   }

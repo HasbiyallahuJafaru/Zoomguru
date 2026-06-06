@@ -350,8 +350,14 @@ export class SubscriptionService {
           [keyId, userId],
         );
         if ((lockResult.rowCount ?? 0) === 0) {
-          deviceAllowed = false;
-          await setDeviceCache(cacheKey, false);
+          // Another concurrent request won the race — re-read to see which key got locked
+          const recheck = await pool.query<{ locked_key_id: string | null }>(
+            `SELECT locked_key_id FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+            [userId],
+          );
+          const winner = recheck.rows[0]?.locked_key_id ?? null;
+          deviceAllowed = winner === keyId;
+          await setDeviceCache(cacheKey, deviceAllowed);
         } else {
           await this.invalidateDeviceCache(userId);
           deviceAllowed = true;

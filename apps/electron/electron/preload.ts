@@ -24,8 +24,8 @@ contextBridge.exposeInMainWorld('zoomguru', {
   getDevicePublicKey: (): Promise<{ keyId: string; publicKey: string }> =>
     ipcRenderer.invoke('device:getPublicKey'),
 
-  signRequest: (): Promise<{ keyId: string; timestamp: number; signature: string }> =>
-    ipcRenderer.invoke('device:sign'),
+  signRequest: (userId: string): Promise<{ keyId: string; timestamp: number; signature: string }> =>
+    ipcRenderer.invoke('device:sign', userId),
 
   hideWindow: (): Promise<void> =>
     ipcRenderer.invoke('window:hide'),

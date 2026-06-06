@@ -59,7 +59,7 @@ export class DeviceService {
     }
 
     try {
-      const message = `${keyId}:${timestamp}`;
+      const message = `${userId}:${keyId}:${timestamp}`;
       const verifier = createVerify('SHA256');
       verifier.update(message);
       const ok = verifier.verify(result.rows[0].public_key, signature, 'base64');

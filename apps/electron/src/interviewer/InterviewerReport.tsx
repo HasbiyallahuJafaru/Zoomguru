@@ -41,7 +41,9 @@ export async function fetchReport(
   entries: QAEntry[],
 ): Promise<ScorerReport> {
   const token = await window.zoomguru.getToken();
-  const sig = await window.zoomguru.signRequest();
+  let userId = '';
+  try { userId = (JSON.parse(atob(token.split('.')[1])) as { sub?: string }).sub ?? ''; } catch { /* ignore */ }
+  const sig = await window.zoomguru.signRequest(userId);
   const res = await fetch(`${API_URL}/ai/score-session`, {
     method: 'POST',
     headers: {

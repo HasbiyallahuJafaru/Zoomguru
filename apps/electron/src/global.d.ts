@@ -18,7 +18,7 @@ interface ZoomGuruBridge {
   offTrigger(event: string): void;
   captureScreen(): Promise<string>;
   getDevicePublicKey(): Promise<{ keyId: string; publicKey: string }>;
-  signRequest(): Promise<SignedRequest>;
+  signRequest(userId: string): Promise<SignedRequest>;
   hideWindow(): Promise<void>;
   quitApp(): Promise<void>;
   requestMicPermission(): Promise<boolean>;
