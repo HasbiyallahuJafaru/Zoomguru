@@ -1063,6 +1063,47 @@ If the answer is empty or very short, score it 0-20.`;
     }
   }
 
+  async streamTts(text: string, res: ServerResponse): Promise<void> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const response = await fetch('https://api.lemonfox.ai/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env['LEMONFOX_API_KEY'] ?? ''}`,
+        },
+        body: JSON.stringify({ model: 'tts-1', input: text, voice: 'alloy' }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        res.writeHead(502);
+        res.end();
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'audio/mpeg',
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': process.env['ELECTRON_ORIGIN'] ?? 'app://zoomguru',
+      });
+      const reader = response.body.getReader();
+      while (true) {
+        if (res.destroyed) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+      res.end();
+    } catch {
+      if (!res.headersSent) {
+        res.writeHead(502);
+      }
+      if (!res.destroyed) res.end();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async streamDocCopilot(params: {
     transcript: string;
     documents: Array<{ docId: string; fileName: string; serializedContent: string }>;

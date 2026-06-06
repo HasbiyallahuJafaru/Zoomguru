@@ -7,6 +7,7 @@ type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 interface DashboardProps {
   onContinue: () => void;
   onOpenMeeting: () => void;
+  onOpenInterviewer: () => void;
   onLogout: () => void;
   onStartTour?: () => void;
 }
@@ -91,7 +92,7 @@ const PLAN_LABELS: Record<PlanType, string> = {
   yearly: 'Yearly',
 };
 
-export default function Dashboard({ onContinue, onOpenMeeting, onLogout, onStartTour }: DashboardProps) {
+export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer, onLogout, onStartTour }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
   const [usage, setUsage] = useState<UsageData | null>(null);
@@ -425,6 +426,14 @@ export default function Dashboard({ onContinue, onOpenMeeting, onLogout, onStart
               >
                 <span style={s.toolIcon}>DOC</span>
                 <span style={s.toolLabel}>Meeting Assistant</span>
+              </button>
+              <button
+                className="zg-tool"
+                style={s.toolBtn}
+                onClick={onOpenInterviewer}
+              >
+                <span style={s.toolIcon}>AI</span>
+                <span style={s.toolLabel}>AI Interviewer</span>
               </button>
             </div>
           )}

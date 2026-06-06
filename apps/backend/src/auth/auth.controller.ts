@@ -24,19 +24,24 @@ async function checkIpRateLimit(
   max: number,
   windowSec: number,
 ): Promise<void> {
-  const redis = getRedis();
-  const key = `rl:${prefix}:${ip}`;
-  const pipeline = redis.pipeline();
-  pipeline.incr(key);
-  pipeline.expire(key, windowSec);
-  const results = await pipeline.exec();
-  const count = (results?.[0]?.[1] as number) ?? 0;
-  if (count > max) {
-    const ttl = await redis.ttl(key);
-    throw new HttpException(
-      { error: 'rate_limit', retryAfter: ttl > 0 ? ttl : windowSec },
-      429,
-    );
+  try {
+    const redis = getRedis();
+    const key = `rl:${prefix}:${ip}`;
+    const pipeline = redis.pipeline();
+    pipeline.incr(key);
+    pipeline.expire(key, windowSec);
+    const results = await pipeline.exec();
+    const count = (results?.[0]?.[1] as number) ?? 0;
+    if (count > max) {
+      const ttl = await redis.ttl(key);
+      throw new HttpException(
+        { error: 'rate_limit', retryAfter: ttl > 0 ? ttl : windowSec },
+        429,
+      );
+    }
+  } catch (err) {
+    if (err instanceof HttpException) throw err;
+    // Redis unavailable — fail open
   }
 }
 

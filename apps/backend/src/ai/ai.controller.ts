@@ -282,7 +282,9 @@ export class AiController {
     if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
 
     const planInfo = await this.quotaService.getPlanType(req.user.userId);
-    if (!planInfo) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
+    if (!planInfo) {
+      return { quotaUsed: 0, quotaLimit: 0, resetAt: '' };
+    }
 
     const quota = await this.quotaService.checkQuota(
       req.user.userId, 'interviewer_sessions', planInfo.planType, planInfo.periodStart,
@@ -419,6 +421,40 @@ export class AiController {
     }));
 
     return this.aiService.scoreSession(cleanEntries);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('tts')
+  async tts(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { text: string },
+    @Res() reply: FastifyReply,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
+  ): Promise<void> {
+    if (!body.text || typeof body.text !== 'string' || body.text.length > 2000) {
+      throw new BadRequestException('Invalid text');
+    }
+
+    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
+    try {
+      rateLimitResult = await checkRateLimit(req.user.userId);
+    } catch (err) {
+      console.warn('Redis unavailable — rate limit skipped:', err);
+    }
+
+    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    ]);
+    if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse) { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
+
+    const cleanText = sanitize(body.text);
+    await this.aiService.streamTts(cleanText, reply.raw);
   }
 
   @UseGuards(AuthGuard('jwt'))

@@ -86,13 +86,21 @@ const DEVICE_CACHE_TTL_SEC = 10;
 const TRIAL_DURATION_MS = 30 * 60_000;
 
 async function getDeviceCache(cacheKey: string): Promise<boolean | null> {
-  const val = await getRedis().get(`dc:${cacheKey}`);
-  if (val === null) return null;
-  return val === '1';
+  try {
+    const val = await getRedis().get(`dc:${cacheKey}`);
+    if (val === null) return null;
+    return val === '1';
+  } catch {
+    return null;
+  }
 }
 
 async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void> {
-  await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
+  try {
+    await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
+  } catch {
+    // Redis unavailable — skip cache write, device check falls back to DB every request
+  }
 }
 
 const PAYSTACK_BASE = 'https://api.paystack.co';

@@ -18,7 +18,6 @@ import fs from 'fs';
 import pdfParse from 'pdf-parse';
 import AdmZip from 'adm-zip';
 import Store from 'electron-store';
-import { autoUpdater } from 'electron-updater';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
 
@@ -41,17 +40,6 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let isSessionActive = false;
 const store = new Store<WindowStore>();
-
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
-autoUpdater.logger = null;
-
-function scheduleUpdateChecks(): void {
-  autoUpdater.checkForUpdates().catch(() => undefined);
-  setInterval(() => {
-    autoUpdater.checkForUpdates().catch(() => undefined);
-  }, 4 * 60 * 60 * 1000);
-}
 
 // Suppress AMD VideoProcessorGetOutputExtension DirectComposition error on Windows.
 if (process.platform === 'win32') {
@@ -532,7 +520,6 @@ if (!gotLock) {
     registerHotkeys();
     registerIpcHandlers();
     initCapture(mainWindow!);
-    if (app.isPackaged) scheduleUpdateChecks();
   });
 
   app.on('window-all-closed', () => {
