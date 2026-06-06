@@ -8,7 +8,7 @@ import { QuotaService } from '../quota/quota.service';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 
-function logSession(userId: string, type: 'stream' | 'screenshot' | 'transcribe'): void {
+function logSession(userId: string, type: 'stream' | 'screenshot' | 'transcribe' | 'meeting' | 'interviewer' | 'doc_copilot' | 'tts'): void {
   getDB()
     .query('INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)', [userId, type])
     .catch((err: unknown) => {
@@ -357,6 +357,7 @@ export class AiController {
     if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
+    logSession(req.user.userId, 'interviewer');
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.generateInterviewerQuestion({
       cvText: body.cvText ? sanitize(body.cvText) : undefined,
@@ -463,6 +464,7 @@ export class AiController {
     if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
+    logSession(req.user.userId, 'tts');
     const cleanText = sanitize(body.text);
     await this.aiService.streamTts(cleanText, reply.raw);
   }
@@ -500,7 +502,7 @@ export class AiController {
     if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
-    logSession(req.user.userId, 'stream');
+    logSession(req.user.userId, 'meeting');
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamMeetingAnswer({
       transcript: sanitize(body.transcript),
@@ -572,6 +574,7 @@ export class AiController {
       serializedContent: sanitize(String(d.serializedContent ?? '').slice(0, 200_000)),
     }));
 
+    logSession(req.user.userId, 'doc_copilot');
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamDocCopilot({
       transcript: sanitize(body.transcript),

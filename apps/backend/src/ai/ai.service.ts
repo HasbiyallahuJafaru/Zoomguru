@@ -389,8 +389,7 @@ export class AiService {
 
     try {
       let response = await doFetch(this.nextDeepSeekKey());
-
-      if (response.status === 429) {
+      for (let attempt = 1; attempt < this.deepseekKeys.length && response.status === 429; attempt++) {
         response = await doFetch(this.nextDeepSeekKey());
       }
 
@@ -654,7 +653,9 @@ export class AiService {
 
     try {
       let response = await doFetch(this.nextDeepSeekKey());
-      if (response.status === 429) response = await doFetch(this.nextDeepSeekKey());
+      for (let attempt = 1; attempt < this.deepseekKeys.length && response.status === 429; attempt++) {
+        response = await doFetch(this.nextDeepSeekKey());
+      }
 
       if (!response.body) {
         sseWrite(reply, { chunk: 'Could not generate question. Please try again.', done: false });

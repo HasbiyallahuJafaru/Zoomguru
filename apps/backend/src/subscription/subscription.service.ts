@@ -105,6 +105,28 @@ async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void>
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 
+const PAYSTACK_PLAN_AMOUNTS: Array<{
+  kobo: number;
+  plan: 'weekly' | 'monthly' | 'yearly';
+  addDays?: number;
+  addYears?: number;
+}> = [
+  { kobo: 45_000_000, plan: 'yearly',  addYears: 1 },
+  { kobo:  4_500_000, plan: 'monthly', addDays: 30 },
+  { kobo:  1_500_000, plan: 'weekly',  addDays:  7 },
+];
+
+function resolvePlan(
+  amount: number,
+): { plan: 'weekly' | 'monthly' | 'yearly'; periodEnd: string } | null {
+  const match = PAYSTACK_PLAN_AMOUNTS.find((p) => p.kobo === amount);
+  if (!match) return null;
+  const end = new Date();
+  if (match.addYears) end.setFullYear(end.getFullYear() + match.addYears);
+  else if (match.addDays) end.setDate(end.getDate() + match.addDays);
+  return { plan: match.plan, periodEnd: end.toISOString() };
+}
+
 @Injectable()
 export class SubscriptionService {
   constructor(
@@ -359,7 +381,7 @@ export class SubscriptionService {
           deviceAllowed = winner === keyId;
           await setDeviceCache(cacheKey, deviceAllowed);
         } else {
-          await this.invalidateDeviceCache(userId);
+          await this.invalidateDeviceCache(userId, keyId);
           deviceAllowed = true;
         }
       } else if (!sub.locked_key_id_2) {
@@ -372,7 +394,7 @@ export class SubscriptionService {
           deviceAllowed = false;
           await setDeviceCache(cacheKey, false);
         } else {
-          await this.invalidateDeviceCache(userId);
+          await this.invalidateDeviceCache(userId, keyId);
           deviceAllowed = true;
         }
       } else {
@@ -384,10 +406,13 @@ export class SubscriptionService {
     return { canUse, deviceAllowed, plan: sub?.plan ?? null };
   }
 
-  async invalidateDeviceCache(userId: string): Promise<void> {
+  async invalidateDeviceCache(userId: string, keyId?: string): Promise<void> {
     try {
       const redis = getRedis();
-      // Scan for all dc:{userId}:* keys and delete them.
+      if (keyId) {
+        await redis.del(`dc:${userId}:${keyId}`);
+        return;
+      }
       let cursor = '0';
       do {
         const [next, keys] = await redis.scan(cursor, 'MATCH', `dc:${userId}:*`, 'COUNT', 100);
@@ -423,26 +448,9 @@ export class SubscriptionService {
     }
 
     // Guard: reject exact amount mismatches (prevents cross-product reference abuse)
-    let plan: 'weekly' | 'monthly' | 'yearly';
-    let periodEnd: string;
-    if (txData.amount === 45_000_000) {
-      plan = 'yearly';
-      const end = new Date();
-      end.setFullYear(end.getFullYear() + 1);
-      periodEnd = end.toISOString();
-    } else if (txData.amount === 4_500_000) {
-      plan = 'monthly';
-      const end = new Date();
-      end.setDate(end.getDate() + 30);
-      periodEnd = end.toISOString();
-    } else if (txData.amount === 1_500_000) {
-      plan = 'weekly';
-      const end = new Date();
-      end.setDate(end.getDate() + 7);
-      periodEnd = end.toISOString();
-    } else {
-      throw new BadRequestException('Invalid payment amount');
-    }
+    const resolved = resolvePlan(txData.amount);
+    if (!resolved) throw new BadRequestException('Invalid payment amount');
+    const { plan, periodEnd } = resolved;
 
     const pool = getDB();
 
@@ -539,26 +547,9 @@ export class SubscriptionService {
       if (!userRow.rows[0]) return;
       const uid = userRow.rows[0].id;
 
-      let plan: 'weekly' | 'monthly' | 'yearly';
-      let periodEnd: string;
-      if (data.amount === 45_000_000) {
-        plan = 'yearly';
-        const end = new Date();
-        end.setFullYear(end.getFullYear() + 1);
-        periodEnd = end.toISOString();
-      } else if (data.amount === 4_500_000) {
-        plan = 'monthly';
-        const end = new Date();
-        end.setDate(end.getDate() + 30);
-        periodEnd = end.toISOString();
-      } else if (data.amount === 1_500_000) {
-        plan = 'weekly';
-        const end = new Date();
-        end.setDate(end.getDate() + 7);
-        periodEnd = end.toISOString();
-      } else {
-        return;
-      }
+      const resolved = resolvePlan(data.amount);
+      if (!resolved) return;
+      const { plan, periodEnd } = resolved;
 
       await pool.query(
         `INSERT INTO subscriptions

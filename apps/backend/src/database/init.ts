@@ -14,6 +14,24 @@ export async function initDB(): Promise<void> {
     try {
       const pool = getDB();
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS schema_version (
+          version     INTEGER PRIMARY KEY,
+          applied_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      const versionRow = await pool.query<{ version: number }>(
+        `SELECT version FROM schema_version ORDER BY version DESC LIMIT 1`,
+      );
+      const currentVersion = versionRow.rows[0]?.version ?? 0;
+      const TARGET_VERSION = 1;
+
+      if (currentVersion >= TARGET_VERSION) {
+        console.log(`DB schema at version ${currentVersion} — skipping migrations`);
+        return;
+      }
+
       await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
 
       await pool.query(`
@@ -135,6 +153,16 @@ export async function initDB(): Promise<void> {
             ON ai_sessions(created_at)
         `),
       ]);
+
+      await pool.query(`
+        ALTER TABLE ai_sessions
+          DROP CONSTRAINT IF EXISTS ai_sessions_type_check
+      `);
+      await pool.query(`
+        ALTER TABLE ai_sessions
+          ADD CONSTRAINT ai_sessions_type_check
+          CHECK (type IN ('stream', 'screenshot', 'transcribe', 'meeting', 'interviewer', 'doc_copilot', 'tts'))
+      `);
 
       // ── Referral system (additive — all nullable, safe for existing data) ──
 
@@ -274,6 +302,11 @@ export async function initDB(): Promise<void> {
             ON broadcast_batches(broadcast_id)
         `),
       ]);
+
+      await pool.query(
+        `INSERT INTO schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING`,
+        [TARGET_VERSION],
+      );
 
       console.log('✅ ZoomGuru DB ready');
       return;
