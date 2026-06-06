@@ -1074,7 +1074,7 @@ If the answer is empty or very short, score it 0-20.`;
           'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env['LEMONFOX_API_KEY'] ?? ''}`,
         },
-        body: JSON.stringify({ model: 'tts-1', input: text, voice: 'alloy' }),
+        body: JSON.stringify({ input: text, voice: 'sarah', response_format: 'mp3' }),
         signal: controller.signal,
       });
       if (!response.ok || !response.body) {
