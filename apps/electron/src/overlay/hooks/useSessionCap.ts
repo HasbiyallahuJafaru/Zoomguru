@@ -8,11 +8,11 @@ export function useSessionCap() {
   const questionCountRef = useRef<number>(0) as MutableRefObject<number>;
   const sessionCapRef = useRef<number>(CAP_MONTHLY) as MutableRefObject<number>;
 
-  useEffect(() => { questionCountRef.current = questionCount; }, [questionCount]);
   useEffect(() => { sessionCapRef.current = sessionCap; }, [sessionCap]);
 
   function increment() {
-    setQuestionCount((prev) => prev + 1);
+    questionCountRef.current += 1;
+    setQuestionCount(questionCountRef.current);
   }
 
   function reset() {

@@ -10,8 +10,10 @@ interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor() {
+    if (!process.env.JWT_SECRET) {
+      throw new Error('[JwtStrategy] JWT_SECRET environment variable is required. Set it before starting.');
+    }
     const secret = process.env.JWT_SECRET;
-    if (!secret) throw new Error('JWT_SECRET env var is not set or is empty');
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,

@@ -18,5 +18,5 @@ export function useHotkeys(
       window.zoomguru.offTrigger('clear');
       window.zoomguru.offTrigger('auto');
     };
-  }, []);
+  }, [onListen, onScreenshot, onClear, onAuto]);
 }

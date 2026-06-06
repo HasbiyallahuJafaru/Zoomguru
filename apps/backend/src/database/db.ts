@@ -10,7 +10,7 @@ export function getDB(): Pool {
     }
     _pool = new Pool({
       connectionString,
-      max: 12,
+      max: process.env.DATABASE_POOL_URL ? 5 : 12,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 5_000,
     });
@@ -18,7 +18,7 @@ export function getDB(): Pool {
     // Prevent idle connection errors from crashing the process.
     // Neon serverless closes WebSocket connections after inactivity;
     // without this handler Node.js throws an uncaught error and exits.
-    _pool.on('error', (err) => {
+    _pool.on('error', (err: Error) => {
       console.error('[DB pool] idle client error:', err.message);
     });
   }

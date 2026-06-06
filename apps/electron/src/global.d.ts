@@ -18,7 +18,7 @@ interface ZoomGuruBridge {
   offTrigger(event: string): void;
   captureScreen(): Promise<string>;
   getDevicePublicKey(): Promise<{ keyId: string; publicKey: string }>;
-  signRequest(): Promise<SignedRequest>;
+  signRequest(userId: string): Promise<SignedRequest>;
   hideWindow(): Promise<void>;
   quitApp(): Promise<void>;
   requestMicPermission(): Promise<boolean>;
@@ -34,12 +34,27 @@ interface ZoomGuruBridge {
   getToken(): Promise<string>;
   clearToken(): Promise<void>;
   getProtectionStatus(): Promise<boolean>;
+  setSessionActive(active: boolean): Promise<void>;
+  getNoiseSuppressor(): Promise<boolean>;
+  setNoiseSuppressor(enabled: boolean): Promise<void>;
+  printReport(): Promise<void>;
+  tourHasCompleted(): Promise<boolean>;
+  tourSetCompleted(): Promise<void>;
+  parseMeetingDoc(): Promise<CvResult | CvError | null>;
+  loadMeetingDoc(): Promise<CvResult | null>;
+  clearMeetingDoc(): Promise<void>;
   platform: string;
 }
 
 declare global {
   interface Window {
     zoomguru: ZoomGuruBridge;
+  }
+}
+
+declare module 'react' {
+  interface CSSProperties {
+    WebkitAppRegion?: 'drag' | 'no-drag';
   }
 }
 

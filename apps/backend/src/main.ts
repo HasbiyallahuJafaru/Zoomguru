@@ -22,6 +22,10 @@ async function bootstrap(): Promise<void> {
     console.warn('⚠️  DATABASE_POOL_URL not set — falling back to DATABASE_URL (not recommended for multi-instance deploys)');
   }
 
+  if (!process.env['ADMIN_EMAIL']) {
+    console.warn('ADMIN_EMAIL not set — no user will be identified as admin');
+  }
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: false, trustProxy: true, bodyLimit: 15_728_640 }),

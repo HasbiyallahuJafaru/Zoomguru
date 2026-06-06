@@ -16,6 +16,7 @@ import {
 import path from 'path';
 import fs from 'fs';
 import pdfParse from 'pdf-parse';
+import AdmZip from 'adm-zip';
 import Store from 'electron-store';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
@@ -26,13 +27,18 @@ interface WindowStore {
   cvText?: string;
   cvFilename?: string;
   jdText?: string;
+  meetingDocText?: string;
+  meetingDocFilename?: string;
   accessToken?: string;
+  noiseSuppressor?: boolean;
+  tourCompleted?: boolean;
 }
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let isSessionActive = false;
 const store = new Store<WindowStore>();
 
 // Suppress AMD VideoProcessorGetOutputExtension DirectComposition error on Windows.
@@ -281,8 +287,8 @@ if (!gotLock) {
       return getPublicKeyInfo();
     });
 
-    ipcMain.handle('device:sign', () => {
-      return signRequest();
+    ipcMain.handle('device:sign', (_event, userId: string) => {
+      return signRequest(userId);
     });
 
     ipcMain.handle('permissions:request-mic', async () => {
@@ -356,9 +362,10 @@ if (!gotLock) {
     });
 
     ipcMain.handle('open-external', (_event, url: string) => {
-      if (typeof url === 'string' && /^https?:\/\//.test(url)) {
-        void shell.openExternal(url);
-      }
+      if (typeof url !== 'string' || !/^https?:\/\//.test(url)) return;
+      const BLOCKED = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/i;
+      if (BLOCKED.test(url)) return;
+      void shell.openExternal(url);
     });
 
     ipcMain.handle('token:set', (_event, token: string) => {
@@ -370,6 +377,86 @@ if (!gotLock) {
     ipcMain.handle('token:clear', () => store.delete('accessToken'));
 
     ipcMain.handle('protection:status', () => contentProtected);
+
+    ipcMain.handle('session:setActive', (_event, active: boolean) => {
+      isSessionActive = typeof active === 'boolean' ? active : false;
+    });
+
+    ipcMain.handle('settings:getNoiseSuppressor', () => {
+      return store.get('noiseSuppressor', true);
+    });
+
+    ipcMain.handle('settings:setNoiseSuppressor', (_event, enabled: boolean) => {
+      if (typeof enabled === 'boolean') store.set('noiseSuppressor', enabled);
+    });
+
+    ipcMain.handle('tour:hasCompleted', () => {
+      return store.get('tourCompleted', false);
+    });
+
+    ipcMain.handle('tour:setCompleted', () => {
+      store.set('tourCompleted', true);
+    });
+
+    ipcMain.handle('report:print', () => {
+      const win = BrowserWindow.getFocusedWindow();
+      if (win) win.webContents.print();
+    });
+
+    ipcMain.handle('meeting-doc:parse', async () => {
+      const result = await dialog.showOpenDialog(mainWindow!, {
+        title: 'Select your document or presentation',
+        properties: ['openFile'],
+        filters: [{ name: 'Documents', extensions: ['pdf', 'pptx', 'txt', 'md'] }],
+      });
+
+      if (result.canceled || !result.filePaths[0]) return null;
+
+      const filePath = result.filePaths[0];
+      const filename = path.basename(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+
+      try {
+        let text: string;
+        if (ext === '.pdf') {
+          const buffer = fs.readFileSync(filePath);
+          const parsed = await pdfParse(buffer);
+          text = parsed.text;
+        } else if (ext === '.pptx') {
+          const zip = new AdmZip(filePath);
+          const slideEntries = zip.getEntries()
+            .filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
+            .sort((a, b) => a.entryName.localeCompare(b.entryName));
+          const slideTexts = slideEntries.map((entry) => {
+            const xml = entry.getData().toString('utf-8');
+            return xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          });
+          text = slideTexts.join('\n\n---\n\n');
+        } else {
+          text = fs.readFileSync(filePath, 'utf-8');
+        }
+
+        store.set('meetingDocText', text);
+        store.set('meetingDocFilename', filename);
+        return { text, filename };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return { error: `Failed to parse file: ${message}` };
+      }
+    });
+
+    ipcMain.handle('meeting-doc:load', () => {
+      const text = store.get('meetingDocText', '');
+      const filename = store.get('meetingDocFilename', '');
+      if (!text) return null;
+      return { text, filename };
+    });
+
+    ipcMain.handle('meeting-doc:clear', () => {
+      store.delete('meetingDocText');
+      store.delete('meetingDocFilename');
+    });
+
   }
 
   app.once('ready', () => { createSplash(); });
@@ -389,17 +476,35 @@ if (!gotLock) {
       },
     );
 
+    const devOrigins = app.isPackaged
+      ? ''
+      : 'http://localhost:5173 http://localhost:5174';
+    const vendorOrigins = app.isPackaged
+      ? ''
+      : 'https://api.deepseek.com https://*.huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co';
+
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      const connectSrc = [
+        "'self'",
+        'https://zoomguru.onrender.com',
+        'https://api.groq.com',
+        'https://*.paystack.co',
+        'https://*.paystack.com',
+        'https://huggingface.co',
+        devOrigins,
+        vendorOrigins,
+      ].filter(Boolean).join(' ');
+
       callback({
         responseHeaders: {
           ...details.responseHeaders,
           'Content-Security-Policy': [
             [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' https://js.paystack.co",
+              "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.paystack.co",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://zoomguru.onrender.com http://localhost:5173 https://api.deepseek.com https://api.groq.com https://*.paystack.co https://*.paystack.com",
+              `connect-src ${connectSrc}`,
               "img-src 'self' data: blob: https://*.paystack.co https://*.paystack.com",
               "media-src 'self' blob:",
               "frame-src https://checkout.paystack.com",

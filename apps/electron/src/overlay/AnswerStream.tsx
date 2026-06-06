@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useCallback, type CSSProperties } from 'react';
 
 function stripMarkdown(text: string): string {
   return text
@@ -28,12 +28,12 @@ export default function AnswerStream({ answer, isStreaming }: AnswerStreamProps)
 
   // Detect manual scroll — pause auto-scroll when user scrolls up,
   // resume when they scroll back to the bottom
-  function handleScroll() {
+  const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
     const nearBottom = scrollHeight - clientHeight - scrollTop < 24;
     userScrolledRef.current = !nearBottom;
-  }
+  }, []);
 
   // Auto-scroll rAF loop — runs only while streaming
   useEffect(() => {

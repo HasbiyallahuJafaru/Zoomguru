@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, type FormEvent, type CSSProperties } from 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
 interface LoginProps {
-  onLogin: (user: any) => void;
+  onLogin: () => void;
   onShowRegister: () => void;
 }
 
@@ -28,6 +28,7 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const forgotRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     void window.zoomguru.getProtectionStatus().then(setIsProtected);
@@ -37,14 +38,19 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
     if (showForgot) forgotRef.current?.focus();
   }, [showForgot]);
 
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
+
   async function handleForgot(e: FormEvent): Promise<void> {
     e.preventDefault();
     setForgotLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       await fetch(`${API_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail }),
+        signal: controller.signal,
       });
       setForgotSent(true);
     } catch {
@@ -58,16 +64,19 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
     e.preventDefault();
     setError('');
     setLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: identifier, password }),
+        signal: controller.signal,
       });
       const data: LoginApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Invalid credentials'); return; }
       await window.zoomguru.setToken(data.accessToken ?? '');
-      onLogin(data.user);
+      onLogin();
     } catch {
       setError('Cannot reach backend. Is it running?');
     } finally {
@@ -99,6 +108,10 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
         .zg-link:hover { color: rgba(255,255,255,0.65) !important; }
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
         .zg-forgot:hover { color: rgba(255,255,255,0.55) !important; }
+        @keyframes zg-status-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.45); opacity: 1; }
+          50%       { box-shadow: 0 0 0 5px rgba(16,185,129,0); opacity: 0.80; }
+        }
       `}</style>
 
       <div style={s.root}>
@@ -179,10 +192,13 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
         </svg>
         {isProtected !== null && (
           <div style={{
-            ...s.protectionBanner,
-            background: isProtected ? '#10b981' : '#f43f5e',
+            ...s.protectionBadge,
+            background: isProtected ? 'rgba(16,185,129,0.15)' : 'rgba(244,63,94,0.15)',
+            border: `1px solid ${isProtected ? 'rgba(16,185,129,0.35)' : 'rgba(244,63,94,0.35)'}`,
+            color: isProtected ? 'rgba(16,185,129,0.90)' : 'rgba(244,63,94,0.90)',
+            animation: isProtected ? 'zg-status-pulse 2s ease-in-out infinite' : 'none',
           }}>
-            {isProtected ? 'You are good to go' : 'Do not use'}
+            {isProtected ? '● You are good to go' : '● Do not use'}
           </div>
         )}
 
@@ -257,22 +273,21 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
 }
 
 const s: Record<string, ElectronStyle> = {
-  protectionBanner: {
+  protectionBadge: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '24px',
-    display: 'flex',
+    top: '14px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'inline-flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '10px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-    color: '#ffffff',
-    textTransform: 'uppercase',
+    gap: '5px',
+    padding: '4px 9px',
+    borderRadius: '20px',
+    fontSize: '9px',
+    fontWeight: 600,
+    letterSpacing: '0.3px',
     fontFamily: SANS,
-    borderRadius: '16px 16px 0 0',
+    WebkitAppRegion: 'no-drag',
   },
   root: {
     width: '100vw',

@@ -31,6 +31,12 @@ export class SubscriptionController {
     return this.subscriptionService.getStatus(req.user.userId);
   }
 
+  @Get('usage')
+  @UseGuards(AuthGuard('jwt'))
+  async getUsage(@Req() req: AuthRequest) {
+    return this.subscriptionService.getUsage(req.user.userId);
+  }
+
   @Post('trial')
   @UseGuards(AuthGuard('jwt'))
   async startTrial(

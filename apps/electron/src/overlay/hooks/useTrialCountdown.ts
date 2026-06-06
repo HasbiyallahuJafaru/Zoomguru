@@ -10,6 +10,8 @@ export function useTrialCountdown(
   const trialTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     void (async () => {
       const token = await window.zoomguru.getToken();
       try {
@@ -38,13 +40,16 @@ export function useTrialCountdown(
             }
           }
           tick();
-          trialTimerRef.current = setInterval(tick, 1000);
+          if (!mounted) return;
+          const id = setInterval(tick, 1000);
+          trialTimerRef.current = id;
         }
       } catch { /* keep default cap */ }
     })();
 
     return () => {
-      if (trialTimerRef.current) clearInterval(trialTimerRef.current);
+      mounted = false;
+      clearInterval(trialTimerRef.current ?? undefined);
     };
   }, []);
 

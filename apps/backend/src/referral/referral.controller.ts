@@ -9,7 +9,7 @@ interface AuthRequest {
 }
 
 @Controller('referral')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt')) // class-level guard — applies to ALL methods including verifyAccount
 export class ReferralController {
   constructor(private readonly referralService: ReferralService) {}
 

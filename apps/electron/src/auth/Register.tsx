@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type CSSProperties } from 'react';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -22,15 +22,22 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
     setError('');
     if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
     if (password !== confirmPassword) { setError('Passwords do not match'); return; }
+    if (!agreed) { setError('Please agree to the Terms & Conditions to continue'); return; }
     setLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const body: Record<string, string> = { email, name, password };
       if (referralCode.trim()) body['referralCode'] = referralCode.trim().toUpperCase();
@@ -39,6 +46,7 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       const data: RegisterApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Registration failed'); return; }
@@ -74,6 +82,11 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
         .zg-submit:active:not(:disabled) { transform: scale(0.98); }
         .zg-link:hover { color: rgba(255,255,255,0.65) !important; }
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
+        .zg-agree { display:flex; align-items:flex-start; gap:9px; cursor:pointer; user-select:none; }
+        .zg-agree input[type="checkbox"] { flex-shrink:0; width:14px; height:14px; margin-top:1px; accent-color:#fff; cursor:pointer; }
+        .zg-agree-text { font-size:11px; color:rgba(255,255,255,0.38); font-family:${SANS}; line-height:1.5; text-align:left; }
+        .zg-agree-link { color:rgba(255,255,255,0.60); text-decoration:underline; text-underline-offset:2px; cursor:pointer; background:none; border:none; padding:0; font-size:11px; font-family:${SANS}; }
+        .zg-agree-link:hover { color:rgba(255,255,255,0.85); }
       `}</style>
 
       <div style={s.root}>
@@ -106,9 +119,28 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
               disabled={loading} autoComplete="off"
               style={{ textTransform: 'uppercase', letterSpacing: '0.12em' }} />
 
+            <label className="zg-agree">
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                disabled={loading}
+              />
+              <span className="zg-agree-text">
+                I agree to the{' '}
+                <button
+                  type="button"
+                  className="zg-agree-link"
+                  onClick={() => { void window.zoomguru.openExternal('https://zoomguru.xyz/terms.html'); }}
+                >
+                  Terms &amp; Conditions
+                </button>
+              </span>
+            </label>
+
             {error && <p style={s.error}>{error}</p>}
 
-            <button className="zg-submit" type="submit" disabled={loading}
+            <button className="zg-submit" type="submit" disabled={loading || !agreed}
               style={{ ...s.submitBtn, ...(loading ? s.submitDisabled : {}) }}>
               {loading ? 'Creating account…' : 'Create Account'}
             </button>

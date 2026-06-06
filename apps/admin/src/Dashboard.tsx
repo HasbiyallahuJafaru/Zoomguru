@@ -9,6 +9,7 @@ import {
   fetchUsage, fetchDownloads, fetchUsers, fetchReferrals,
 } from './api';
 import type { DashboardData, ReferralCommissionRow } from './types';
+import BroadcastPage from './BroadcastPage';
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -180,8 +181,11 @@ function Skel({ w = '100%', h = 14, r = 8 }: { w?: string | number; h?: number; 
   );
 }
 
+type Page = 'analytics' | 'broadcast';
+
 // ── Main dashboard ─────────────────────────────────────────────
 export default function Dashboard({ adminKey, onLogout }: Props) {
+  const [page, setPage] = useState<Page>('analytics');
   const [days, setDays] = useState<Days>(30);
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState('');
@@ -233,7 +237,31 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
 
           {/* Controls */}
           <div className="header-controls">
-            {/* Day tabs — segmented pill */}
+            {/* Page nav */}
+            <div style={{
+              display: 'flex', background: '#EDEBE7',
+              borderRadius: 11, padding: 3, gap: 1,
+            }}>
+              {(['analytics', 'broadcast'] as Page[]).map((p) => (
+                <button
+                  key={p}
+                  className="day-tab"
+                  onClick={() => setPage(p)}
+                  style={{
+                    padding: '5px 15px', borderRadius: 8,
+                    background: page === p ? C.primary : 'transparent',
+                    color: page === p ? '#FFFFFF' : C.secondary,
+                    fontFamily: F.body, fontSize: 12,
+                    fontWeight: page === p ? 600 : 400,
+                  }}
+                >
+                  {p === 'analytics' ? 'Analytics' : 'Broadcast Mail'}
+                </button>
+              ))}
+            </div>
+
+            {/* Day tabs — only on analytics page */}
+            {page === 'analytics' && (
             <div style={{
               display: 'flex', background: '#EDEBE7',
               borderRadius: 11, padding: 3, gap: 1,
@@ -255,6 +283,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                 </button>
               ))}
             </div>
+            )}
 
             {/* Refresh */}
             <button
@@ -295,6 +324,22 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
 
       {/* ── Page content ── */}
       <main className="main-content">
+
+        {/* Broadcast Mail page */}
+        {page === 'broadcast' && (
+          <div style={{ animation: 'fadeSlideUp 0.45s cubic-bezier(0.16,1,0.3,1) both' }}>
+            <div style={{ marginBottom: 32 }}>
+              <h1 className="welcome-heading">Broadcast Mail</h1>
+              <p style={{ fontFamily: F.body, fontSize: 13, color: C.muted, marginTop: 10 }}>
+                Draft, target, and schedule emails to ZoomGuru users via Resend.
+              </p>
+            </div>
+            <BroadcastPage adminKey={adminKey} />
+          </div>
+        )}
+
+        {/* Analytics page */}
+        {page === 'analytics' && <>
 
         {/* Welcome */}
         <div style={{
@@ -338,8 +383,8 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
             <>
               <StatCard label="Total Users"    value={data.stats.total_users}           color={ACCENT.blue}   delay={0}   />
               <StatCard label="Downloads"       value={data.stats.total_downloads}       color={ACCENT.green}  delay={55}  />
-              <StatCard label="Active Subs"     value={data.stats.active_subscriptions}  color={ACCENT.purple} sub="₦50k/mo each" delay={110} />
-              <StatCard label="Yearly Subs"     value={data.stats.yearly_subscriptions}  color={ACCENT.orange} sub="₦500k/year"  delay={165} />
+              <StatCard label="Active Subs"     value={data.stats.active_subscriptions}  color={ACCENT.purple} sub="₦45k/mo each" delay={110} />
+              <StatCard label="Yearly Subs"     value={data.stats.yearly_subscriptions}  color={ACCENT.orange} sub="₦450k/year"  delay={165} />
               <StatCard label="AI Sessions"     value={data.stats.total_ai_sessions}     color={ACCENT.red}    delay={220} />
             </>
           )}
@@ -653,6 +698,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
           </div>
         </Card>
 
+        </>}
       </main>
     </div>
   );

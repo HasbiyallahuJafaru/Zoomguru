@@ -1,19 +1,35 @@
 import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 import { EmailService } from '../email/email.service';
+import { QuotaService, PlanType, QuotaFeature, getPlanLimits, windowDaysForPlan } from '../quota/quota.service';
 
 type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
+export interface FeatureUsage {
+  used: number;
+  limit: number;
+  resetAt: string;
+}
+
+export interface UsageResponse {
+  planType: PlanType | null;
+  copilot_requests: FeatureUsage;
+  interviewer_sessions: FeatureUsage;
+  scorer_reports: FeatureUsage;
+  doc_copilot_requests: FeatureUsage;
+}
+
 export interface StatusResponse {
   status: SubscriptionStatus;
-  plan: 'monthly' | 'yearly' | null;
+  plan: 'weekly' | 'monthly' | 'yearly' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
   trialStartedAt: string | null;
   trialEndAt: string | null;
   trialActive: boolean;
+  isAdmin: boolean;
 }
 
 interface SubscriptionRow {
@@ -56,6 +72,7 @@ interface WebhookEvent {
 interface PaystackVerifyData {
   status: string;
   amount: number;
+  reference?: string;
   customer: { customer_code: string; email: string };
 }
 
@@ -69,20 +86,53 @@ const DEVICE_CACHE_TTL_SEC = 10;
 const TRIAL_DURATION_MS = 30 * 60_000;
 
 async function getDeviceCache(cacheKey: string): Promise<boolean | null> {
-  const val = await getRedis().get(`dc:${cacheKey}`);
-  if (val === null) return null;
-  return val === '1';
+  try {
+    const val = await getRedis().get(`dc:${cacheKey}`);
+    if (val === null) return null;
+    return val === '1';
+  } catch {
+    return null;
+  }
 }
 
 async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void> {
-  await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
+  try {
+    await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
+  } catch {
+    // Redis unavailable — skip cache write, device check falls back to DB every request
+  }
 }
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 
+const PAYSTACK_PLAN_AMOUNTS: Array<{
+  kobo: number;
+  plan: 'weekly' | 'monthly' | 'yearly';
+  addDays?: number;
+  addYears?: number;
+}> = [
+  { kobo: 45_000_000, plan: 'yearly',  addYears: 1 },
+  { kobo:  4_500_000, plan: 'monthly', addDays: 30 },
+  { kobo:  1_500_000, plan: 'weekly',  addDays:  7 },
+];
+
+function resolvePlan(
+  amount: number,
+): { plan: 'weekly' | 'monthly' | 'yearly'; periodEnd: string } | null {
+  const match = PAYSTACK_PLAN_AMOUNTS.find((p) => p.kobo === amount);
+  if (!match) return null;
+  const end = new Date();
+  if (match.addYears) end.setFullYear(end.getFullYear() + match.addYears);
+  else if (match.addDays) end.setDate(end.getDate() + match.addDays);
+  return { plan: match.plan, periodEnd: end.toISOString() };
+}
+
 @Injectable()
 export class SubscriptionService {
-  constructor(private readonly emailService: EmailService) {}
+  constructor(
+    private readonly emailService: EmailService,
+    private readonly quotaService: QuotaService,
+  ) {}
 
   async getStatus(userId: string): Promise<StatusResponse> {
     const pool = getDB();
@@ -93,11 +143,14 @@ export class SubscriptionService {
          FROM subscriptions WHERE user_id = $1 LIMIT 1`,
         [userId],
       ),
-      pool.query<{ trial_started_at: string | null }>(
-        `SELECT trial_started_at FROM users WHERE id = $1 LIMIT 1`,
+      pool.query<{ trial_started_at: string | null; email: string }>(
+        `SELECT trial_started_at, email FROM users WHERE id = $1 LIMIT 1`,
         [userId],
       ),
     ]);
+
+    const adminEmails = (process.env.ADMIN_EMAIL ?? '').split(',').map(e => e.trim().toLowerCase()).filter(e => e.includes('@') && e.split('@')[1]?.includes('.'));
+    const isAdmin = adminEmails.includes((userResult.rows[0]?.email ?? '').toLowerCase());
 
     const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
     const trialEndAt = trialStartedAt
@@ -114,6 +167,7 @@ export class SubscriptionService {
         trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
         trialEndAt,
         trialActive,
+        isAdmin,
       };
     }
 
@@ -128,7 +182,7 @@ export class SubscriptionService {
 
     return {
       status: row.status as SubscriptionStatus,
-      plan: row.plan as 'monthly' | 'yearly' | null,
+      plan: row.plan as 'weekly' | 'monthly' | 'yearly' | null,
       daysRemaining,
       currentPeriodEnd: row.current_period_end
         ? new Date(row.current_period_end).toISOString()
@@ -136,6 +190,7 @@ export class SubscriptionService {
       trialStartedAt: trialStartedAt ? new Date(trialStartedAt).toISOString() : null,
       trialEndAt,
       trialActive,
+      isAdmin,
     };
   }
 
@@ -169,6 +224,69 @@ export class SubscriptionService {
     }
 
     return { trialStartedAt: new Date(result.rows[0].trial_started_at).toISOString() };
+  }
+
+  async getUsage(userId: string): Promise<UsageResponse> {
+    const pool = getDB();
+
+    const [planInfo, usageResult, subResult] = await Promise.all([
+      this.quotaService.getPlanType(userId),
+      pool.query<{
+        plan_type: string;
+        copilot_requests: number;
+        interviewer_sessions: number;
+        scorer_reports: number;
+        doc_copilot_requests: number;
+        period_start: string;
+      }>(
+        `SELECT plan_type, copilot_requests, interviewer_sessions,
+                scorer_reports, doc_copilot_requests, period_start
+         FROM usage WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      ),
+      pool.query<{ current_period_start: string | null; created_at: string }>(
+        `SELECT current_period_start, created_at FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      ),
+    ]);
+
+    const planType = (planInfo?.planType ?? null) as PlanType | null;
+    const resolvedPlan: PlanType = planType ?? 'monthly';
+    const limits = getPlanLimits(resolvedPlan);
+    const windowDays = windowDaysForPlan(resolvedPlan);
+
+    const row = usageResult.rows[0];
+    const subRow = subResult.rows[0];
+    const subPeriodStart = subRow?.current_period_start
+      ? new Date(subRow.current_period_start)
+      : subRow?.created_at
+        ? new Date(subRow.created_at)
+        : new Date();
+    const periodStart = row?.period_start
+      ? new Date(row.period_start)
+      : (planInfo?.periodStart ?? subPeriodStart);
+    const resetAt = new Date(periodStart.getTime() + windowDays * 86_400_000).toISOString();
+
+    const features: QuotaFeature[] = [
+      'copilot_requests',
+      'interviewer_sessions',
+      'scorer_reports',
+      'doc_copilot_requests',
+    ];
+
+    const result: Partial<Record<QuotaFeature, FeatureUsage>> = {};
+    for (const f of features) {
+      result[f] = {
+        used: row?.[f] ?? 0,
+        limit: limits[f],
+        resetAt,
+      };
+    }
+
+    return {
+      planType,
+      ...(result as Record<QuotaFeature, FeatureUsage>),
+    };
   }
 
   async canUseAI(userId: string): Promise<boolean> {
@@ -235,8 +353,11 @@ export class SubscriptionService {
     }
 
     // Determine deviceAllowed (reuses subscription row already fetched)
+    // If subscription is active and a device is already locked, a missing/invalid keyId must be denied.
     let deviceAllowed = true;
-    if (keyId && KEY_ID_RE.test(keyId) && sub?.status === 'active') {
+    if (sub?.status === 'active' && (sub.locked_key_id || sub.locked_key_id_2) && (!keyId || !KEY_ID_RE.test(keyId))) {
+      deviceAllowed = false;
+    } else if (keyId && KEY_ID_RE.test(keyId) && sub?.status === 'active') {
       const cacheKey = `${userId}:${keyId}`;
       const cached = await getDeviceCache(cacheKey);
       if (cached !== null) {
@@ -245,21 +366,37 @@ export class SubscriptionService {
         deviceAllowed = true;
         await setDeviceCache(cacheKey, true);
       } else if (!sub.locked_key_id) {
-        await pool.query(
+        const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id IS NULL`,
           [keyId, userId],
         );
-        await this.invalidateDeviceCache(userId);
-        deviceAllowed = true;
+        if ((lockResult.rowCount ?? 0) === 0) {
+          // Another concurrent request won the race — re-read to see which key got locked
+          const recheck = await pool.query<{ locked_key_id: string | null }>(
+            `SELECT locked_key_id FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+            [userId],
+          );
+          const winner = recheck.rows[0]?.locked_key_id ?? null;
+          deviceAllowed = winner === keyId;
+          await setDeviceCache(cacheKey, deviceAllowed);
+        } else {
+          await this.invalidateDeviceCache(userId, keyId);
+          deviceAllowed = true;
+        }
       } else if (!sub.locked_key_id_2) {
-        await pool.query(
+        const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
           [keyId, userId],
         );
-        await this.invalidateDeviceCache(userId);
-        deviceAllowed = true;
+        if ((lockResult.rowCount ?? 0) === 0) {
+          deviceAllowed = false;
+          await setDeviceCache(cacheKey, false);
+        } else {
+          await this.invalidateDeviceCache(userId, keyId);
+          deviceAllowed = true;
+        }
       } else {
         deviceAllowed = false;
         await setDeviceCache(cacheKey, false);
@@ -269,15 +406,22 @@ export class SubscriptionService {
     return { canUse, deviceAllowed, plan: sub?.plan ?? null };
   }
 
-  async invalidateDeviceCache(userId: string): Promise<void> {
-    const redis = getRedis();
-    // Scan for all dc:{userId}:* keys and delete them.
-    let cursor = '0';
-    do {
-      const [next, keys] = await redis.scan(cursor, 'MATCH', `dc:${userId}:*`, 'COUNT', 100);
-      cursor = next;
-      if (keys.length > 0) await redis.del(...keys);
-    } while (cursor !== '0');
+  async invalidateDeviceCache(userId: string, keyId?: string): Promise<void> {
+    try {
+      const redis = getRedis();
+      if (keyId) {
+        await redis.del(`dc:${userId}:${keyId}`);
+        return;
+      }
+      let cursor = '0';
+      do {
+        const [next, keys] = await redis.scan(cursor, 'MATCH', `dc:${userId}:*`, 'COUNT', 100);
+        cursor = next;
+        if (keys.length > 0) await redis.del(...keys);
+      } while (cursor !== '0');
+    } catch (err) {
+      console.warn('invalidateDeviceCache failed (Redis down?):', err);
+    }
   }
 
   async verify(userId: string, userEmail: string, reference: string, keyId?: string): Promise<{ success: boolean }> {
@@ -304,21 +448,9 @@ export class SubscriptionService {
     }
 
     // Guard: reject exact amount mismatches (prevents cross-product reference abuse)
-    let plan: 'monthly' | 'yearly';
-    let periodEnd: string;
-    if (txData.amount === 50_000_000) {
-      plan = 'yearly';
-      const end = new Date();
-      end.setFullYear(end.getFullYear() + 1);
-      periodEnd = end.toISOString();
-    } else if (txData.amount === 5_000_000) {
-      plan = 'monthly';
-      const end = new Date();
-      end.setDate(end.getDate() + 30);
-      periodEnd = end.toISOString();
-    } else {
-      throw new BadRequestException('Invalid payment amount');
-    }
+    const resolved = resolvePlan(txData.amount);
+    if (!resolved) throw new BadRequestException('Invalid payment amount');
+    const { plan, periodEnd } = resolved;
 
     const pool = getDB();
 
@@ -349,6 +481,7 @@ export class SubscriptionService {
     );
 
     await this.invalidateDeviceCache(userId);
+    await this.quotaService.resetUserUsage(userId, plan as PlanType, new Date());
 
     const userResult = await pool.query<{ email: string; name: string | null; referred_by_user_id: string | null }>(
       `SELECT email, name, referred_by_user_id FROM users WHERE id = $1 LIMIT 1`,
@@ -384,7 +517,9 @@ export class SubscriptionService {
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
     const hash = createHmac('sha512', secretKey).update(rawBody).digest('hex');
-    if (hash !== signature) {
+    const a = Buffer.from(hash);
+    const b = Buffer.from(signature);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
       throw new BadRequestException('Invalid webhook signature');
     }
 
@@ -395,15 +530,16 @@ export class SubscriptionService {
       const data = event.data as PaystackVerifyData;
       if (data.status !== 'success') return;
 
+      const ref = data.reference ?? '';
+
       // Only act if this reference hasn't been processed yet
       const refCheck = await pool.query<{ user_id: string }>(
         `SELECT user_id FROM subscriptions WHERE paystack_reference = $1 LIMIT 1`,
-        [(event.data as { reference?: string }).reference ?? ''],
+        [ref],
       );
       if (refCheck.rows.length > 0) return;
 
       // Find the user by email
-      const ref = (event.data as { reference?: string }).reference ?? '';
       const userRow = await pool.query<{ id: string }>(
         `SELECT id FROM users WHERE email = $1 LIMIT 1`,
         [data.customer.email.toLowerCase()],
@@ -411,21 +547,9 @@ export class SubscriptionService {
       if (!userRow.rows[0]) return;
       const uid = userRow.rows[0].id;
 
-      let plan: 'monthly' | 'yearly';
-      let periodEnd: string;
-      if (data.amount === 50_000_000) {
-        plan = 'yearly';
-        const end = new Date();
-        end.setFullYear(end.getFullYear() + 1);
-        periodEnd = end.toISOString();
-      } else if (data.amount === 5_000_000) {
-        plan = 'monthly';
-        const end = new Date();
-        end.setDate(end.getDate() + 30);
-        periodEnd = end.toISOString();
-      } else {
-        return;
-      }
+      const resolved = resolvePlan(data.amount);
+      if (!resolved) return;
+      const { plan, periodEnd } = resolved;
 
       await pool.query(
         `INSERT INTO subscriptions
@@ -437,7 +561,6 @@ export class SubscriptionService {
            status                  = 'active',
            plan                    = $4,
            current_period_end      = $5,
-           locked_device_id        = COALESCE(subscriptions.locked_device_id, NULL),
            updated_at              = NOW()`,
         [uid, data.customer.customer_code, ref, plan, periodEnd],
       );
@@ -478,19 +601,27 @@ export class SubscriptionService {
     } else if (event.event === 'invoice.update') {
       const data = event.data as InvoiceUpdateData;
       if (!data.paid_at) return;
-      await pool.query(
+      const paidAt = new Date(data.paid_at);
+      const renewResult = await pool.query<{ user_id: string; plan: string | null }>(
         `UPDATE subscriptions SET
            status = 'active',
            current_period_start = $1,
            current_period_end = $2,
            updated_at = NOW()
-         WHERE paystack_customer_code = $3`,
+         WHERE paystack_customer_code = $3
+         RETURNING user_id, plan`,
         [
-          new Date(data.paid_at).toISOString(),
+          paidAt.toISOString(),
           new Date(data.subscription.next_payment_date).toISOString(),
           data.subscription.customer.customer_code,
         ],
       );
+      const renewed = renewResult.rows[0];
+      if (renewed?.plan && ['weekly', 'monthly', 'yearly'].includes(renewed.plan)) {
+        await this.quotaService.resetUserUsage(
+          renewed.user_id, renewed.plan as PlanType, paidAt,
+        );
+      }
     } else if (event.event === 'invoice.payment_failed') {
       const data = event.data as InvoicePaymentFailedData;
       const upd = await pool.query<{ user_id: string }>(

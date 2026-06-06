@@ -1,4 +1,6 @@
-import { useState, useRef, type MutableRefObject } from 'react';
+import { useState, useRef, useEffect, type MutableRefObject } from 'react';
+import { createDenoisedStream } from '../noise-suppressor';
+import { makeDeviceHeaders } from '../../utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const VAD_THRESHOLD = 0.015;
@@ -6,15 +8,6 @@ const SILENCE_MS = 1500;
 const MIN_SPEECH_MS = 2500;
 const MIN_BLOB_BYTES = 25_000;
 const MIN_WORDS = 4;
-
-async function makeDeviceHeaders(): Promise<Record<string, string>> {
-  const { keyId, timestamp, signature } = await window.zoomguru.signRequest();
-  return {
-    'X-Key-ID': keyId,
-    'X-Timestamp': String(timestamp),
-    'X-Signature': signature,
-  };
-}
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -32,6 +25,7 @@ interface UseVADOptions {
   streamAnswer: (transcript: string) => Promise<void>;
   setMicGranted: (v: boolean) => void;
   onLogout: () => void;
+  noiseEnabled: boolean;
 }
 
 export function useVAD({
@@ -41,9 +35,13 @@ export function useVAD({
   streamAnswer,
   setMicGranted,
   onLogout,
+  noiseEnabled,
 }: UseVADOptions) {
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [isAutoListening, setIsAutoListening] = useState(false);
+
+  const streamAnswerRef = useRef(streamAnswer);
+  useEffect(() => { streamAnswerRef.current = streamAnswer; }, [streamAnswer]);
 
   const isAutoModeRef = useRef(false);
   const vadStateRef = useRef<'idle' | 'recording' | 'processing'>('idle');
@@ -54,9 +52,11 @@ export function useVAD({
   const autoAnalyserRef = useRef<AnalyserNode | null>(null);
   const autoRecorderRef = useRef<MediaRecorder | null>(null);
   const autoChunksRef = useRef<BlobPart[]>([]);
+  const recordStreamRef = useRef<MediaStream | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startSegmentRef = useRef<() => void>(() => {});
   const processSegmentRef = useRef<(mimeType: string) => Promise<void>>(async () => {});
+  const noiseCleanupRef = useRef<(() => void) | null>(null);
 
   function stopAutoMode(): void {
     isAutoModeRef.current = false;
@@ -72,6 +72,8 @@ export function useVAD({
       autoRecorderRef.current.stop();
     }
     autoStreamRef.current?.getTracks().forEach((t) => t.stop());
+    noiseCleanupRef.current?.();
+    noiseCleanupRef.current = null;
     void autoContextRef.current?.close();
     autoStreamRef.current = null;
     autoContextRef.current = null;
@@ -123,7 +125,7 @@ export function useVAD({
         return;
       }
 
-      await streamAnswer(transcript);
+      await streamAnswerRef.current(transcript);
 
       if (questionCountRef.current >= sessionCapRef.current) {
         stopAutoMode();
@@ -136,11 +138,11 @@ export function useVAD({
   };
 
   startSegmentRef.current = (): void => {
-    if (!autoStreamRef.current) return;
+    if (!recordStreamRef.current) return;
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : 'audio/webm';
-    const recorder = new MediaRecorder(autoStreamRef.current, { mimeType });
+    const recorder = new MediaRecorder(recordStreamRef.current, { mimeType });
     autoChunksRef.current = [];
     speechStartRef.current = Date.now();
 
@@ -178,11 +180,25 @@ export function useVAD({
     const context = new AudioContext();
     const analyser = context.createAnalyser();
     analyser.fftSize = 512;
-    context.createMediaStreamSource(stream).connect(analyser);
+    const rawSource = context.createMediaStreamSource(stream);
+    rawSource.connect(analyser); // VAD reads raw signal — unaffected by denoising
+
+    let recordStream = stream;
+    if (noiseEnabled) {
+      try {
+        const result = await createDenoisedStream(stream, context, rawSource);
+        recordStream = result.denoisedStream;
+        noiseCleanupRef.current = result.cleanup;
+      } catch {
+        // Worklet failed (e.g. browser restriction) — fall back to raw stream
+        recordStream = stream;
+      }
+    }
 
     autoStreamRef.current = stream;
     autoContextRef.current = context;
     autoAnalyserRef.current = analyser;
+    recordStreamRef.current = recordStream;
     vadStateRef.current = 'idle';
     isAutoModeRef.current = true;
     setIsAutoMode(true);

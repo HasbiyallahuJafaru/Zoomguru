@@ -2,6 +2,13 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('zoomguru', {
   onTrigger: (event: string, callback: (...args: any[]) => void): void => {
+    const ALLOWED_TRIGGERS = new Set([
+      'listen', 'screenshot', 'hide', 'clear', 'auto',
+    ]);
+    if (!ALLOWED_TRIGGERS.has(event)) {
+      console.warn(`onTrigger: unknown event "${event}"`);
+      return;
+    }
     const channel = `trigger:${event}`;
     ipcRenderer.removeAllListeners(channel);
     ipcRenderer.on(channel, (_e, ...args) => callback(...args));
@@ -17,8 +24,8 @@ contextBridge.exposeInMainWorld('zoomguru', {
   getDevicePublicKey: (): Promise<{ keyId: string; publicKey: string }> =>
     ipcRenderer.invoke('device:getPublicKey'),
 
-  signRequest: (): Promise<{ keyId: string; timestamp: number; signature: string }> =>
-    ipcRenderer.invoke('device:sign'),
+  signRequest: (userId: string): Promise<{ keyId: string; timestamp: number; signature: string }> =>
+    ipcRenderer.invoke('device:sign', userId),
 
   hideWindow: (): Promise<void> =>
     ipcRenderer.invoke('window:hide'),
@@ -64,6 +71,33 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
   getProtectionStatus: (): Promise<boolean> =>
     ipcRenderer.invoke('protection:status'),
+
+  setSessionActive: (active: boolean): Promise<void> =>
+    ipcRenderer.invoke('session:setActive', active),
+
+  getNoiseSuppressor: (): Promise<boolean> =>
+    ipcRenderer.invoke('settings:getNoiseSuppressor'),
+
+  setNoiseSuppressor: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('settings:setNoiseSuppressor', enabled),
+
+  printReport: (): Promise<void> =>
+    ipcRenderer.invoke('report:print'),
+
+  tourHasCompleted: (): Promise<boolean> =>
+    ipcRenderer.invoke('tour:hasCompleted'),
+
+  tourSetCompleted: (): Promise<void> =>
+    ipcRenderer.invoke('tour:setCompleted'),
+
+  parseMeetingDoc: (): Promise<{ text: string; filename: string } | { error: string } | null> =>
+    ipcRenderer.invoke('meeting-doc:parse'),
+
+  loadMeetingDoc: (): Promise<{ text: string; filename: string } | null> =>
+    ipcRenderer.invoke('meeting-doc:load'),
+
+  clearMeetingDoc: (): Promise<void> =>
+    ipcRenderer.invoke('meeting-doc:clear'),
 
   platform: process.platform,
 });

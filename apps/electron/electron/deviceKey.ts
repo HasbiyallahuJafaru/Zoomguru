@@ -38,12 +38,12 @@ export function getPublicKeyInfo(): { keyId: string; publicKey: string } {
   return { keyId: cachedKeyId, publicKey: derivePublicKey(cachedPrivateKey) };
 }
 
-export function signRequest(): { keyId: string; timestamp: number; signature: string } {
+export function signRequest(userId: string): { keyId: string; timestamp: number; signature: string } {
   if (!cachedKeyId || !cachedPrivateKey) initDeviceKey();
   const keyId = cachedKeyId!;
   const timestamp = Math.floor(Date.now() / 1000);
   const signer = crypto.createSign('SHA256');
-  signer.update(`${keyId}:${timestamp}`);
+  signer.update(`${userId}:${keyId}:${timestamp}`);
   const signature = signer.sign(cachedPrivateKey!, 'base64');
   return { keyId, timestamp, signature };
 }
