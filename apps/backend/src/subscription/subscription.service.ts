@@ -119,7 +119,7 @@ export class SubscriptionService {
       ),
     ]);
 
-    const adminEmails = (process.env.ADMIN_EMAIL ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    const adminEmails = (process.env.ADMIN_EMAIL ?? '').split(',').map(e => e.trim().toLowerCase()).filter(e => e.includes('@') && e.split('@')[1]?.includes('.'));
     const isAdmin = adminEmails.includes((userResult.rows[0]?.email ?? '').toLowerCase());
 
     const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
@@ -199,7 +199,7 @@ export class SubscriptionService {
   async getUsage(userId: string): Promise<UsageResponse> {
     const pool = getDB();
 
-    const [planInfo, usageResult] = await Promise.all([
+    const [planInfo, usageResult, subResult] = await Promise.all([
       this.quotaService.getPlanType(userId),
       pool.query<{
         plan_type: string;
@@ -214,6 +214,10 @@ export class SubscriptionService {
          FROM usage WHERE user_id = $1 LIMIT 1`,
         [userId],
       ),
+      pool.query<{ current_period_start: string | null; created_at: string }>(
+        `SELECT current_period_start, created_at FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+        [userId],
+      ),
     ]);
 
     const planType = (planInfo?.planType ?? null) as PlanType | null;
@@ -222,9 +226,15 @@ export class SubscriptionService {
     const windowDays = windowDaysForPlan(resolvedPlan);
 
     const row = usageResult.rows[0];
+    const subRow = subResult.rows[0];
+    const subPeriodStart = subRow?.current_period_start
+      ? new Date(subRow.current_period_start)
+      : subRow?.created_at
+        ? new Date(subRow.created_at)
+        : new Date();
     const periodStart = row?.period_start
       ? new Date(row.period_start)
-      : (planInfo?.periodStart ?? new Date());
+      : (planInfo?.periodStart ?? subPeriodStart);
     const resetAt = new Date(periodStart.getTime() + windowDays * 86_400_000).toISOString();
 
     const features: QuotaFeature[] = [
@@ -326,21 +336,31 @@ export class SubscriptionService {
         deviceAllowed = true;
         await setDeviceCache(cacheKey, true);
       } else if (!sub.locked_key_id) {
-        await pool.query(
+        const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id IS NULL`,
           [keyId, userId],
         );
-        await this.invalidateDeviceCache(userId);
-        deviceAllowed = true;
+        if ((lockResult.rowCount ?? 0) === 0) {
+          deviceAllowed = false;
+          await setDeviceCache(cacheKey, false);
+        } else {
+          await this.invalidateDeviceCache(userId);
+          deviceAllowed = true;
+        }
       } else if (!sub.locked_key_id_2) {
-        await pool.query(
+        const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
           [keyId, userId],
         );
-        await this.invalidateDeviceCache(userId);
-        deviceAllowed = true;
+        if ((lockResult.rowCount ?? 0) === 0) {
+          deviceAllowed = false;
+          await setDeviceCache(cacheKey, false);
+        } else {
+          await this.invalidateDeviceCache(userId);
+          deviceAllowed = true;
+        }
       } else {
         deviceAllowed = false;
         await setDeviceCache(cacheKey, false);
@@ -351,14 +371,18 @@ export class SubscriptionService {
   }
 
   async invalidateDeviceCache(userId: string): Promise<void> {
-    const redis = getRedis();
-    // Scan for all dc:{userId}:* keys and delete them.
-    let cursor = '0';
-    do {
-      const [next, keys] = await redis.scan(cursor, 'MATCH', `dc:${userId}:*`, 'COUNT', 100);
-      cursor = next;
-      if (keys.length > 0) await redis.del(...keys);
-    } while (cursor !== '0');
+    try {
+      const redis = getRedis();
+      // Scan for all dc:{userId}:* keys and delete them.
+      let cursor = '0';
+      do {
+        const [next, keys] = await redis.scan(cursor, 'MATCH', `dc:${userId}:*`, 'COUNT', 100);
+        cursor = next;
+        if (keys.length > 0) await redis.del(...keys);
+      } while (cursor !== '0');
+    } catch (err) {
+      console.warn('invalidateDeviceCache failed (Redis down?):', err);
+    }
   }
 
   async verify(userId: string, userEmail: string, reference: string, keyId?: string): Promise<{ success: boolean }> {

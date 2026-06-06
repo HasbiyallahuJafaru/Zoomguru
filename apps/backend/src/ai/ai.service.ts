@@ -72,7 +72,7 @@ const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const GROQ_VISION_MODEL = 'llama-4-scout-17b-16e-instruct';
 
 export interface PerAnswerScore {
   questionNumber: number;
@@ -974,7 +974,8 @@ If the answer is empty or very short, score it 0-20.`;
       // Store with 100s buffer before Gemini cache expires
       await redis.set(redisKey, json.name, 'EX', AiService.CACHE_TTL_SEC - 100);
       return json.name;
-    } catch {
+    } catch (err) {
+      console.warn('DocCache miss (error creating cache):', (err as Error)?.message);
       return null;
     }
   }

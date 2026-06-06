@@ -44,6 +44,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
   const [ttsReady, setTtsReady] = useState(false);
 
   const ttsRef = useRef<KokoroTTS | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -61,6 +62,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
     }
     generateAbortRef.current?.abort();
     void readerRef.current?.cancel();
+    streamRef.current?.getTracks().forEach(t => t.stop());
   }, []);
 
   // Initialise TTS and start first question.
@@ -212,6 +214,11 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
       });
     }, 1000);
 
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+
     navigator.mediaDevices
       .getUserMedia({ audio: true, video: false })
       .then((stream) => {
@@ -219,6 +226,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
+        streamRef.current = stream;
 
         const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
         mediaRecorderRef.current = mr;

@@ -7,7 +7,7 @@ const TIMESTAMP_TOLERANCE_SEC = 30;
 
 export interface SignatureResult {
   valid: boolean;
-  reason: 'not_registered' | 'invalid_signature';
+  reason: 'valid' | 'not_registered' | 'invalid_signature';
 }
 
 @Injectable()
@@ -64,7 +64,7 @@ export class DeviceService {
       verifier.update(message);
       const ok = verifier.verify(result.rows[0].public_key, signature, 'base64');
       return ok
-        ? { valid: true, reason: 'invalid_signature' }
+        ? { valid: true, reason: 'valid' as const }
         : { valid: false, reason: 'invalid_signature' };
     } catch {
       return { valid: false, reason: 'invalid_signature' };

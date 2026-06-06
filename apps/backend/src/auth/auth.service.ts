@@ -68,9 +68,9 @@ export class AuthService {
         user = result.rows[0];
         break;
       } catch (err: unknown) {
-        if (err instanceof Error) {
-          if (err.message.includes('referral_code')) continue;
-          if (err.message.includes('unique')) throw new ConflictException('Email already in use');
+        if ((err as { code?: string; constraint?: string }).code === '23505') {
+          if ((err as { constraint?: string }).constraint?.includes('referral')) continue;
+          throw new ConflictException('Email already in use');
         }
         throw err;
       }

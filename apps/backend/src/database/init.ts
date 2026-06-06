@@ -1,3 +1,7 @@
+// PRODUCTION MIGRATION — run once on the Neon DB before deploying this version:
+//   ALTER TABLE subscriptions RENAME COLUMN locked_device_id TO locked_key_id;
+//   ALTER TABLE subscriptions RENAME COLUMN locked_device_id_2 TO locked_key_id_2;
+
 import { getDB } from './db';
 
 export async function initDB(): Promise<void> {
@@ -35,14 +39,14 @@ export async function initDB(): Promise<void> {
           current_period_end          TIMESTAMPTZ,
           paystack_customer_code      TEXT UNIQUE,
           paystack_subscription_code  TEXT UNIQUE,
-          locked_device_id            TEXT,
+          locked_key_id               TEXT,
           created_at                  TIMESTAMPTZ DEFAULT NOW(),
           updated_at                  TIMESTAMPTZ DEFAULT NOW()
         )
       `);
 
       await pool.query(`
-        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_device_id_2 TEXT
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_key_id_2 TEXT
       `);
 
       await pool.query(`

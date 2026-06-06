@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type CSSProperties } from 'react';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -25,6 +25,9 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -33,6 +36,8 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
     if (password !== confirmPassword) { setError('Passwords do not match'); return; }
     if (!agreed) { setError('Please agree to the Terms & Conditions to continue'); return; }
     setLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const body: Record<string, string> = { email, name, password };
       if (referralCode.trim()) body['referralCode'] = referralCode.trim().toUpperCase();
@@ -41,6 +46,7 @@ export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       const data: RegisterApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Registration failed'); return; }

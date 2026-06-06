@@ -81,8 +81,14 @@ export class QuotaService {
     planType: PlanType,
     periodStart: Date,
   ): Promise<QuotaResult> {
-    const ALLOWED: readonly string[] = ['copilot_requests', 'interviewer_sessions', 'scorer_reports', 'doc_copilot_requests'];
-    if (!ALLOWED.includes(feature)) throw new Error(`Invalid feature: ${feature}`);
+    const COLUMN_MAP: Record<string, string> = {
+      copilot_requests: 'copilot_requests',
+      interviewer_sessions: 'interviewer_sessions',
+      scorer_reports: 'scorer_reports',
+      doc_copilot_requests: 'doc_copilot_requests',
+    };
+    const col = COLUMN_MAP[feature];
+    if (!col) throw new Error(`Unknown feature: ${feature}`);
 
     await this.ensureRow(userId, planType, periodStart);
 
@@ -94,16 +100,16 @@ export class QuotaService {
     // Atomic increment: only succeeds if we are below the limit.
     const result = await pool.query<{ val: number }>(
       `UPDATE usage
-       SET ${feature} = ${feature} + 1, updated_at = NOW()
-       WHERE user_id = $1 AND ${feature} < $2
-       RETURNING ${feature} AS val`,
+       SET ${col} = ${col} + 1, updated_at = NOW()
+       WHERE user_id = $1 AND ${col} < $2
+       RETURNING ${col} AS val`,
       [userId, limit],
     );
 
     if (result.rows.length === 0) {
       // Already at or above limit — read current count without modifying.
       const cur = await pool.query<{ val: number }>(
-        `SELECT ${feature} AS val FROM usage WHERE user_id = $1 LIMIT 1`,
+        `SELECT ${col} AS val FROM usage WHERE user_id = $1 LIMIT 1`,
         [userId],
       );
       return {

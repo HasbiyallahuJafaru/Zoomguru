@@ -31,7 +31,7 @@ export class BroadcastQueueService {
     return `ZoomGuru <${addr}>`;
   }
 
-  @Cron('*/60 * * * * *')
+  @Cron('0 * * * * *')
   async processDueBatches(): Promise<void> {
     if (this.processing) return;
     this.processing = true;
@@ -84,7 +84,11 @@ export class BroadcastQueueService {
       }));
 
       // Resend batch API allows up to 100 emails per call
-      await this.resend.batch.send(emails);
+      const result = await this.resend.batch.send(emails);
+      const failed = (result as unknown as { data?: Array<{ error?: unknown }> } | null)?.data?.filter((r) => r.error) ?? [];
+      if (failed.length > 0) {
+        console.warn(`[BroadcastQueue] Batch partial failure: ${failed.length} emails failed in batch ${batch.batch_index}`);
+      }
 
       await db.query(
         `UPDATE broadcast_batches

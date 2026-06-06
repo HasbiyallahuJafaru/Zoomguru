@@ -31,7 +31,8 @@ const SSE_HEADERS = {
 
 const RATE_LIMIT = 15;
 const WINDOW_SEC = 60;
-const SESSION_CAP_MONTHLY = 50;
+// 50 AI requests per day per user
+const SESSION_CAP_DAILY = 50;
 
 interface AuthenticatedRequest extends FastifyRequest {
   user: { userId: string; email: string };
@@ -52,7 +53,7 @@ async function checkSessionCap(
     // TTL of 25h so the key is definitely gone before the next day's key matters.
     .expire(key, 90_000)
     .exec()) as [[null, number], [null, number]];
-  return { capped: count > SESSION_CAP_MONTHLY };
+  return { capped: count > SESSION_CAP_DAILY };
 }
 
 async function checkRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
@@ -240,8 +241,11 @@ export class AiController {
         return;
       }
     }
+    if (!/^[A-Za-z0-9+/=]+$/.test(body.image)) {
+      throw new BadRequestException('Invalid image encoding');
+    }
     logSession(req.user.userId, 'screenshot');
-    const cleanImage = sanitize(body.image);
+    const cleanImage = body.image;
     const cleanCv    = body.cvText ? sanitize(body.cvText) : undefined;
     const cleanJd    = body.jdText ? sanitize(body.jdText) : undefined;
     const cleanPriorContext = Array.isArray(body.priorContext)

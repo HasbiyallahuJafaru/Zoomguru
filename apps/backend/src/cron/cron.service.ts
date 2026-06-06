@@ -66,6 +66,7 @@ export class CronService {
       `);
 
       for (const row of result.rows) {
+        if (row.days_remaining == null) continue;
         const days = row.days_remaining;
         const name = row.name ?? 'there';
         const periodEnd = row.current_period_end;
@@ -120,7 +121,9 @@ export class CronService {
       `);
       for (const row of result.rows) {
         const planType = row.plan as 'monthly' | 'yearly';
-        const periodStart = new Date();
+        const periodStart = row.current_period_start
+          ? new Date(row.current_period_start)
+          : new Date(row.created_at);
         await this.quotaService.resetUserUsage(row.user_id, planType, periodStart);
       }
     } catch (err) {

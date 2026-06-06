@@ -90,7 +90,7 @@ export default function DocCopilotOverlay({ docs, onBackToSetup, isParsing, onAd
       window.zoomguru.offTrigger('doccopilot-listen');
       window.zoomguru.offTrigger('doccopilot-clear');
     };
-  }, []);
+  }, [handleListenRef, handleClearRef]);
 
   handleClearRef.current = () => {
     streamAbortRef.current?.abort();
@@ -230,7 +230,7 @@ export default function DocCopilotOverlay({ docs, onBackToSetup, isParsing, onAd
             if (!res.ok) { setListenState('idle'); return; }
             const data = await res.json() as { transcript?: string };
             const transcript = data.transcript?.trim() ?? '';
-            if (!transcript || transcript.split(/\s+/).length < 2) { setListenState('idle'); return; }
+            if (!transcript || transcript.trim().split(/\s+/).filter(Boolean).length < 2) { setListenState('idle'); return; }
             await streamDocAnswer(transcript);
           } catch (err) {
             if ((err as Error).name !== 'AbortError') setListenState('idle');

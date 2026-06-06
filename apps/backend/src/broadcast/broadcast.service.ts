@@ -80,36 +80,46 @@ export class BroadcastService {
       throw new BadRequestException('No recipients match the selected filter');
     }
 
-    const db = getDB();
+    const client = await getDB().connect();
+    let broadcast: BroadcastRow;
 
-    const broadcastResult = await db.query<BroadcastRow>(
-      `INSERT INTO broadcasts (subject, body, target_filter, status, scheduled_at, recipient_count)
-       VALUES ($1, $2, $3, 'scheduled', $4, $5)
-       RETURNING *`,
-      [
-        dto.subject.trim(),
-        dto.body.trim(),
-        JSON.stringify(dto.targetFilter),
-        dto.scheduledAt,
-        emails.length,
-      ],
-    );
+    try {
+      await client.query('BEGIN');
 
-    const broadcast = broadcastResult.rows[0];
-
-    // Slice recipients into batches and schedule each with 3-min offsets
-    const batches = chunkArray(emails, BATCH_SIZE);
-    const batchInserts = batches.map((batch, idx) => {
-      const batchScheduledAt = new Date(dto.scheduledAt.getTime() + idx * BATCH_DELAY_MS);
-      return db.query(
-        `INSERT INTO broadcast_batches
-           (broadcast_id, batch_index, status, recipients, scheduled_at)
-         VALUES ($1, $2, 'pending', $3, $4)`,
-        [broadcast.id, idx, batch, batchScheduledAt],
+      const broadcastResult = await client.query<BroadcastRow>(
+        `INSERT INTO broadcasts (subject, body, target_filter, status, scheduled_at, recipient_count)
+         VALUES ($1, $2, $3, 'scheduled', $4, $5)
+         RETURNING *`,
+        [
+          dto.subject.trim(),
+          dto.body.trim(),
+          JSON.stringify(dto.targetFilter),
+          dto.scheduledAt,
+          emails.length,
+        ],
       );
-    });
 
-    await Promise.all(batchInserts);
+      broadcast = broadcastResult.rows[0];
+
+      // Slice recipients into batches and schedule each with 3-min offsets
+      const batches = chunkArray(emails, BATCH_SIZE);
+      for (let idx = 0; idx < batches.length; idx++) {
+        const batchScheduledAt = new Date(dto.scheduledAt.getTime() + idx * BATCH_DELAY_MS);
+        await client.query(
+          `INSERT INTO broadcast_batches
+             (broadcast_id, batch_index, status, recipients, scheduled_at)
+           VALUES ($1, $2, 'pending', $3, $4)`,
+          [broadcast.id, idx, batches[idx], batchScheduledAt],
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     return broadcast;
   }

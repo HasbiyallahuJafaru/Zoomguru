@@ -419,6 +419,17 @@ if (!gotLock) {
     ipcMain.handle('tour:setCompleted', () => {
       store.set('tourCompleted', true);
     });
+
+    ipcMain.handle('kokoro:checkReady', () => store.get('kokoroModelReady', false));
+
+    ipcMain.handle('kokoro:setReady', (_event, ready: boolean) => {
+      store.set('kokoroModelReady', ready);
+    });
+
+    ipcMain.handle('report:print', () => {
+      const win = BrowserWindow.getFocusedWindow();
+      if (win) win.webContents.print();
+    });
   }
 
   app.once('ready', () => { createSplash(); });

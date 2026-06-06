@@ -101,8 +101,10 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
   const [selectedPlan, setSelectedPlan] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
   const [startingTrial, setStartingTrial] = useState(false);
   const [trialError, setTrialError] = useState<string | null>(null);
+  const [deviceRegError, setDeviceRegError] = useState<string | null>(null);
   const [trialMsLeft, setTrialMsLeft] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const checkingOutRef = useRef(false);
 
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -146,13 +148,18 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
       try {
         const token = await window.zoomguru.getToken();
 
-        void window.zoomguru.getDevicePublicKey().then(({ keyId, publicKey }) =>
-          fetch(`${API_URL}/device/register`, {
+        try {
+          const { keyId, publicKey } = await window.zoomguru.getDevicePublicKey();
+          await fetch(`${API_URL}/device/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ keyId, publicKey }),
-          }),
-        );
+          });
+        } catch (err) {
+          console.error('Device registration failed:', err);
+          setDeviceRegError('Device registration failed. Please restart the app.');
+          return;
+        }
 
         const [statusRes, usageRes] = await Promise.all([
           fetch(`${API_URL}/subscription/status`, {
@@ -220,6 +227,7 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
 
     setVerifyError(false);
     setCheckingOut(true);
+    checkingOutRef.current = true;
 
     try {
       await loadPaystackScript();
@@ -236,9 +244,11 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
       ref: `zg_${Date.now()}`,
       onClose: () => {
         setCheckingOut(false);
+        checkingOutRef.current = false;
       },
       callback: (response) => {
         setCheckingOut(false);
+        checkingOutRef.current = false;
         setVerifying(true);
         void (async () => {
           try {
@@ -365,6 +375,10 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
             <span style={s.brandName}>ZoomGuru</span>
             <span style={s.brandTag}>Your invisible interview edge</span>
           </div>
+
+          {deviceRegError && (
+            <p style={s.errorMsg}>{deviceRegError}</p>
+          )}
 
           {/* Subscription card */}
           <div id="tour-plan-status" style={s.card}>

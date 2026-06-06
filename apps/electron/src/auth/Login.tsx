@@ -28,6 +28,7 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const forgotRef = useRef<HTMLInputElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     void window.zoomguru.getProtectionStatus().then(setIsProtected);
@@ -37,14 +38,19 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
     if (showForgot) forgotRef.current?.focus();
   }, [showForgot]);
 
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
+
   async function handleForgot(e: FormEvent): Promise<void> {
     e.preventDefault();
     setForgotLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       await fetch(`${API_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail }),
+        signal: controller.signal,
       });
       setForgotSent(true);
     } catch {
@@ -58,11 +64,14 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
     e.preventDefault();
     setError('');
     setLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: identifier, password }),
+        signal: controller.signal,
       });
       const data: LoginApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Invalid credentials'); return; }
