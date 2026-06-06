@@ -16,6 +16,7 @@ import {
 import path from 'path';
 import fs from 'fs';
 import pdfParse from 'pdf-parse';
+import AdmZip from 'adm-zip';
 import Store from 'electron-store';
 import { autoUpdater } from 'electron-updater';
 import { initCapture } from './capture';
@@ -27,6 +28,8 @@ interface WindowStore {
   cvText?: string;
   cvFilename?: string;
   jdText?: string;
+  meetingDocText?: string;
+  meetingDocFilename?: string;
   accessToken?: string;
   noiseSuppressor?: boolean;
   tourCompleted?: boolean;
@@ -411,6 +414,61 @@ if (!gotLock) {
       const win = BrowserWindow.getFocusedWindow();
       if (win) win.webContents.print();
     });
+
+    ipcMain.handle('meeting-doc:parse', async () => {
+      const result = await dialog.showOpenDialog(mainWindow!, {
+        title: 'Select your document or presentation',
+        properties: ['openFile'],
+        filters: [{ name: 'Documents', extensions: ['pdf', 'pptx', 'txt', 'md'] }],
+      });
+
+      if (result.canceled || !result.filePaths[0]) return null;
+
+      const filePath = result.filePaths[0];
+      const filename = path.basename(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+
+      try {
+        let text: string;
+        if (ext === '.pdf') {
+          const buffer = fs.readFileSync(filePath);
+          const parsed = await pdfParse(buffer);
+          text = parsed.text;
+        } else if (ext === '.pptx') {
+          const zip = new AdmZip(filePath);
+          const slideEntries = zip.getEntries()
+            .filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
+            .sort((a, b) => a.entryName.localeCompare(b.entryName));
+          const slideTexts = slideEntries.map((entry) => {
+            const xml = entry.getData().toString('utf-8');
+            return xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          });
+          text = slideTexts.join('\n\n---\n\n');
+        } else {
+          text = fs.readFileSync(filePath, 'utf-8');
+        }
+
+        store.set('meetingDocText', text);
+        store.set('meetingDocFilename', filename);
+        return { text, filename };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return { error: `Failed to parse file: ${message}` };
+      }
+    });
+
+    ipcMain.handle('meeting-doc:load', () => {
+      const text = store.get('meetingDocText', '');
+      const filename = store.get('meetingDocFilename', '');
+      if (!text) return null;
+      return { text, filename };
+    });
+
+    ipcMain.handle('meeting-doc:clear', () => {
+      store.delete('meetingDocText');
+      store.delete('meetingDocFilename');
+    });
+
   }
 
   app.once('ready', () => { createSplash(); });

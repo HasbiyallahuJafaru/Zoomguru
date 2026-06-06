@@ -90,5 +90,14 @@ contextBridge.exposeInMainWorld('zoomguru', {
   tourSetCompleted: (): Promise<void> =>
     ipcRenderer.invoke('tour:setCompleted'),
 
+  parseMeetingDoc: (): Promise<{ text: string; filename: string } | { error: string } | null> =>
+    ipcRenderer.invoke('meeting-doc:parse'),
+
+  loadMeetingDoc: (): Promise<{ text: string; filename: string } | null> =>
+    ipcRenderer.invoke('meeting-doc:load'),
+
+  clearMeetingDoc: (): Promise<void> =>
+    ipcRenderer.invoke('meeting-doc:clear'),
+
   platform: process.platform,
 });

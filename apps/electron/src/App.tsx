@@ -5,14 +5,18 @@ import Dashboard from './dashboard/Dashboard';
 import CvSetup from './onboarding/CvSetup';
 import Overlay from './overlay/Overlay';
 import Referral from './referral/Referral';
+import MeetingSetup from './meeting/MeetingSetup';
+import MeetingOverlay from './meeting/MeetingOverlay';
 import { useTour } from './tour/useTour';
 
-type Step = 'loading' | 'login' | 'register' | 'dashboard' | 'cv' | 'overlay' | 'referral';
+type Step = 'loading' | 'login' | 'register' | 'dashboard' | 'cv' | 'overlay' | 'referral' | 'meeting-setup' | 'meeting';
 
 const App = () => {
   const [step, setStep] = useState<Step>('loading');
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [tourAutoLaunch, setTourAutoLaunch] = useState(false);
+  const [meetingDocText, setMeetingDocText] = useState('');
+  const [meetingDocFilename, setMeetingDocFilename] = useState('');
 
   const { startTour } = useTour({
     isSessionActive,
@@ -71,6 +75,7 @@ const App = () => {
     return (
       <Dashboard
         onContinue={() => setStep('cv')}
+        onOpenMeeting={() => setStep('meeting-setup')}
         onLogout={handleLogout}
         onStartTour={startTour}
       />
@@ -83,6 +88,30 @@ const App = () => {
 
   if (step === 'referral') {
     return <Referral onBack={() => setStep('overlay')} />;
+  }
+
+  if (step === 'meeting-setup') {
+    return (
+      <MeetingSetup
+        onDone={(text, filename) => {
+          setMeetingDocText(text);
+          setMeetingDocFilename(filename);
+          setStep('meeting');
+        }}
+        onBack={() => setStep('dashboard')}
+      />
+    );
+  }
+
+  if (step === 'meeting') {
+    return (
+      <MeetingOverlay
+        docText={meetingDocText}
+        docFilename={meetingDocFilename}
+        onEnd={() => setStep('dashboard')}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   return (

@@ -422,6 +422,48 @@ export class AiController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+  @Post('meeting-stream')
+  async meetingStream(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { transcript: string; docText: string },
+    @Res() reply: FastifyReply,
+    @Headers('x-key-id') keyId: string | undefined,
+    @Headers('x-timestamp') timestamp: string | undefined,
+    @Headers('x-signature') signature: string | undefined,
+  ): Promise<void> {
+    if (!body.transcript || body.transcript.length > 4000) {
+      throw new BadRequestException('Invalid transcript');
+    }
+    if (!body.docText || body.docText.length > 200_000) {
+      throw new BadRequestException('Invalid docText');
+    }
+
+    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
+    try {
+      rateLimitResult = await checkRateLimit(req.user.userId);
+    } catch (err) {
+      console.warn('Redis unavailable — rate limit skipped:', err);
+    }
+
+    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
+      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    ]);
+    if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse) { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
+
+    logSession(req.user.userId, 'stream');
+    reply.raw.writeHead(200, SSE_HEADERS);
+    await this.aiService.streamMeetingAnswer({
+      transcript: sanitize(body.transcript),
+      docText: sanitize(body.docText),
+      reply: reply.raw,
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post('doc-copilot')
   async docCopilot(
     @Req() req: AuthenticatedRequest,

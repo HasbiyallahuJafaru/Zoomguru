@@ -40,6 +40,9 @@ interface ZoomGuruBridge {
   printReport(): Promise<void>;
   tourHasCompleted(): Promise<boolean>;
   tourSetCompleted(): Promise<void>;
+  parseMeetingDoc(): Promise<CvResult | CvError | null>;
+  loadMeetingDoc(): Promise<CvResult | null>;
+  clearMeetingDoc(): Promise<void>;
   platform: string;
 }
 

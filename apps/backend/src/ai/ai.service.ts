@@ -1039,6 +1039,30 @@ If the answer is empty or very short, score it 0-20.`;
     }
   }
 
+  async streamMeetingAnswer(params: {
+    transcript: string;
+    docText: string;
+    reply: ServerResponse;
+  }): Promise<void> {
+    const { transcript, docText, reply } = params;
+    const docTruncated = truncateAtWord(docText, 6000);
+    const systemPrompt = `${AiService.DOC_COPILOT_SYSTEM}\n\nDOCUMENT:\n\n${docTruncated}`;
+    const questionPart = `<question>\n${stripInjection(truncateAtWord(transcript, 2000))}\n</question>`;
+
+    const handled = await this.streamToGemini({
+      parts: [{ text: questionPart }],
+      systemPrompt,
+      reply,
+    });
+
+    if (!handled) {
+      await this.streamToDeepSeek({
+        transcript: `[Document context below — answer ONLY from this document]\n\n${docTruncated}\n\n---\n\nQuestion: ${transcript}`,
+        reply,
+      });
+    }
+  }
+
   async streamDocCopilot(params: {
     transcript: string;
     documents: Array<{ docId: string; fileName: string; serializedContent: string }>;
