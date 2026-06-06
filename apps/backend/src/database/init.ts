@@ -25,7 +25,7 @@ export async function initDB(): Promise<void> {
         `SELECT version FROM schema_version ORDER BY version DESC LIMIT 1`,
       );
       const currentVersion = versionRow.rows[0]?.version ?? 0;
-      const TARGET_VERSION = 1;
+      const TARGET_VERSION = 2;
 
       if (currentVersion >= TARGET_VERSION) {
         console.log(`DB schema at version ${currentVersion} — skipping migrations`);
@@ -302,6 +302,22 @@ export async function initDB(): Promise<void> {
             ON broadcast_batches(broadcast_id)
         `),
       ]);
+
+      // ── v2: device key registry ──
+      // device_keys was referenced by device.service.ts but never created in v1.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS device_keys (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          key_id      TEXT UNIQUE NOT NULL,
+          public_key  TEXT NOT NULL,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_device_keys_user_id ON device_keys(user_id)
+      `);
 
       await pool.query(
         `INSERT INTO schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING`,

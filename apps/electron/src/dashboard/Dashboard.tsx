@@ -716,6 +716,7 @@ const s: Record<string, ElectronStyle> = {
   toolIcon: {
     fontSize: '18px',
     lineHeight: '1',
+    color: 'rgba(255,255,255,0.85)',
   },
   toolLabel: {
     fontSize: '9px',
