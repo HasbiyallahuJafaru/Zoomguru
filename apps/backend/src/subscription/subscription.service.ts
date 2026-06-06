@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 import { EmailService } from '../email/email.service';
@@ -72,6 +72,7 @@ interface WebhookEvent {
 interface PaystackVerifyData {
   status: string;
   amount: number;
+  reference?: string;
   customer: { customer_code: string; email: string };
 }
 
@@ -312,8 +313,11 @@ export class SubscriptionService {
     }
 
     // Determine deviceAllowed (reuses subscription row already fetched)
+    // If subscription is active and a device is already locked, a missing/invalid keyId must be denied.
     let deviceAllowed = true;
-    if (keyId && KEY_ID_RE.test(keyId) && sub?.status === 'active') {
+    if (sub?.status === 'active' && (sub.locked_key_id || sub.locked_key_id_2) && (!keyId || !KEY_ID_RE.test(keyId))) {
+      deviceAllowed = false;
+    } else if (keyId && KEY_ID_RE.test(keyId) && sub?.status === 'active') {
       const cacheKey = `${userId}:${keyId}`;
       const cached = await getDeviceCache(cacheKey);
       if (cached !== null) {
@@ -381,17 +385,22 @@ export class SubscriptionService {
     }
 
     // Guard: reject exact amount mismatches (prevents cross-product reference abuse)
-    let plan: 'monthly' | 'yearly';
+    let plan: 'weekly' | 'monthly' | 'yearly';
     let periodEnd: string;
-    if (txData.amount === 50_000_000) {
+    if (txData.amount === 45_000_000) {
       plan = 'yearly';
       const end = new Date();
       end.setFullYear(end.getFullYear() + 1);
       periodEnd = end.toISOString();
-    } else if (txData.amount === 5_000_000) {
+    } else if (txData.amount === 4_500_000) {
       plan = 'monthly';
       const end = new Date();
       end.setDate(end.getDate() + 30);
+      periodEnd = end.toISOString();
+    } else if (txData.amount === 1_500_000) {
+      plan = 'weekly';
+      const end = new Date();
+      end.setDate(end.getDate() + 7);
       periodEnd = end.toISOString();
     } else {
       throw new BadRequestException('Invalid payment amount');
@@ -462,7 +471,9 @@ export class SubscriptionService {
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
     const hash = createHmac('sha512', secretKey).update(rawBody).digest('hex');
-    if (hash !== signature) {
+    const a = Buffer.from(hash);
+    const b = Buffer.from(signature);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
       throw new BadRequestException('Invalid webhook signature');
     }
 
@@ -473,15 +484,16 @@ export class SubscriptionService {
       const data = event.data as PaystackVerifyData;
       if (data.status !== 'success') return;
 
+      const ref = data.reference ?? '';
+
       // Only act if this reference hasn't been processed yet
       const refCheck = await pool.query<{ user_id: string }>(
         `SELECT user_id FROM subscriptions WHERE paystack_reference = $1 LIMIT 1`,
-        [(event.data as { reference?: string }).reference ?? ''],
+        [ref],
       );
       if (refCheck.rows.length > 0) return;
 
       // Find the user by email
-      const ref = (event.data as { reference?: string }).reference ?? '';
       const userRow = await pool.query<{ id: string }>(
         `SELECT id FROM users WHERE email = $1 LIMIT 1`,
         [data.customer.email.toLowerCase()],
@@ -489,17 +501,22 @@ export class SubscriptionService {
       if (!userRow.rows[0]) return;
       const uid = userRow.rows[0].id;
 
-      let plan: 'monthly' | 'yearly';
+      let plan: 'weekly' | 'monthly' | 'yearly';
       let periodEnd: string;
-      if (data.amount === 50_000_000) {
+      if (data.amount === 45_000_000) {
         plan = 'yearly';
         const end = new Date();
         end.setFullYear(end.getFullYear() + 1);
         periodEnd = end.toISOString();
-      } else if (data.amount === 5_000_000) {
+      } else if (data.amount === 4_500_000) {
         plan = 'monthly';
         const end = new Date();
         end.setDate(end.getDate() + 30);
+        periodEnd = end.toISOString();
+      } else if (data.amount === 1_500_000) {
+        plan = 'weekly';
+        const end = new Date();
+        end.setDate(end.getDate() + 7);
         periodEnd = end.toISOString();
       } else {
         return;

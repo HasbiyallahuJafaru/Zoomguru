@@ -69,7 +69,7 @@ export class CronService {
         const days = row.days_remaining;
         const name = row.name ?? 'there';
         const periodEnd = row.current_period_end;
-        if (days >= 2) {
+        if (days >= 3) {
           void this.emailService.sendExpiryReminder(row.email, name, 3, periodEnd);
         } else {
           void this.emailService.sendExpiryReminder(row.email, name, 1, periodEnd);

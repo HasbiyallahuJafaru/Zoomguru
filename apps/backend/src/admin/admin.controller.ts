@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, createHmac } from 'node:crypto';
 import { FastifyRequest } from 'fastify';
 import {
   AdminService,
@@ -21,10 +21,13 @@ import {
   ReferralCommissionRow,
 } from './admin.service';
 
+function normalizeKey(s: string): Buffer {
+  return createHmac('sha256', 'zg-admin-key-norm').update(s).digest();
+}
+
 function safeKeyEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
+  const bufA = normalizeKey(a);
+  const bufB = normalizeKey(b);
   return timingSafeEqual(bufA, bufB);
 }
 

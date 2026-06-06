@@ -215,17 +215,15 @@ Device locking is enforced at AI endpoint time, not at login time.
 
 ```
 How it works:
-    X-Device-ID header = SHA-256 of (cpu model, cpu count, platform,
-                         arch, hostname, total memory, MAC address)
+    X-Key-ID: a UUID identifying the device's keypair (registered via POST /device/register)
+    X-Timestamp: Unix timestamp of the request
+    X-Signature: ECDSA P-256 signature over "timestamp:userId" signed by the device private key
 
-    checkDevice() in subscription.service.ts:
-        No subscription row → allow (no sub yet)
-        Subscription not 'active' → allow
-        Subscription active, locked_device_id = NULL → bind current device
-        Subscription active, locked_device_id set → must match or 403
-
-Bypass risk: header is client-generated and can be forged.
-Post-launch: add server-side challenge to verify hardware.
+    checkAccess() in subscription.service.ts:
+        Reads X-Key-ID, X-Timestamp, X-Signature from request headers
+        Verifies signature against the registered public key in device_keys table
+        On first active subscription use: binds the key ID to the subscription (locked_key_id)
+        Subsequent requests: key ID must match locked_key_id or locked_key_id_2
 ```
 
 ---

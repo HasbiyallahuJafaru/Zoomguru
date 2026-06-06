@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, type FormEvent, type CSSProperties } from 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
 interface LoginProps {
-  onLogin: (user: any) => void;
+  onLogin: () => void;
   onShowRegister: () => void;
 }
 
@@ -67,7 +67,7 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
       const data: LoginApiResponse = await res.json();
       if (!res.ok) { setError(data.message ?? 'Invalid credentials'); return; }
       await window.zoomguru.setToken(data.accessToken ?? '');
-      onLogin(data.user);
+      onLogin();
     } catch {
       setError('Cannot reach backend. Is it running?');
     } finally {

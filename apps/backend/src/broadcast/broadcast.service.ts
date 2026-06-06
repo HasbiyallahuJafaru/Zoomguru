@@ -157,7 +157,6 @@ export class BroadcastService {
   }
 
   async retryBroadcast(id: string): Promise<BroadcastRow> {
-    const db = getDB();
     const broadcast = await this.getBroadcast(id);
 
     if (broadcast.status !== 'failed') {
@@ -172,32 +171,42 @@ export class BroadcastService {
     }
 
     const now = new Date();
-
-    await db.query(
-      `UPDATE broadcasts
-       SET status = 'scheduled', scheduled_at = $2,
-           sent_at = NULL, recipient_count = $3, open_count = 0
-       WHERE id = $1`,
-      [id, now, emails.length],
-    );
-
-    await db.query(
-      `DELETE FROM broadcast_batches WHERE broadcast_id = $1`,
-      [id],
-    );
-
     const batches = chunkArray(emails, BATCH_SIZE);
-    await Promise.all(
-      batches.map((batch, idx) => {
+
+    const client = await getDB().connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE broadcasts
+         SET status = 'scheduled', scheduled_at = $2,
+             sent_at = NULL, recipient_count = $3, open_count = 0
+         WHERE id = $1`,
+        [id, now, emails.length],
+      );
+
+      await client.query(
+        `DELETE FROM broadcast_batches WHERE broadcast_id = $1`,
+        [id],
+      );
+
+      for (let idx = 0; idx < batches.length; idx++) {
         const batchScheduledAt = new Date(now.getTime() + idx * BATCH_DELAY_MS);
-        return db.query(
+        await client.query(
           `INSERT INTO broadcast_batches
              (broadcast_id, batch_index, status, recipients, scheduled_at)
            VALUES ($1, $2, 'pending', $3, $4)`,
-          [id, idx, batch, batchScheduledAt],
+          [id, idx, batches[idx], batchScheduledAt],
         );
-      }),
-    );
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     return this.getBroadcast(id);
   }

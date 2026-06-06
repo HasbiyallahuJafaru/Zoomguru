@@ -142,7 +142,12 @@ export class BroadcastWebhookController {
   ): Promise<{ ok: true }> {
     const secret = process.env['RESEND_WEBHOOK_SECRET'];
 
-    if (secret && !svixSig) {
+    if (!secret) {
+      console.warn('RESEND_WEBHOOK_SECRET not set — webhook ignored');
+      return { ok: true };
+    }
+
+    if (!svixSig) {
       return { ok: true };
     }
 

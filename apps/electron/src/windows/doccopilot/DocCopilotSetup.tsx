@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 
 type ES = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -9,6 +9,8 @@ interface Props {
   docs: ParsedDoc[];
   onDocsChange: (docs: ParsedDoc[]) => void;
   onLaunch: () => void;
+  isParsing: boolean;
+  onAddDoc: () => void;
 }
 
 function docMeta(doc: ParsedDoc): string {
@@ -16,26 +18,17 @@ function docMeta(doc: ParsedDoc): string {
   return `PPTX · ${doc.slideCount ?? '?'} slides`;
 }
 
-export default function DocCopilotSetup({ docs, onDocsChange, onLaunch }: Props) {
-  const [parsing, setParsing] = useState(false);
-
-  async function handleAdd() {
-    if (docs.length >= 3 || parsing) return;
-    setParsing(true);
-    try {
-      const raw = await window.zoomguru.docCopilotParseFiles();
-      const merged = [...docs];
-      for (const d of raw) {
-        if (merged.length >= 3) break;
-        if (!merged.find((x) => x.docId === d.docId)) merged.push(d);
-      }
-      onDocsChange(merged);
-    } finally {
-      setParsing(false);
-    }
+function parseStatus(doc: ParsedDoc): { label: string; color: string } {
+  if (doc.warnings.length === 0) return { label: 'Parsed', color: 'rgba(74,222,128,0.75)' };
+  if (doc.warnings.some((w) => w.toLowerCase().includes('chart'))) {
+    return { label: 'Charts flagged', color: 'rgba(251,191,36,0.75)' };
   }
+  return { label: 'Partial parse', color: 'rgba(251,146,60,0.80)' };
+}
 
+export default function DocCopilotSetup({ docs, onDocsChange, onLaunch, isParsing, onAddDoc }: Props) {
   const allWarnings = docs.flatMap((d) => d.warnings);
+  const atCap = docs.length >= 3;
 
   return (
     <>
@@ -43,7 +36,7 @@ export default function DocCopilotSetup({ docs, onDocsChange, onLaunch }: Props)
         .zg-dc-close:hover { color: rgba(255,255,255,0.5) !important; }
         .zg-dc-add:hover:not(:disabled) { opacity: 0.85; }
         .zg-dc-launch:hover:not(:disabled) { opacity: 0.90; transform: scale(0.99); }
-        .zg-dc-remove:hover { color: rgba(255,255,255,0.6) !important; }
+        .zg-dc-remove:hover { color: rgba(248,113,113,0.75) !important; }
         .zg-dc-ghost:hover { color: rgba(255,255,255,0.45) !important; }
       `}</style>
 
@@ -64,7 +57,12 @@ export default function DocCopilotSetup({ docs, onDocsChange, onLaunch }: Props)
             <span style={s.subtitle}>Answers grounded in your own documents</span>
           </div>
 
-          {/* Document list */}
+          {/* Document tray */}
+          <div style={s.trayHeader}>
+            <span style={s.trayLabel}>Documents</span>
+            <span style={s.trayCount}>{docs.length}/3</span>
+          </div>
+
           <div style={s.docList}>
             {docs.length === 0 ? (
               <div style={s.emptyState}>
@@ -73,26 +71,31 @@ export default function DocCopilotSetup({ docs, onDocsChange, onLaunch }: Props)
                 <span style={s.emptyHint}>PDF and PPTX · up to 3 files</span>
               </div>
             ) : (
-              docs.map((doc) => (
-                <div key={doc.docId} style={s.docItem}>
-                  <span style={s.docIcon}>{doc.fileType === 'pdf' ? '📑' : '📊'}</span>
-                  <div style={s.docInfo}>
-                    <span style={s.docName} title={doc.fileName}>{doc.fileName}</span>
-                    <span style={s.docMeta}>{docMeta(doc)}</span>
-                    {doc.warnings.length > 0 && (
-                      <span style={s.docWarn}>⚠ {doc.warnings.length} parse warning{doc.warnings.length > 1 ? 's' : ''}</span>
-                    )}
+              docs.map((doc) => {
+                const status = parseStatus(doc);
+                return (
+                  <div key={doc.docId} style={s.docItem}>
+                    <span style={s.docIcon}>{doc.fileType === 'pdf' ? '📑' : '📊'}</span>
+                    <div style={s.docInfo}>
+                      <span style={s.docName} title={doc.fileName}>{doc.fileName}</span>
+                      <div style={s.docMetaRow}>
+                        <span style={s.docMeta}>{docMeta(doc)}</span>
+                        <span style={{ ...s.statusDot, background: status.color }} title={status.label} />
+                        <span style={{ ...s.statusLabel, color: status.color }}>{status.label}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="zg-dc-remove"
+                      style={s.removeBtn}
+                      onClick={() => onDocsChange(docs.filter((d) => d.docId !== doc.docId))}
+                      aria-label="Remove document"
+                      title="Remove document"
+                    >
+                      ✕
+                    </button>
                   </div>
-                  <button
-                    className="zg-dc-remove"
-                    style={s.removeBtn}
-                    onClick={() => onDocsChange(docs.filter((d) => d.docId !== doc.docId))}
-                    aria-label="Remove document"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -105,15 +108,19 @@ export default function DocCopilotSetup({ docs, onDocsChange, onLaunch }: Props)
             </div>
           )}
 
-          {/* Add button */}
-          {docs.length < 3 && (
+          {/* Add button or cap notice */}
+          {atCap ? (
+            <div style={s.capNotice}>
+              Remove a document to add another (max 3)
+            </div>
+          ) : (
             <button
               className="zg-dc-add"
-              style={{ ...s.addBtn, ...(parsing || docs.length >= 3 ? s.addBtnDisabled : s.addBtnEnabled) }}
-              disabled={parsing || docs.length >= 3}
-              onClick={() => { void handleAdd(); }}
+              style={{ ...s.addBtn, ...(isParsing ? s.addBtnDisabled : s.addBtnEnabled) }}
+              disabled={isParsing}
+              onClick={onAddDoc}
             >
-              {parsing ? 'Parsing…' : `+ Add Document${docs.length > 0 ? ` (${docs.length}/3)` : ''}`}
+              {isParsing ? 'Loading document…' : `+ Add Document${docs.length > 0 ? ` (${docs.length}/3)` : ''}`}
             </button>
           )}
 
@@ -121,7 +128,7 @@ export default function DocCopilotSetup({ docs, onDocsChange, onLaunch }: Props)
           <button
             className="zg-dc-launch"
             style={{ ...s.launchBtn, ...(docs.length === 0 ? s.launchBtnOff : s.launchBtnOn) }}
-            disabled={docs.length === 0}
+            disabled={docs.length === 0 || isParsing}
             onClick={onLaunch}
           >
             Launch Overlay →
@@ -173,7 +180,7 @@ const s: Record<string, ES> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: '14px',
+    gap: '12px',
     padding: '36px 24px 24px',
     WebkitAppRegion: 'no-drag',
     overflowY: 'auto',
@@ -199,11 +206,28 @@ const s: Record<string, ES> = {
     letterSpacing: '0.2px',
     textAlign: 'center' as const,
   },
+  trayHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  trayLabel: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.30)',
+    fontFamily: SANS,
+    letterSpacing: '0.4px',
+    textTransform: 'uppercase' as const,
+  },
+  trayCount: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.22)',
+    fontFamily: SANS,
+  },
   docList: {
     border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: '8px',
     overflow: 'hidden',
-    minHeight: '80px',
+    minHeight: '72px',
   },
   emptyState: {
     display: 'flex',
@@ -211,7 +235,7 @@ const s: Record<string, ES> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    padding: '24px 16px',
+    padding: '20px 16px',
   },
   emptyIcon: { fontSize: '22px', opacity: 0.4 },
   emptyText: {
@@ -228,7 +252,7 @@ const s: Record<string, ES> = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '11px 14px',
+    padding: '10px 14px',
     borderBottom: '1px solid rgba(255,255,255,0.05)',
   },
   docIcon: { fontSize: '16px', flexShrink: 0 },
@@ -236,7 +260,7 @@ const s: Record<string, ES> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px',
+    gap: '3px',
     minWidth: 0,
   },
   docName: {
@@ -247,20 +271,31 @@ const s: Record<string, ES> = {
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
   },
+  docMetaRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+  },
   docMeta: {
     fontSize: '10px',
-    color: 'rgba(255,255,255,0.30)',
+    color: 'rgba(255,255,255,0.28)',
     fontFamily: SANS,
   },
-  docWarn: {
+  statusDot: {
+    width: '5px',
+    height: '5px',
+    borderRadius: '50%',
+    display: 'inline-block',
+    flexShrink: 0,
+  },
+  statusLabel: {
     fontSize: '9px',
-    color: 'rgba(251,191,36,0.70)',
     fontFamily: SANS,
   },
   removeBtn: {
     background: 'transparent',
     border: 'none',
-    color: 'rgba(255,255,255,0.25)',
+    color: 'rgba(255,255,255,0.22)',
     fontSize: '12px',
     cursor: 'pointer',
     padding: '2px 4px',
@@ -283,6 +318,15 @@ const s: Record<string, ES> = {
     fontFamily: SANS,
     margin: 0,
     fontStyle: 'italic',
+  },
+  capNotice: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.28)',
+    fontFamily: SANS,
+    textAlign: 'center' as const,
+    padding: '8px',
+    border: '1px dashed rgba(255,255,255,0.08)',
+    borderRadius: '6px',
   },
   addBtn: {
     width: '100%',

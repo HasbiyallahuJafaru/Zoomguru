@@ -31,7 +31,7 @@ export interface ScorerReport {
 
 type Step = 'loading' | 'kokoro-disclaimer' | 'setup' | 'session' | 'scoring' | 'report';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 
 const InterviewerApp = () => {
   const [step, setStep] = useState<Step>('loading');
@@ -91,8 +91,7 @@ const InterviewerApp = () => {
         setStep('report');
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, transcript]);
 
   function handleSessionEnd(entries: TranscriptEntry[]): void {
     if (entries.length === 0) {
@@ -117,7 +116,7 @@ const InterviewerApp = () => {
     return (
       <KokoroDisclaimer
         onReady={() => setStep('setup')}
-        onCancel={() => window.zoomguru.closeInterviewer()}
+        onCancel={() => void window.zoomguru.closeInterviewer()}
       />
     );
   }
@@ -129,7 +128,7 @@ const InterviewerApp = () => {
           setConfig(cfg);
           setStep('session');
         }}
-        onClose={() => window.zoomguru.closeInterviewer()}
+        onClose={() => void window.zoomguru.closeInterviewer()}
       />
     );
   }

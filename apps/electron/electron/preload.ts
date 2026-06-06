@@ -2,6 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('zoomguru', {
   onTrigger: (event: string, callback: (...args: any[]) => void): void => {
+    const ALLOWED_TRIGGERS = new Set([
+      'listen', 'screenshot', 'hide', 'clear', 'auto',
+      'doccopilot-listen', 'doccopilot-clear',
+      'interviewer-question', 'interviewer-stop',
+    ]);
+    if (!ALLOWED_TRIGGERS.has(event)) {
+      console.warn(`onTrigger: unknown event "${event}"`);
+      return;
+    }
     const channel = `trigger:${event}`;
     ipcRenderer.removeAllListeners(channel);
     ipcRenderer.on(channel, (_e, ...args) => callback(...args));

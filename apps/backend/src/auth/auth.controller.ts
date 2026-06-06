@@ -26,8 +26,11 @@ async function checkIpRateLimit(
 ): Promise<void> {
   const redis = getRedis();
   const key = `rl:${prefix}:${ip}`;
-  const count = await redis.incr(key);
-  if (count === 1) await redis.expire(key, windowSec);
+  const pipeline = redis.pipeline();
+  pipeline.incr(key);
+  pipeline.expire(key, windowSec);
+  const results = await pipeline.exec();
+  const count = (results?.[0]?.[1] as number) ?? 0;
   if (count > max) {
     const ttl = await redis.ttl(key);
     throw new HttpException(

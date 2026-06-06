@@ -119,47 +119,6 @@ interface GroqChunk {
   choices: Array<{ delta: GroqDelta; finish_reason?: string | null }>;
 }
 
-function buildInterviewerPrompt(
-  cvText: string | undefined,
-  jdText: string | undefined,
-  difficulty: 'easy' | 'medium' | 'hard' | 'dynamic',
-  questionNumber: number,
-  priorQuestions: string[],
-  lastAnswerQuality: 'good' | 'average' | 'poor' | undefined,
-): { systemPrompt: string; userMessage: string } {
-  const cv = cvText ? truncateAtWord(cvText, 1500) : undefined;
-  const jd = jdText ? truncateAtWord(jdText, 1000) : undefined;
-
-  let system = `You are a senior interviewer conducting a professional job interview. Your role is to generate exactly ONE clear, focused interview question. Do not answer it. Do not introduce yourself or add preamble. Output only the question text — nothing else.\n\n`;
-
-  if (cv) system += `CANDIDATE CV:\n<cv_content>\n${cv}\n</cv_content>\n\n`;
-  if (jd) system += `ROLE BEING INTERVIEWED FOR:\n<jd_content>\n${jd}\n</jd_content>\n\n`;
-
-  const difficultyInstructions: Record<string, string> = {
-    easy: 'Ask a foundational question — suitable for a junior candidate or as a warm-up.',
-    medium: 'Ask a standard mid-level interview question appropriate for most roles.',
-    hard: 'Ask a challenging, senior-level question that requires deep expertise or critical thinking.',
-    dynamic: lastAnswerQuality === 'poor'
-      ? 'The candidate struggled with the last answer. Ask a slightly easier or more foundational question to help them regain confidence.'
-      : lastAnswerQuality === 'good'
-      ? 'The candidate answered well. Increase the difficulty — ask a more challenging follow-up or deeper question.'
-      : 'Ask a standard mid-level question.',
-  };
-
-  system += `DIFFICULTY GUIDANCE: ${difficultyInstructions[difficulty] ?? difficultyInstructions['medium']}\n\n`;
-  system += `This is question ${questionNumber} of approximately 30. Vary the category — cover technical skills, problem-solving, behavioral, and situational questions across the session. Do not repeat any prior question.\n`;
-
-  const priorList = priorQuestions.length > 0
-    ? `PRIOR QUESTIONS (do not repeat):\n${priorQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
-    : '';
-
-  const userMessage = priorList
-    ? `${priorList}\n\nGenerate question ${questionNumber}.`
-    : `Generate question ${questionNumber}.`;
-
-  return { systemPrompt: system, userMessage };
-}
-
 type AnswerQuality = 'good' | 'average' | 'poor';
 type Difficulty = 'easy' | 'medium' | 'hard' | 'dynamic';
 
@@ -293,10 +252,10 @@ export class AiService {
     let streamingStarted = false;
 
     try {
+      // A2-1: Loop over all configured keys on 429, not just one retry
+      const keyCount = this.geminiKeys.length;
       let response = await this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal);
-
-      // On rate limit, rotate to the next key and retry once
-      if (response.status === 429) {
+      for (let attempt = 1; attempt < keyCount && response.status === 429; attempt++) {
         response = await this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal);
       }
 
@@ -644,6 +603,7 @@ export class AiService {
     const { image, reply, cvText, jdText, priorContext } = params;
     const visionPrompt = buildVisionPrompt(cvText, jdText, priorContext);
 
+    // A2-3: Only the image is passed as the user-message part; visionPrompt goes to systemPrompt only
     const geminiHandled = await this.streamToGemini({
       parts: [
         {
@@ -652,7 +612,6 @@ export class AiService {
             data: image,
           },
         },
-        { text: visionPrompt },
       ],
       systemPrompt: visionPrompt,
       reply,
@@ -988,7 +947,8 @@ If the answer is empty or very short, score it 0-20.`;
     docContent: string,
   ): Promise<string | null> {
     const redis    = getRedis();
-    const redisKey = `dc:cache:${cacheKey}`;
+    // A2-6: Use dcc: prefix to avoid collision with device cache dc: namespace
+    const redisKey = `dcc:${cacheKey}`;
 
     const existing = await redis.get(redisKey);
     if (existing) return existing;
@@ -1029,6 +989,7 @@ If the answer is empty or very short, score it 0-20.`;
     const timeout    = setTimeout(() => controller.abort(), 30_000);
 
     try {
+      // A2-2: Wire signal to fetch so the AbortController can cancel the request
       const res = await fetch(`${GEMINI_BASE}${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1040,7 +1001,12 @@ If the answer is empty or very short, score it 0-20.`;
         signal: controller.signal,
       });
 
-      if (!res.ok || !res.body) { sseEnd(reply); return; }
+      // A2-2: Emit error SSE chunk and end gracefully on failure
+      if (!res.ok || !res.body) {
+        sseWrite(reply, { chunk: '[Error: document query failed]', done: false });
+        sseEnd(reply);
+        return;
+      }
 
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();

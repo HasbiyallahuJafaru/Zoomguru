@@ -831,17 +831,17 @@ nav {
 
 .pricing-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
   border: 1.5px solid var(--ink);
   border-radius: 3px;
   overflow: hidden;
 }
 
-@media (max-width: 640px) { .pricing-cards { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .pricing-cards { grid-template-columns: 1fr; } }
 
 .pricing-card {
-  padding: 56px 52px;
+  padding: 56px 44px;
   position: relative;
 }
 
@@ -851,7 +851,7 @@ nav {
   color: var(--paper);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 800px) {
   .pricing-card + .pricing-card { border-left: none; border-top: 1.5px solid var(--ink); }
 }
 

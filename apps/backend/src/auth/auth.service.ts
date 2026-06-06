@@ -140,16 +140,22 @@ export class AuthService {
     const user = userResult.rows[0];
     if (!user) return;
 
-    await pool.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [user.id]);
-
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
-    await pool.query(
-      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
-      [user.id, tokenHash],
-    );
+    await pool.query('BEGIN');
+    try {
+      await pool.query(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [user.id]);
+      await pool.query(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
+        [user.id, tokenHash],
+      );
+      await pool.query('COMMIT');
+    } catch (e) {
+      await pool.query('ROLLBACK');
+      throw e;
+    }
 
     const baseUrl = (process.env['APP_URL'] ?? 'http://localhost:3000').replace(/\/$/, '');
     const resetUrl = `${baseUrl}/auth/reset-password-page?token=${rawToken}`;

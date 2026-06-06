@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { SessionConfig } from './InterviewerApp';
 import { KokoroTTS } from 'kokoro-js';
-import { makeDeviceHeaders } from '../../utils';
+import { makeDeviceHeaders, blobToBase64 } from '../../utils';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const VOICE = 'af_heart';
 const MAX_QUESTIONS = 30;
 
@@ -49,6 +49,9 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef(false);
   const sessionTranscriptRef = useRef<TranscriptEntry[]>([]);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const generateAbortRef = useRef<AbortController | null>(null);
+  const answerDurationRef = useRef(0);
 
   const cleanup = useCallback(() => {
     abortRef.current = true;
@@ -56,6 +59,8 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
     if (mediaRecorderRef.current?.state !== 'inactive') {
       mediaRecorderRef.current?.stop();
     }
+    generateAbortRef.current?.abort();
+    void readerRef.current?.cancel();
   }, []);
 
   // Initialise TTS and start first question.
@@ -91,10 +96,15 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
     const token = await window.zoomguru.getToken();
     const deviceHeaders = await makeDeviceHeaders();
 
+    generateAbortRef.current?.abort();
+    const abortCtrl = new AbortController();
+    generateAbortRef.current = abortCtrl;
+
     let text = '';
     try {
       const response = await fetch(`${API_URL}/ai/interviewer-question`, {
         method: 'POST',
+        signal: abortCtrl.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -115,6 +125,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
       }
 
       const reader = response.body.getReader();
+      readerRef.current = reader;
       const decoder = new TextDecoder();
 
       while (true) {
@@ -136,7 +147,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
         }
       }
     } catch (err) {
-      if (abortRef.current) return;
+      if (abortRef.current || (err instanceof Error && err.name === 'AbortError')) return;
       const msg = err instanceof Error ? err.message : 'Failed to generate question';
       setErrorMsg(msg);
       setPhase('error');
@@ -158,16 +169,25 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
       if (abortRef.current) return;
 
       const audioCtx = new AudioContext();
-      const buffer = audioCtx.createBuffer(1, audio.audio.length, audio.sampling_rate);
-      buffer.getChannelData(0).set(audio.audio as Float32Array);
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(audioCtx.destination);
+      try {
+        const buffer = audioCtx.createBuffer(1, audio.audio.length, audio.sampling_rate);
+        buffer.getChannelData(0).set(audio.audio as Float32Array);
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
 
-      await new Promise<void>((resolve) => {
-        source.onended = () => resolve();
-        source.start();
-      });
+        await new Promise<void>((resolve) => {
+          source.onended = () => {
+            void audioCtx.close();
+            resolve();
+          };
+          source.start();
+        });
+      } finally {
+        if (audioCtx.state !== 'closed') {
+          void audioCtx.close();
+        }
+      }
     } catch {
       // TTS failed — continue silently, user can still answer
     }
@@ -181,10 +201,15 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
     setPhase('listening');
     setIsListening(true);
     setAnswerDuration(0);
+    answerDurationRef.current = 0;
     audioChunksRef.current = [];
 
     timerRef.current = setInterval(() => {
-      setAnswerDuration((d) => d + 1);
+      setAnswerDuration((d) => {
+        const next = d + 1;
+        answerDurationRef.current = next;
+        return next;
+      });
     }, 1000);
 
     navigator.mediaDevices
@@ -266,7 +291,7 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
       question: q.text,
       answer: transcript,
     });
-    const quality = inferQuality(transcript, answerDuration);
+    const quality = inferQuality(transcript, answerDurationRef.current);
     setLastAnswerQuality(quality);
     await moveToNextQuestion(q, prior, quality);
   }
@@ -298,18 +323,6 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
     if (duration < 10 || words < 10) return 'poor';
     if (duration > 40 && words > 50) return 'good';
     return 'average';
-  }
-
-  async function blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1] ?? '');
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
   }
 
   async function handleEndSession(): Promise<void> {
@@ -365,6 +378,19 @@ const InterviewerSession = ({ config, onEnd }: Props) => {
 
   return (
     <div style={styles.root}>
+      <style>{`
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); opacity: 1; }
+          50% { transform: translateY(-3px); opacity: 0.6; }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       <div style={styles.topBar}>
         <span style={styles.questionCounter}>
           Question {currentQuestion?.number ?? '…'} of {MAX_QUESTIONS}

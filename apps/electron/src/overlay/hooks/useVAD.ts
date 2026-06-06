@@ -1,4 +1,4 @@
-import { useState, useRef, type MutableRefObject } from 'react';
+import { useState, useRef, useEffect, type MutableRefObject } from 'react';
 import { createDenoisedStream } from '../noise-suppressor';
 import { makeDeviceHeaders } from '../../utils';
 
@@ -39,6 +39,9 @@ export function useVAD({
 }: UseVADOptions) {
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [isAutoListening, setIsAutoListening] = useState(false);
+
+  const streamAnswerRef = useRef(streamAnswer);
+  useEffect(() => { streamAnswerRef.current = streamAnswer; }, [streamAnswer]);
 
   const isAutoModeRef = useRef(false);
   const vadStateRef = useRef<'idle' | 'recording' | 'processing'>('idle');
@@ -122,7 +125,7 @@ export function useVAD({
         return;
       }
 
-      await streamAnswer(transcript);
+      await streamAnswerRef.current(transcript);
 
       if (questionCountRef.current >= sessionCapRef.current) {
         stopAutoMode();

@@ -139,10 +139,12 @@ export class EmailService {
     }
   }
 
-  async sendPaymentConfirmation(to: string, name: string, plan: 'monthly' | 'yearly'): Promise<void> {
-    const planLabel = plan === 'yearly' ? 'Yearly' : 'Monthly';
+  async sendPaymentConfirmation(to: string, name: string, plan: 'weekly' | 'monthly' | 'yearly'): Promise<void> {
+    const planLabel = plan === 'yearly' ? 'Yearly' : plan === 'weekly' ? 'Weekly' : 'Monthly';
     const planDetail = plan === 'yearly'
       ? 'You have full access for the next 12 months. Renew before it expires to keep uninterrupted access.'
+      : plan === 'weekly'
+      ? 'You have full access for the next 7 days. Renew before it expires to keep uninterrupted access.'
       : 'You have full access for the next 30 days. Renew before it expires to keep uninterrupted access.';
     const html = wrap(
       `<div style="${BADGE_PLAN}">${planLabel} Plan</div>` +

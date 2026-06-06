@@ -43,25 +43,46 @@ function makeCacheKey(docs: ParsedDoc[]): string {
   return docs.map((d) => d.docId).sort().join(':');
 }
 
+function parseStatusColor(doc: ParsedDoc): string {
+  if (doc.warnings.length === 0) return 'rgba(74,222,128,0.75)';
+  if (doc.warnings.some((w) => w.toLowerCase().includes('chart'))) return 'rgba(251,191,36,0.75)';
+  return 'rgba(251,146,60,0.80)';
+}
+
+function parseStatusLabel(doc: ParsedDoc): string {
+  if (doc.warnings.length === 0) return 'Parsed';
+  if (doc.warnings.some((w) => w.toLowerCase().includes('chart'))) return 'Charts flagged';
+  return 'Partial parse';
+}
+
+function docMeta(doc: ParsedDoc): string {
+  if (doc.fileType === 'pdf') return `PDF · ${doc.pageCount ?? '?'} pages`;
+  return `PPTX · ${doc.slideCount ?? '?'} slides`;
+}
+
 interface Props {
   docs: ParsedDoc[];
   onBackToSetup: () => void;
+  isParsing: boolean;
+  onAddDoc: () => void;
+  onRemoveDoc: (docId: string) => void;
 }
 
 type ListenState = 'idle' | 'recording' | 'processing' | 'streaming';
 
-export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
+export default function DocCopilotOverlay({ docs, onBackToSetup, isParsing, onAddDoc, onRemoveDoc }: Props) {
   const [listenState, setListenState] = useState<ListenState>('idle');
   const [answer, setAnswer]           = useState('');
   const [error, setError]             = useState('');
+  const [trayOpen, setTrayOpen]       = useState(false);
 
-  const recorderRef      = useRef<MediaRecorder | null>(null);
-  const chunksRef        = useRef<BlobPart[]>([]);
-  const streamAbortRef   = useRef<AbortController | null>(null);
-  const handleListenRef  = useRef<() => void>(() => {});
-  const handleClearRef   = useRef<() => void>(() => {});
+  const recorderRef         = useRef<MediaRecorder | null>(null);
+  const chunksRef           = useRef<BlobPart[]>([]);
+  const streamAbortRef      = useRef<AbortController | null>(null);
+  const transcribeAbortRef  = useRef<AbortController | null>(null);
+  const handleListenRef     = useRef<() => void>(() => {});
+  const handleClearRef      = useRef<() => void>(() => {});
 
-  // Hotkey listeners from main process
   useEffect(() => {
     window.zoomguru.onTrigger('doccopilot-listen', () => { handleListenRef.current(); });
     window.zoomguru.onTrigger('doccopilot-clear',  () => { handleClearRef.current(); });
@@ -73,6 +94,7 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
 
   handleClearRef.current = () => {
     streamAbortRef.current?.abort();
+    transcribeAbortRef.current?.abort();
     recorderRef.current?.stop();
     setAnswer('');
     setError('');
@@ -156,6 +178,7 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
   }
 
   handleListenRef.current = () => {
+    if (isParsing) return;
     if (listenState === 'recording') {
       recorderRef.current?.stop();
       return;
@@ -191,8 +214,12 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
               blobToBase64(blob),
               makeDeviceHeaders(),
             ]);
+            transcribeAbortRef.current?.abort();
+            const transcribeCtrl = new AbortController();
+            transcribeAbortRef.current = transcribeCtrl;
             const res = await fetch(`${API_URL}/ai/transcribe`, {
               method: 'POST',
+              signal: transcribeCtrl.signal,
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
@@ -205,8 +232,8 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
             const transcript = data.transcript?.trim() ?? '';
             if (!transcript || transcript.split(/\s+/).length < 2) { setListenState('idle'); return; }
             await streamDocAnswer(transcript);
-          } catch {
-            setListenState('idle');
+          } catch (err) {
+            if ((err as Error).name !== 'AbortError') setListenState('idle');
           }
         })();
       };
@@ -219,7 +246,8 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
 
   const isListening  = listenState === 'recording';
   const isProcessing = listenState === 'processing' || listenState === 'streaming';
-  const canListen    = listenState === 'idle';
+  const canListen    = listenState === 'idle' && !isParsing;
+  const atCap        = docs.length >= 3;
 
   return (
     <>
@@ -227,28 +255,53 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
         .zg-doc-listen:hover:not(:disabled) { opacity: 0.85; }
         .zg-doc-back:hover { color: rgba(255,255,255,0.55) !important; }
         .zg-doc-clear:hover:not(:disabled) { color: rgba(255,255,255,0.55) !important; }
+        .zg-doc-tray-btn:hover { background: rgba(255,255,255,0.10) !important; }
+        .zg-tray-remove:hover { color: rgba(248,113,113,0.75) !important; }
+        .zg-tray-add:hover:not(:disabled) { opacity: 0.85; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
       <div style={s.root}>
-        {/* Drag handle + controls */}
+        {/* Top bar */}
         <div style={s.topBar}>
-          <div style={s.docPills}>
-            {docs.map((d) => (
-              <span key={d.docId} style={s.docPill} title={d.fileName}>
-                {d.fileType === 'pdf' ? '📑' : '📊'} {d.fileName.length > 18 ? d.fileName.slice(0, 16) + '…' : d.fileName}
+          {/* Document indicator */}
+          <div style={s.docIndicator}>
+            {isParsing ? (
+              <span style={s.loadingLabel}>
+                <span style={{ ...s.spinnerTiny }} /> Loading document…
               </span>
-            ))}
+            ) : docs.length === 0 ? (
+              <span style={s.noDocsLabel}>No documents</span>
+            ) : (
+              docs.map((d) => (
+                <span key={d.docId} style={s.docChip} title={d.fileName}>
+                  {d.fileType === 'pdf' ? '📑' : '📊'}
+                  {' '}
+                  {d.fileName.length > 16 ? d.fileName.slice(0, 14) + '…' : d.fileName}
+                </span>
+              ))
+            )}
           </div>
+
           <div style={s.topActions}>
+            {/* Tray toggle */}
+            <button
+              className="zg-doc-tray-btn"
+              style={s.trayToggleBtn}
+              onClick={() => setTrayOpen((o) => !o)}
+              title={trayOpen ? 'Close document tray' : 'Manage documents'}
+            >
+              {trayOpen ? '▾ Docs' : `▸ Docs ${docs.length}/3`}
+            </button>
+
             <button
               className="zg-doc-back"
               style={s.backBtn}
               onClick={onBackToSetup}
               title="Back to document setup"
             >
-              ← Docs
+              ← Setup
             </button>
             <button
               className="zg-doc-clear"
@@ -262,6 +315,55 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
           </div>
         </div>
 
+        {/* Document tray panel */}
+        {trayOpen && (
+          <div style={s.trayPanel}>
+            <div style={s.trayList}>
+              {docs.length === 0 ? (
+                <span style={s.trayEmpty}>No documents loaded</span>
+              ) : (
+                docs.map((doc) => (
+                  <div key={doc.docId} style={s.trayItem}>
+                    <span style={s.trayIcon}>{doc.fileType === 'pdf' ? '📑' : '📊'}</span>
+                    <div style={s.trayInfo}>
+                      <span style={s.trayName} title={doc.fileName}>
+                        {doc.fileName.length > 22 ? doc.fileName.slice(0, 20) + '…' : doc.fileName}
+                      </span>
+                      <div style={s.trayMetaRow}>
+                        <span style={s.trayMeta}>{docMeta(doc)}</span>
+                        <span style={{ ...s.statusDot, background: parseStatusColor(doc) }} title={parseStatusLabel(doc)} />
+                        <span style={{ ...s.statusTxt, color: parseStatusColor(doc) }}>{parseStatusLabel(doc)}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="zg-tray-remove"
+                      style={s.trayRemoveBtn}
+                      onClick={() => onRemoveDoc(doc.docId)}
+                      title="Remove document"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add / cap notice */}
+            {atCap ? (
+              <p style={s.trayCapNotice}>Remove a document to add another (max 3)</p>
+            ) : (
+              <button
+                className="zg-tray-add"
+                style={{ ...s.trayAddBtn, ...(isParsing ? s.trayAddDisabled : s.trayAddEnabled) }}
+                disabled={isParsing}
+                onClick={onAddDoc}
+              >
+                {isParsing ? 'Loading…' : `+ Add Document (${docs.length}/3)`}
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Answer area */}
         {(answer || error) && (
           <div style={s.answerArea}>
@@ -273,9 +375,14 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
           </div>
         )}
 
-        {/* Listen button */}
+        {/* Listen button / loading blocker */}
         <div style={s.listenRow}>
-          {isProcessing ? (
+          {isParsing ? (
+            <div style={s.processingRow}>
+              <span style={{ ...s.spinner }} />
+              <span style={s.processingLabel}>Loading document — please wait…</span>
+            </div>
+          ) : isProcessing ? (
             <div style={s.processingRow}>
               <span style={{ ...s.spinner }} />
               <span style={s.processingLabel}>
@@ -297,6 +404,8 @@ export default function DocCopilotOverlay({ docs, onBackToSetup }: Props) {
                 <>
                   <span style={s.recordDot} /> Recording… (click to stop)
                 </>
+              ) : docs.length === 0 ? (
+                <>📂 Add a document to start</>
               ) : (
                 <>
                   🎙 Ask from docs
@@ -326,19 +435,20 @@ const s: Record<string, ES> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: '8px',
+    gap: '6px',
     WebkitAppRegion: 'drag',
   },
-  docPills: {
+  docIndicator: {
     display: 'flex',
     flexWrap: 'wrap' as const,
     gap: '4px',
     flex: 1,
     minWidth: 0,
+    alignItems: 'center',
   },
-  docPill: {
+  docChip: {
     fontSize: '9px',
-    color: 'rgba(255,255,255,0.40)',
+    color: 'rgba(255,255,255,0.38)',
     background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: '4px',
@@ -347,22 +457,57 @@ const s: Record<string, ES> = {
     whiteSpace: 'nowrap' as const,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    maxWidth: '140px',
+    maxWidth: '130px',
+  },
+  loadingLabel: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.35)',
+    fontFamily: SANS,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+  },
+  spinnerTiny: {
+    display: 'inline-block',
+    width: '8px',
+    height: '8px',
+    border: '1.5px solid rgba(255,255,255,0.12)',
+    borderTopColor: 'rgba(255,255,255,0.50)',
+    borderRadius: '50%',
+    animation: 'spin 0.7s linear infinite',
+    flexShrink: 0,
+  },
+  noDocsLabel: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.22)',
+    fontFamily: SANS,
   },
   topActions: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: '3px',
     WebkitAppRegion: 'no-drag',
     flexShrink: 0,
+  },
+  trayToggleBtn: {
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '4px',
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: '9px',
+    cursor: 'pointer',
+    padding: '3px 7px',
+    fontFamily: SANS,
+    transition: 'background 120ms ease',
+    whiteSpace: 'nowrap' as const,
   },
   backBtn: {
     background: 'transparent',
     border: 'none',
-    color: 'rgba(255,255,255,0.30)',
+    color: 'rgba(255,255,255,0.28)',
     fontSize: '10px',
     cursor: 'pointer',
-    padding: '3px 6px',
+    padding: '3px 5px',
     fontFamily: SANS,
     transition: 'color 120ms ease',
     borderRadius: '4px',
@@ -378,6 +523,116 @@ const s: Record<string, ES> = {
     transition: 'color 120ms ease',
     borderRadius: '4px',
   },
+
+  // Document tray panel
+  trayPanel: {
+    background: 'rgba(10,10,16,0.92)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '8px',
+    padding: '10px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    WebkitAppRegion: 'no-drag',
+  },
+  trayList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  trayEmpty: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.25)',
+    fontFamily: SANS,
+    textAlign: 'center' as const,
+    padding: '6px 0',
+  },
+  trayItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 4px',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+  },
+  trayIcon: { fontSize: '13px', flexShrink: 0 },
+  trayInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: 0,
+  },
+  trayName: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.70)',
+    fontFamily: SANS,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  trayMetaRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  trayMeta: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.25)',
+    fontFamily: SANS,
+  },
+  statusDot: {
+    width: '5px',
+    height: '5px',
+    borderRadius: '50%',
+    display: 'inline-block',
+    flexShrink: 0,
+  },
+  statusTxt: {
+    fontSize: '9px',
+    fontFamily: SANS,
+  },
+  trayRemoveBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.20)',
+    fontSize: '11px',
+    cursor: 'pointer',
+    padding: '2px 4px',
+    flexShrink: 0,
+    transition: 'color 120ms ease',
+    fontFamily: SANS,
+  },
+  trayCapNotice: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.25)',
+    fontFamily: SANS,
+    margin: 0,
+    textAlign: 'center' as const,
+  },
+  trayAddBtn: {
+    width: '100%',
+    padding: '7px 10px',
+    borderRadius: '5px',
+    fontSize: '10px',
+    fontWeight: 500,
+    fontFamily: SANS,
+    textAlign: 'center' as const,
+    transition: 'opacity 120ms ease',
+    cursor: 'pointer',
+  },
+  trayAddEnabled: {
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    color: 'rgba(255,255,255,0.58)',
+  },
+  trayAddDisabled: {
+    background: 'rgba(255,255,255,0.02)',
+    border: '1px solid rgba(255,255,255,0.05)',
+    color: 'rgba(255,255,255,0.20)',
+    cursor: 'not-allowed',
+  },
+
+  // Answer area
   answerArea: {
     flex: 1,
     background: 'rgba(7,7,11,0.88)',

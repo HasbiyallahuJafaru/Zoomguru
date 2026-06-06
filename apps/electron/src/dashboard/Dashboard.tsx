@@ -98,7 +98,7 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
   const [checkingOut, setCheckingOut] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
   const [startingTrial, setStartingTrial] = useState(false);
   const [trialError, setTrialError] = useState<string | null>(null);
   const [trialMsLeft, setTrialMsLeft] = useState<number | null>(null);
@@ -210,11 +210,11 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
     }
   }
 
-  async function handleSubscribe(): Promise<void> {
+  async function handleSubscribe(planOverride?: 'weekly' | 'monthly' | 'yearly'): Promise<void> {
+    const plan = planOverride ?? selectedPlan;
     const token = await window.zoomguru.getToken();
     const email = getEmailFromJwt(token);
     const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string;
-    const isYearly = selectedPlan === 'yearly';
 
     if (!email) return;
 
@@ -265,7 +265,12 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
       },
     };
 
-    payConfig.amount = isYearly ? 50_000_000 : 5_000_000;
+    const PLAN_AMOUNTS: Record<PlanType, number> = {
+      weekly:  1_500_000,
+      monthly: 4_500_000,
+      yearly: 45_000_000,
+    };
+    payConfig.amount = PLAN_AMOUNTS[plan];
 
     pop.setup(payConfig).openIframe();
   }
@@ -437,8 +442,7 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
                 className="zg-primary"
                 style={s.upgradeBtn}
                 onClick={() => {
-                  setSelectedPlan('yearly');
-                  void handleSubscribe();
+                  void handleSubscribe('yearly');
                 }}
               >
                 Upgrade to Yearly
@@ -468,6 +472,13 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
           {/* Plan selector — hidden only when subscription is fully active */}
           {!isActive && (
             <div style={s.planSelector}>
+              <button
+                className="zg-plan"
+                style={selectedPlan === 'weekly' ? s.planBtnActive : s.planBtn}
+                onClick={() => setSelectedPlan('weekly')}
+              >
+                Weekly
+              </button>
               <button
                 className="zg-plan"
                 style={selectedPlan === 'monthly' ? s.planBtnActive : s.planBtn}

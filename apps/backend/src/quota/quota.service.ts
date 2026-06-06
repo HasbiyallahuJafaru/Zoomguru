@@ -81,6 +81,9 @@ export class QuotaService {
     planType: PlanType,
     periodStart: Date,
   ): Promise<QuotaResult> {
+    const ALLOWED: readonly string[] = ['copilot_requests', 'interviewer_sessions', 'scorer_reports', 'doc_copilot_requests'];
+    if (!ALLOWED.includes(feature)) throw new Error(`Invalid feature: ${feature}`);
+
     await this.ensureRow(userId, planType, periodStart);
 
     const pool = getDB();

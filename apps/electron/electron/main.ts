@@ -384,9 +384,10 @@ if (!gotLock) {
     });
 
     ipcMain.handle('open-external', (_event, url: string) => {
-      if (typeof url === 'string' && /^https?:\/\//.test(url)) {
-        void shell.openExternal(url);
-      }
+      if (typeof url !== 'string' || !/^https?:\/\//.test(url)) return;
+      const BLOCKED = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/i;
+      if (BLOCKED.test(url)) return;
+      void shell.openExternal(url);
     });
 
     ipcMain.handle('token:set', (_event, token: string) => {
@@ -437,7 +438,25 @@ if (!gotLock) {
       },
     );
 
+    const devOrigins = app.isPackaged
+      ? ''
+      : 'http://localhost:5173 http://localhost:5174';
+    const vendorOrigins = app.isPackaged
+      ? ''
+      : 'https://api.deepseek.com https://*.huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co';
+
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      const connectSrc = [
+        "'self'",
+        'https://zoomguru.onrender.com',
+        'https://api.groq.com',
+        'https://*.paystack.co',
+        'https://*.paystack.com',
+        'https://huggingface.co',
+        devOrigins,
+        vendorOrigins,
+      ].filter(Boolean).join(' ');
+
       callback({
         responseHeaders: {
           ...details.responseHeaders,
@@ -447,7 +466,7 @@ if (!gotLock) {
               "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.paystack.co",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "connect-src 'self' https://zoomguru.onrender.com http://localhost:5173 https://api.deepseek.com https://api.groq.com https://*.paystack.co https://*.paystack.com https://huggingface.co https://*.huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co",
+              `connect-src ${connectSrc}`,
               "img-src 'self' data: blob: https://*.paystack.co https://*.paystack.com",
               "media-src 'self' blob:",
               "frame-src https://checkout.paystack.com",
