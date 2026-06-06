@@ -69,15 +69,6 @@ const STEPS: DriveStep[] = [
   },
   {
     popover: {
-      title: 'AI Interviewer',
-      description:
-        'Practice with a full mock interview session. A realistic AI interviewer speaks questions aloud using Kokoro voice synthesis and scores your answers at the end.',
-      side: 'bottom',
-      align: 'center',
-    },
-  },
-  {
-    popover: {
       title: "You're Ready",
       description:
         'That covers everything. Click the × to close this tour at any time. You can relaunch it via "Take the Tour" on the dashboard.',
@@ -88,11 +79,11 @@ const STEPS: DriveStep[] = [
 ];
 
 export function buildTour(onComplete: () => void): ReturnType<typeof driver> {
-  return driver({
+  const d = driver({
     showProgress: true,
     showButtons: ['next', 'previous', 'close'],
-    nextBtnText: 'Next →',
-    prevBtnText: '← Back',
+    nextBtnText: 'Next',
+    prevBtnText: 'Back',
     doneBtnText: 'Done',
     animate: true,
     overlayColor: 'rgba(0, 0, 0, 0.55)',
@@ -101,6 +92,8 @@ export function buildTour(onComplete: () => void): ReturnType<typeof driver> {
     steps: STEPS,
     onDestroyStarted: () => {
       onComplete();
+      d.destroy();
     },
   });
+  return d;
 }

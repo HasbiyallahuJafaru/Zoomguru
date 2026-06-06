@@ -33,7 +33,6 @@ interface FeatureUsage {
 interface UsageData {
   planType: PlanType | null;
   copilot_requests: FeatureUsage;
-  interviewer_sessions: FeatureUsage;
   scorer_reports: FeatureUsage;
   doc_copilot_requests: FeatureUsage;
 }
@@ -415,24 +414,8 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
                 style={s.toolBtn}
                 onClick={onContinue}
               >
-                <span style={s.toolIcon}>🎙</span>
-                <span style={s.toolLabel}>Teleprompter</span>
-              </button>
-              <button
-                className="zg-tool"
-                style={s.toolBtn}
-                onClick={() => { void window.zoomguru.openInterviewer(); }}
-              >
-                <span style={s.toolIcon}>🤖</span>
-                <span style={s.toolLabel}>AI Interviewer</span>
-              </button>
-              <button
-                className="zg-tool"
-                style={s.toolBtn}
-                onClick={() => { void window.zoomguru.openDocCopilot(); }}
-              >
-                <span style={s.toolIcon}>📄</span>
-                <span style={s.toolLabel}>Doc Copilot</span>
+                <span style={s.toolIcon}>MIC</span>
+                <span style={s.toolLabel}>Interview Assistant</span>
               </button>
             </div>
           )}
@@ -442,7 +425,6 @@ export default function Dashboard({ onContinue, onLogout, onStartTour }: Dashboa
             <div style={s.usageSection}>
               <span style={s.usageSectionLabel}>Usage this period</span>
               <UsageMeter label="Copilot Requests" data={usage.copilot_requests} />
-              <UsageMeter label="Interviewer Sessions" data={usage.interviewer_sessions} />
               <UsageMeter label="Scorer Reports" data={usage.scorer_reports} />
               <UsageMeter label="Doc Copilot Requests" data={usage.doc_copilot_requests} />
             </div>

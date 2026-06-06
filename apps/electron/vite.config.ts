@@ -11,8 +11,6 @@ export default defineConfig(() => {
       rollupOptions: {
         input: {
           main: 'index.html',
-          interviewer: 'interviewer.html',
-          'doc-copilot': 'doc-copilot.html',
         },
       },
     },

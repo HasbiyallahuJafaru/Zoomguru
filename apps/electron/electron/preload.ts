@@ -4,8 +4,6 @@ contextBridge.exposeInMainWorld('zoomguru', {
   onTrigger: (event: string, callback: (...args: any[]) => void): void => {
     const ALLOWED_TRIGGERS = new Set([
       'listen', 'screenshot', 'hide', 'clear', 'auto',
-      'doccopilot-listen', 'doccopilot-clear',
-      'interviewer-question', 'interviewer-stop',
     ]);
     if (!ALLOWED_TRIGGERS.has(event)) {
       console.warn(`onTrigger: unknown event "${event}"`);
@@ -82,24 +80,6 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
   setNoiseSuppressor: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke('settings:setNoiseSuppressor', enabled),
-
-  kokoroCheckReady: (): Promise<boolean> =>
-    ipcRenderer.invoke('kokoro:checkReady'),
-
-  kokoroSetReady: (ready: boolean): Promise<void> =>
-    ipcRenderer.invoke('kokoro:setReady', ready),
-
-  openInterviewer: (): Promise<void> =>
-    ipcRenderer.invoke('interviewer:open'),
-
-  closeInterviewer: (): Promise<void> =>
-    ipcRenderer.invoke('interviewer:close'),
-
-  openDocCopilot: (): Promise<void> =>
-    ipcRenderer.invoke('doccopilot:open'),
-
-  docCopilotParseFiles: (): Promise<unknown[]> =>
-    ipcRenderer.invoke('doccopilot:parse-files'),
 
   printReport: (): Promise<void> =>
     ipcRenderer.invoke('report:print'),

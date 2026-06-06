@@ -20,8 +20,6 @@ import Store from 'electron-store';
 import { autoUpdater } from 'electron-updater';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
-import { registerInterviewerIpcHandlers } from './interviewer';
-import { createDocCopilotWindow, getDocCopilotWindow, registerDocCopilotIpcHandlers } from './docCopilot';
 
 interface WindowStore {
   windowX: number;
@@ -31,7 +29,6 @@ interface WindowStore {
   jdText?: string;
   accessToken?: string;
   noiseSuppressor?: boolean;
-  kokoroModelReady?: boolean;
   tourCompleted?: boolean;
 }
 
@@ -283,16 +280,6 @@ if (!gotLock) {
       () => mainWindow?.webContents.send('trigger:auto'),
       'Auto',
     );
-    tryRegister(
-      'CommandOrControl+Shift+M', 'CommandOrControl+Alt+M',
-      () => getDocCopilotWindow()?.webContents.send('trigger:doccopilot-listen'),
-      'DocCopilot-Listen',
-    );
-    tryRegister(
-      'CommandOrControl+Shift+N', 'CommandOrControl+Alt+N',
-      () => getDocCopilotWindow()?.webContents.send('trigger:doccopilot-clear'),
-      'DocCopilot-Clear',
-    );
   }
 
   function registerIpcHandlers(): void {
@@ -420,12 +407,6 @@ if (!gotLock) {
       store.set('tourCompleted', true);
     });
 
-    ipcMain.handle('kokoro:checkReady', () => store.get('kokoroModelReady', false));
-
-    ipcMain.handle('kokoro:setReady', (_event, ready: boolean) => {
-      store.set('kokoroModelReady', ready);
-    });
-
     ipcMain.handle('report:print', () => {
       const win = BrowserWindow.getFocusedWindow();
       if (win) win.webContents.print();
@@ -493,8 +474,6 @@ if (!gotLock) {
     registerHotkeys();
     registerIpcHandlers();
     initCapture(mainWindow!);
-    registerInterviewerIpcHandlers();
-    registerDocCopilotIpcHandlers();
     if (app.isPackaged) scheduleUpdateChecks();
   });
 

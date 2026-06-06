@@ -1,9 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import DocCopilotApp from './DocCopilotApp';
+import TeleprompterApp from './TeleprompterApp';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <DocCopilotApp />
+    <TeleprompterApp />
   </React.StrictMode>,
 );
