@@ -72,9 +72,9 @@ function wireSignal(controller: AbortController, signal?: AbortSignal): void {
   }
 }
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=';
-const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
-const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse&key=';
+const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse&key=';
+const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=';
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -1114,7 +1114,7 @@ If the answer is empty or very short, score it 0-20.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'models/gemini-2.0-flash-001',
+          model: 'models/gemini-3.1-flash-lite',
           systemInstruction: { parts: [{ text: AiService.DOC_COPILOT_SYSTEM }] },
           contents: [
             { role: 'user',  parts: [{ text: docContent }] },
