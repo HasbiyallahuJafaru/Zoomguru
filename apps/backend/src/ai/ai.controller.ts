@@ -5,14 +5,13 @@ import { AiService, ScorerReport } from './ai.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { DeviceService } from '../device/device.service';
 import { QuotaService } from '../quota/quota.service';
-import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 
 function logSession(userId: string, type: 'stream' | 'screenshot' | 'transcribe' | 'meeting' | 'interviewer' | 'doc_copilot' | 'tts'): void {
-  getDB()
-    .query('INSERT INTO ai_sessions (user_id, type) VALUES ($1, $2)', [userId, type])
+  getRedis()
+    .lpush('session_log_queue', JSON.stringify({ userId, type, ts: Date.now() }))
     .catch((err: unknown) => {
-      console.error('[AiController] session log failed:', (err as Error).message);
+      console.error('[AiController] session log enqueue failed:', (err as Error).message);
     });
 }
 
@@ -38,22 +37,35 @@ interface AuthenticatedRequest extends FastifyRequest {
   user: { userId: string; email: string };
 }
 
-async function checkSessionCap(
+function sessionCapKey(userId: string, periodStart: Date | null): string {
+  if (periodStart) {
+    const daysElapsed = Math.floor((Date.now() - periodStart.getTime()) / 86_400_000);
+    return `cap:${userId}:${daysElapsed}`;
+  }
+  return `cap:${userId}:${new Date().toISOString().slice(0, 10)}`;
+}
+
+// Read current count without incrementing — used in the gate check.
+async function peekSessionCap(
   userId: string,
   plan: string | null,
+  periodStart: Date | null,
 ): Promise<{ capped: boolean }> {
   if (plan !== 'monthly') return { capped: false };
   const redis = getRedis();
-  // Key resets at midnight UTC by using the current UTC date.
-  const date = new Date().toISOString().slice(0, 10);
-  const key = `cap:${userId}:${date}`;
-  const [[, count]] = (await redis
-    .pipeline()
-    .incr(key)
-    // TTL of 25h so the key is definitely gone before the next day's key matters.
-    .expire(key, 90_000)
-    .exec()) as [[null, number], [null, number]];
-  return { capped: count > SESSION_CAP_DAILY };
+  const raw = await redis.get(sessionCapKey(userId, periodStart));
+  const count = raw ? Number(raw) : 0;
+  return { capped: count >= SESSION_CAP_DAILY };
+}
+
+// Increment the counter — called only after the stream is committed.
+// Fails open so a Redis outage never blocks the user.
+function consumeSessionCap(userId: string, plan: string | null, periodStart: Date | null): void {
+  if (plan !== 'monthly') return;
+  const redis = getRedis();
+  const key = sessionCapKey(userId, periodStart);
+  // TTL of 25h so the key is gone well before the next window's key matters.
+  redis.pipeline().incr(key).expire(key, 90_000).exec().catch(() => undefined);
 }
 
 async function checkRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
@@ -116,7 +128,7 @@ export class AiController {
     // Run session cap + quota checks in parallel (saves another serial stage)
     const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
     const [sessionCapResult, quota] = await Promise.all([
-      checkSessionCap(req.user.userId, plan).catch(() => ({ capped: false })),
+      peekSessionCap(req.user.userId, plan, periodStart).catch(() => ({ capped: false })),
       validPlan && periodStart
         ? this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart)
         : Promise.resolve(null),
@@ -133,12 +145,16 @@ export class AiController {
     }
 
     logSession(req.user.userId, 'stream');
+    const ac = new AbortController();
+    reply.raw.on('close', () => ac.abort());
+    consumeSessionCap(req.user.userId, plan, periodStart);
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamAnswer({
       transcript: sanitize(body.transcript),
       reply: reply.raw,
       cvText: body.cvText ? sanitize(body.cvText) : undefined,
       jdText: body.jdText ? sanitize(body.jdText) : undefined,
+      signal: ac.signal,
     });
   }
 
@@ -174,7 +190,7 @@ export class AiController {
 
     const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
     const [sessionCapResult, quota] = await Promise.all([
-      checkSessionCap(req.user.userId, plan).catch(() => ({ capped: false })),
+      peekSessionCap(req.user.userId, plan, periodStart).catch(() => ({ capped: false })),
       validPlan && periodStart
         ? this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart)
         : Promise.resolve(null),
@@ -194,6 +210,9 @@ export class AiController {
     const cleanPriorContext = Array.isArray(body.priorContext)
       ? body.priorContext.slice(0, 5).map((s) => (typeof s === 'string' ? sanitize(s.slice(0, 300)) : '')).filter(Boolean)
       : undefined;
+    const ac = new AbortController();
+    reply.raw.on('close', () => ac.abort());
+    consumeSessionCap(req.user.userId, plan, periodStart);
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamScreenshot({
       image: body.image,
@@ -201,6 +220,7 @@ export class AiController {
       cvText: body.cvText ? sanitize(body.cvText) : undefined,
       jdText: body.jdText ? sanitize(body.jdText) : undefined,
       priorContext: cleanPriorContext,
+      signal: ac.signal,
     });
   }
 
@@ -281,6 +301,8 @@ export class AiController {
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'interviewer');
+    const ac = new AbortController();
+    reply.raw.on('close', () => ac.abort());
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.generateInterviewerQuestion({
       cvText: body.cvText ? sanitize(body.cvText) : undefined,
@@ -290,6 +312,7 @@ export class AiController {
       priorQuestions,
       lastAnswerQuality: body.lastAnswerQuality,
       reply: reply.raw,
+      signal: ac.signal,
     });
   }
 
@@ -370,7 +393,9 @@ export class AiController {
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'tts');
-    await this.aiService.streamTts(sanitize(body.text), reply.raw);
+    const ac = new AbortController();
+    reply.raw.on('close', () => ac.abort());
+    await this.aiService.streamTts(sanitize(body.text), reply.raw, ac.signal);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -403,11 +428,14 @@ export class AiController {
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'meeting');
+    const ac = new AbortController();
+    reply.raw.on('close', () => ac.abort());
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamMeetingAnswer({
       transcript: sanitize(body.transcript),
       docText: sanitize(body.docText),
       reply: reply.raw,
+      signal: ac.signal,
     });
   }
 
@@ -463,12 +491,15 @@ export class AiController {
     }));
 
     logSession(req.user.userId, 'doc_copilot');
+    const ac = new AbortController();
+    reply.raw.on('close', () => ac.abort());
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamDocCopilot({
       transcript: sanitize(body.transcript),
       documents:  cleanDocs,
       cacheKey:   body.cacheKey ? sanitize(body.cacheKey.slice(0, 128)) : undefined,
       reply:      reply.raw,
+      signal:     ac.signal,
     });
   }
 

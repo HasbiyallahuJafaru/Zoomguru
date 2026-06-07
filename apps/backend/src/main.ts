@@ -18,8 +18,9 @@ async function bootstrap(): Promise<void> {
     process.exit(1);
   }
 
-  if (!process.env['DATABASE_POOL_URL']) {
-    console.warn('⚠️  DATABASE_POOL_URL not set — falling back to DATABASE_URL (not recommended for multi-instance deploys)');
+  if (!process.env['DATABASE_POOL_URL'] && process.env['NODE_ENV'] === 'production') {
+    console.error('❌ DATABASE_POOL_URL is required in production');
+    process.exit(1);
   }
 
   const app = await NestFactory.create<NestFastifyApplication>(

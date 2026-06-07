@@ -86,16 +86,6 @@ const DEVICE_CACHE_TTL_SEC = 10;
 const SUB_CACHE_TTL_SEC = 30;
 const TRIAL_DURATION_MS = 30 * 60_000;
 
-async function getDeviceCache(cacheKey: string): Promise<boolean | null> {
-  try {
-    const val = await getRedis().get(`dc:${cacheKey}`);
-    if (val === null) return null;
-    return val === '1';
-  } catch {
-    return null;
-  }
-}
-
 async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void> {
   try {
     await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
@@ -113,13 +103,25 @@ interface SubCacheEntry {
   trialStartedAt: string | null;
 }
 
-async function getSubCache(userId: string): Promise<SubCacheEntry | null> {
+// Fetches sub cache and (optionally) device cache in one pipeline round trip.
+async function fetchAccessCaches(
+  userId: string,
+  keyId: string | null,
+): Promise<{ cached: SubCacheEntry | null; dcCached: boolean | null }> {
   try {
-    const val = await getRedis().get(`sc:${userId}`);
-    if (!val) return null;
-    return JSON.parse(val) as SubCacheEntry;
+    const redis = getRedis();
+    const pl = redis.pipeline().get(`sc:${userId}`);
+    if (keyId) pl.get(`dc:${userId}:${keyId}`);
+    const results = (await pl.exec()) as Array<[Error | null, string | null]>;
+
+    const scVal = results[0]?.[1] ?? null;
+    const dcVal = keyId ? (results[1]?.[1] ?? null) : null;
+
+    const cached: SubCacheEntry | null = scVal ? (JSON.parse(scVal) as SubCacheEntry) : null;
+    const dcCached: boolean | null = dcVal !== null ? dcVal === '1' : null;
+    return { cached, dcCached };
   } catch {
-    return null;
+    return { cached: null, dcCached: null };
   }
 }
 
@@ -265,42 +267,51 @@ export class SubscriptionService {
   async getUsage(userId: string): Promise<UsageResponse> {
     const pool = getDB();
 
-    const [planInfo, usageResult, subResult] = await Promise.all([
-      this.quotaService.getPlanType(userId),
-      pool.query<{
-        plan_type: string;
-        copilot_requests: number;
-        interviewer_sessions: number;
-        scorer_reports: number;
-        doc_copilot_requests: number;
-        period_start: string;
-      }>(
-        `SELECT plan_type, copilot_requests, interviewer_sessions,
-                scorer_reports, doc_copilot_requests, period_start
-         FROM usage WHERE user_id = $1 LIMIT 1`,
-        [userId],
-      ),
-      pool.query<{ current_period_start: string | null; created_at: string }>(
-        `SELECT current_period_start, created_at FROM subscriptions WHERE user_id = $1 LIMIT 1`,
-        [userId],
-      ),
-    ]);
+    const { rows } = await pool.query<{
+      plan: string | null;
+      sub_period_start: string | null;
+      sub_created_at: string | null;
+      plan_type: string | null;
+      copilot_requests: number | null;
+      interviewer_sessions: number | null;
+      scorer_reports: number | null;
+      doc_copilot_requests: number | null;
+      usage_period_start: string | null;
+    }>(
+      `SELECT
+         s.plan,
+         s.current_period_start  AS sub_period_start,
+         s.created_at            AS sub_created_at,
+         u.plan_type,
+         u.copilot_requests,
+         u.interviewer_sessions,
+         u.scorer_reports,
+         u.doc_copilot_requests,
+         u.period_start          AS usage_period_start
+       FROM subscriptions s
+       LEFT JOIN usage u ON u.user_id = s.user_id
+       WHERE s.user_id = $1 AND s.status = 'active'
+       LIMIT 1`,
+      [userId],
+    );
 
-    const planType = (planInfo?.planType ?? null) as PlanType | null;
+    const row = rows[0];
+    const rawPlan = row?.plan ?? null;
+    const planType = (rawPlan && ['weekly', 'monthly', 'yearly'].includes(rawPlan)
+      ? rawPlan
+      : null) as PlanType | null;
     const resolvedPlan: PlanType = planType ?? 'monthly';
     const limits = getPlanLimits(resolvedPlan);
     const windowDays = windowDaysForPlan(resolvedPlan);
 
-    const row = usageResult.rows[0];
-    const subRow = subResult.rows[0];
-    const subPeriodStart = subRow?.current_period_start
-      ? new Date(subRow.current_period_start)
-      : subRow?.created_at
-        ? new Date(subRow.created_at)
+    const subPeriodStart = row?.sub_period_start
+      ? new Date(row.sub_period_start)
+      : row?.sub_created_at
+        ? new Date(row.sub_created_at)
         : new Date();
-    const periodStart = row?.period_start
-      ? new Date(row.period_start)
-      : (planInfo?.periodStart ?? subPeriodStart);
+    const periodStart = row?.usage_period_start
+      ? new Date(row.usage_period_start)
+      : subPeriodStart;
     const resetAt = new Date(periodStart.getTime() + windowDays * 86_400_000).toISOString();
 
     const features: QuotaFeature[] = [
@@ -361,9 +372,10 @@ export class SubscriptionService {
     keyId: string | undefined,
   ): Promise<{ canUse: boolean; deviceAllowed: boolean; plan: string | null; periodStart: Date | null }> {
     const pool = getDB();
+    const validKeyId = keyId && KEY_ID_RE.test(keyId) ? keyId : null;
 
-    // Try subscription status cache first
-    let cached = await getSubCache(userId);
+    // Fetch sub cache + device cache in a single pipeline round trip
+    let { cached, dcCached: prefetchedDc } = await fetchAccessCaches(userId, validKeyId);
 
     if (!cached) {
       // Single JOIN — replaces 2 parallel queries
@@ -411,21 +423,21 @@ export class SubscriptionService {
 
     // Determine deviceAllowed
     let deviceAllowed = true;
-    if (status === 'active' && (lockedKeyId || lockedKeyId2) && (!keyId || !KEY_ID_RE.test(keyId))) {
+    if (status === 'active' && (lockedKeyId || lockedKeyId2) && !validKeyId) {
       deviceAllowed = false;
-    } else if (keyId && KEY_ID_RE.test(keyId) && status === 'active') {
-      const cacheKey = `${userId}:${keyId}`;
-      const dcCached = await getDeviceCache(cacheKey);
+    } else if (validKeyId && status === 'active') {
+      const cacheKey = `${userId}:${validKeyId}`;
+      const dcCached = prefetchedDc;
       if (dcCached !== null) {
         deviceAllowed = dcCached;
-      } else if (lockedKeyId === keyId || lockedKeyId2 === keyId) {
+      } else if (lockedKeyId === validKeyId || lockedKeyId2 === validKeyId) {
         deviceAllowed = true;
         await setDeviceCache(cacheKey, true);
       } else if (!lockedKeyId) {
         const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id IS NULL`,
-          [keyId, userId],
+          [validKeyId, userId],
         );
         if ((lockResult.rowCount ?? 0) === 0) {
           const recheck = await pool.query<{ locked_key_id: string | null }>(
@@ -433,23 +445,23 @@ export class SubscriptionService {
             [userId],
           );
           const winner = recheck.rows[0]?.locked_key_id ?? null;
-          deviceAllowed = winner === keyId;
+          deviceAllowed = winner === validKeyId;
           await setDeviceCache(cacheKey, deviceAllowed);
         } else {
-          await Promise.all([this.invalidateDeviceCache(userId, keyId), delSubCache(userId)]);
+          await Promise.all([this.invalidateDeviceCache(userId, validKeyId), delSubCache(userId)]);
           deviceAllowed = true;
         }
       } else if (!lockedKeyId2) {
         const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
-          [keyId, userId],
+          [validKeyId, userId],
         );
         if ((lockResult.rowCount ?? 0) === 0) {
           deviceAllowed = false;
           await setDeviceCache(cacheKey, false);
         } else {
-          await Promise.all([this.invalidateDeviceCache(userId, keyId), delSubCache(userId)]);
+          await Promise.all([this.invalidateDeviceCache(userId, validKeyId), delSubCache(userId)]);
           deviceAllowed = true;
         }
       } else {
@@ -469,12 +481,7 @@ export class SubscriptionService {
         await redis.del(`dc:${userId}:${keyId}`);
         return;
       }
-      let cursor = '0';
-      do {
-        const [next, keys] = await redis.scan(cursor, 'MATCH', `dc:${userId}:*`, 'COUNT', 100);
-        cursor = next;
-        if (keys.length > 0) await redis.del(...keys);
-      } while (cursor !== '0');
+      // No keyId on payment verify — let the 10 s TTL expire naturally.
     } catch (err) {
       console.warn('invalidateDeviceCache failed (Redis down?):', err);
     }
