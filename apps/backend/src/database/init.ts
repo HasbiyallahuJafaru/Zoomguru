@@ -25,7 +25,7 @@ export async function initDB(): Promise<void> {
         `SELECT version FROM schema_version ORDER BY version DESC LIMIT 1`,
       );
       const currentVersion = versionRow.rows[0]?.version ?? 0;
-      const TARGET_VERSION = 2;
+      const TARGET_VERSION = 3;
 
       if (currentVersion >= TARGET_VERSION) {
         console.log(`DB schema at version ${currentVersion} — skipping migrations`);
@@ -317,6 +317,45 @@ export async function initDB(): Promise<void> {
 
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_device_keys_user_id ON device_keys(user_id)
+      `);
+
+      await pool.query(
+        `INSERT INTO schema_version (version) VALUES (2) ON CONFLICT DO NOTHING`,
+        [],
+      );
+
+      // ── v3: guarantee device_keys + usage exist on DBs that reached v2 before
+      //        these tables were added to the v2 migration block ──
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS device_keys (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          key_id      TEXT UNIQUE NOT NULL,
+          public_key  TEXT NOT NULL,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_device_keys_user_id ON device_keys(user_id)
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS usage (
+          id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id              UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          plan_type            TEXT NOT NULL DEFAULT 'monthly',
+          copilot_requests     INTEGER NOT NULL DEFAULT 0,
+          interviewer_sessions INTEGER NOT NULL DEFAULT 0,
+          scorer_reports       INTEGER NOT NULL DEFAULT 0,
+          doc_copilot_requests INTEGER NOT NULL DEFAULT 0,
+          period_start         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage(user_id)
       `);
 
       await pool.query(

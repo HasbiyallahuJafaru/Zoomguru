@@ -533,16 +533,6 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
 
           {/* Actions row */}
           <div style={s.actions}>
-            {showContinue && !sub?.trialActive && (
-              <button
-                id="tour-continue-btn"
-                className="zg-primary"
-                style={s.continueBtn}
-                onClick={onContinue}
-              >
-                Continue →
-              </button>
-            )}
             {sub?.trialActive && trialMsLeft !== null && (
               <div style={s.trialCountdownRow}>
                 <span style={s.trialCountdownLabel}>Free trial ends in</span>

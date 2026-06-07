@@ -83,6 +83,7 @@ interface PaystackVerifyResponse {
 
 const KEY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEVICE_CACHE_TTL_SEC = 10;
+const SUB_CACHE_TTL_SEC = 30;
 const TRIAL_DURATION_MS = 30 * 60_000;
 
 async function getDeviceCache(cacheKey: string): Promise<boolean | null> {
@@ -100,6 +101,41 @@ async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void>
     await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
   } catch {
     // Redis unavailable — skip cache write, device check falls back to DB every request
+  }
+}
+
+interface SubCacheEntry {
+  status: string | null;
+  plan: string | null;
+  lockedKeyId: string | null;
+  lockedKeyId2: string | null;
+  periodStart: string | null;
+  trialStartedAt: string | null;
+}
+
+async function getSubCache(userId: string): Promise<SubCacheEntry | null> {
+  try {
+    const val = await getRedis().get(`sc:${userId}`);
+    if (!val) return null;
+    return JSON.parse(val) as SubCacheEntry;
+  } catch {
+    return null;
+  }
+}
+
+async function setSubCache(userId: string, entry: SubCacheEntry): Promise<void> {
+  try {
+    await getRedis().set(`sc:${userId}`, JSON.stringify(entry), 'EX', SUB_CACHE_TTL_SEC);
+  } catch {
+    // Redis unavailable — cache write skipped
+  }
+}
+
+async function delSubCache(userId: string): Promise<void> {
+  try {
+    await getRedis().del(`sc:${userId}`);
+  } catch {
+    // ignore
   }
 }
 
@@ -315,64 +351,83 @@ export class SubscriptionService {
     return false;
   }
 
-  // Combines canUseAI + checkDevice into a single DB round trip.
-  // Returns { canUse, deviceAllowed } so the controller can gate on both
-  // with only one pool checkout instead of three.
+  // Combines canUseAI + checkDevice into a single DB round trip (JOIN query).
+  // Returns { canUse, deviceAllowed, plan, periodStart } so the controller can
+  // gate on all checks and skip a separate getPlanType() call.
+  // Subscription status is cached in Redis for 30s to eliminate DB queries on
+  // warm requests; device locking uses a separate 10s dc: cache.
   async checkAccess(
     userId: string,
     keyId: string | undefined,
-  ): Promise<{ canUse: boolean; deviceAllowed: boolean; plan: string | null }> {
+  ): Promise<{ canUse: boolean; deviceAllowed: boolean; plan: string | null; periodStart: Date | null }> {
     const pool = getDB();
 
-    const [subResult, userResult] = await Promise.all([
-      pool.query<{
-        status: string;
+    // Try subscription status cache first
+    let cached = await getSubCache(userId);
+
+    if (!cached) {
+      // Single JOIN — replaces 2 parallel queries
+      const result = await pool.query<{
+        status: string | null;
         plan: string | null;
         locked_key_id: string | null;
         locked_key_id_2: string | null;
+        current_period_start: string | null;
+        sub_created_at: string | null;
+        trial_started_at: string | null;
       }>(
-        `SELECT status, plan, locked_key_id, locked_key_id_2
-         FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+        `SELECT s.status, s.plan, s.locked_key_id, s.locked_key_id_2,
+                s.current_period_start, s.created_at AS sub_created_at,
+                u.trial_started_at
+         FROM users u
+         LEFT JOIN subscriptions s ON s.user_id = u.id
+         WHERE u.id = $1
+         LIMIT 1`,
         [userId],
-      ),
-      pool.query<{ trial_started_at: string | null }>(
-        `SELECT trial_started_at FROM users WHERE id = $1 LIMIT 1`,
-        [userId],
-      ),
-    ]);
+      );
 
-    const sub = subResult.rows[0] ?? null;
-    const trialStartedAt = userResult.rows[0]?.trial_started_at ?? null;
+      const row = result.rows[0];
+      const periodStartRaw = row?.current_period_start ?? row?.sub_created_at ?? null;
+      cached = {
+        status: row?.status ?? null,
+        plan: row?.plan ?? null,
+        lockedKeyId: row?.locked_key_id ?? null,
+        lockedKeyId2: row?.locked_key_id_2 ?? null,
+        periodStart: periodStartRaw,
+        trialStartedAt: row?.trial_started_at ?? null,
+      };
+      void setSubCache(userId, cached);
+    }
+
+    const { status, plan, lockedKeyId, lockedKeyId2, trialStartedAt, periodStart: periodStartStr } = cached;
 
     // Determine canUse
     let canUse = false;
-    if (sub?.status === 'active') {
+    if (status === 'active') {
       canUse = true;
     } else if (trialStartedAt !== null) {
       canUse = Date.now() < new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS;
     }
 
-    // Determine deviceAllowed (reuses subscription row already fetched)
-    // If subscription is active and a device is already locked, a missing/invalid keyId must be denied.
+    // Determine deviceAllowed
     let deviceAllowed = true;
-    if (sub?.status === 'active' && (sub.locked_key_id || sub.locked_key_id_2) && (!keyId || !KEY_ID_RE.test(keyId))) {
+    if (status === 'active' && (lockedKeyId || lockedKeyId2) && (!keyId || !KEY_ID_RE.test(keyId))) {
       deviceAllowed = false;
-    } else if (keyId && KEY_ID_RE.test(keyId) && sub?.status === 'active') {
+    } else if (keyId && KEY_ID_RE.test(keyId) && status === 'active') {
       const cacheKey = `${userId}:${keyId}`;
-      const cached = await getDeviceCache(cacheKey);
-      if (cached !== null) {
-        deviceAllowed = cached;
-      } else if (sub.locked_key_id === keyId || sub.locked_key_id_2 === keyId) {
+      const dcCached = await getDeviceCache(cacheKey);
+      if (dcCached !== null) {
+        deviceAllowed = dcCached;
+      } else if (lockedKeyId === keyId || lockedKeyId2 === keyId) {
         deviceAllowed = true;
         await setDeviceCache(cacheKey, true);
-      } else if (!sub.locked_key_id) {
+      } else if (!lockedKeyId) {
         const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id IS NULL`,
           [keyId, userId],
         );
         if ((lockResult.rowCount ?? 0) === 0) {
-          // Another concurrent request won the race — re-read to see which key got locked
           const recheck = await pool.query<{ locked_key_id: string | null }>(
             `SELECT locked_key_id FROM subscriptions WHERE user_id = $1 LIMIT 1`,
             [userId],
@@ -381,10 +436,10 @@ export class SubscriptionService {
           deviceAllowed = winner === keyId;
           await setDeviceCache(cacheKey, deviceAllowed);
         } else {
-          await this.invalidateDeviceCache(userId, keyId);
+          await Promise.all([this.invalidateDeviceCache(userId, keyId), delSubCache(userId)]);
           deviceAllowed = true;
         }
-      } else if (!sub.locked_key_id_2) {
+      } else if (!lockedKeyId2) {
         const lockResult = await pool.query(
           `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
            WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
@@ -394,7 +449,7 @@ export class SubscriptionService {
           deviceAllowed = false;
           await setDeviceCache(cacheKey, false);
         } else {
-          await this.invalidateDeviceCache(userId, keyId);
+          await Promise.all([this.invalidateDeviceCache(userId, keyId), delSubCache(userId)]);
           deviceAllowed = true;
         }
       } else {
@@ -403,7 +458,8 @@ export class SubscriptionService {
       }
     }
 
-    return { canUse, deviceAllowed, plan: sub?.plan ?? null };
+    const periodStart = periodStartStr ? new Date(periodStartStr) : null;
+    return { canUse, deviceAllowed, plan, periodStart };
   }
 
   async invalidateDeviceCache(userId: string, keyId?: string): Promise<void> {
@@ -480,7 +536,7 @@ export class SubscriptionService {
       [userId, txData.customer.customer_code, reference, plan, periodEnd, lockedKeyId],
     );
 
-    await this.invalidateDeviceCache(userId);
+    await Promise.all([this.invalidateDeviceCache(userId), delSubCache(userId)]);
     await this.quotaService.resetUserUsage(userId, plan as PlanType, new Date());
 
     const userResult = await pool.query<{ email: string; name: string | null; referred_by_user_id: string | null }>(
@@ -564,7 +620,7 @@ export class SubscriptionService {
            updated_at              = NOW()`,
         [uid, data.customer.customer_code, ref, plan, periodEnd],
       );
-      await this.invalidateDeviceCache(uid);
+      await Promise.all([this.invalidateDeviceCache(uid), delSubCache(uid)]);
     } else if (event.event === 'subscription.create') {
       const data = event.data as SubscriptionCreateData;
       const plan = 'monthly';
@@ -618,6 +674,7 @@ export class SubscriptionService {
       );
       const renewed = renewResult.rows[0];
       if (renewed?.plan && ['weekly', 'monthly', 'yearly'].includes(renewed.plan)) {
+        void delSubCache(renewed.user_id);
         await this.quotaService.resetUserUsage(
           renewed.user_id, renewed.plan as PlanType, paidAt,
         );
@@ -631,6 +688,7 @@ export class SubscriptionService {
         [data.subscription.customer.customer_code],
       );
       if (upd.rows[0]) {
+        void delSubCache(upd.rows[0].user_id);
         const ur = await pool.query<{ email: string; name: string | null }>(
           `SELECT email, name FROM users WHERE id = $1 LIMIT 1`,
           [upd.rows[0].user_id],

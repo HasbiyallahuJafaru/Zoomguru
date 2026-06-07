@@ -185,6 +185,7 @@ const App = () => {
   return (
     <Overlay
       onLogout={handleLogout}
+      onBack={() => setStep('dashboard')}
       onTrialExpired={() => setStep('dashboard')}
       onOpenReferral={() => setStep('referral')}
       onSessionActiveChange={setIsSessionActive}

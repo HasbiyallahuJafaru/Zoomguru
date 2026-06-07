@@ -96,77 +96,49 @@ export class AiController {
       throw new BadRequestException('Invalid transcript');
     }
 
-    // A2-4: checkRateLimit wrapped in try-catch — Redis crash fails open
-    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
-    try {
-      rateLimitResult = await checkRateLimit(req.user.userId);
-    } catch (err) {
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    // Run rate limit + auth checks in parallel (saves one serial Redis round trip)
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
-    if (!sigResult.valid) {
-      await reply.code(403).send({ error: sigResult.reason });
-      return;
-    }
-    if (!canUse) {
-      await reply.code(403).send({ error: 'subscription_required' });
-      return;
-    }
-    if (!deviceAllowed) {
-      await reply.code(403).send({ error: 'device_locked' });
-      return;
-    }
+
+    if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse)          { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed)   { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed) {
       await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter });
       return;
     }
 
-    // A2-4: checkSessionCap wrapped in try-catch — Redis crash fails open
-    let sessionCapResult: { capped: boolean } = { capped: false };
-    try {
-      sessionCapResult = await checkSessionCap(req.user.userId, plan);
-    } catch (err) {
-      console.warn('Redis unavailable — session cap skipped:', err);
-    }
-    if (sessionCapResult.capped) {
-      await reply.code(429).send({ error: 'session_cap' });
+    // Run session cap + quota checks in parallel (saves another serial stage)
+    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
+    const [sessionCapResult, quota] = await Promise.all([
+      checkSessionCap(req.user.userId, plan).catch(() => ({ capped: false })),
+      validPlan && periodStart
+        ? this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart)
+        : Promise.resolve(null),
+    ]);
+
+    if (sessionCapResult.capped) { await reply.code(429).send({ error: 'session_cap' }); return; }
+    if (quota && !quota.allowed) {
+      await reply.code(429).send({
+        error: 'quota_exceeded', feature: quota.feature, planType: quota.planType,
+        limit: quota.limit, used: quota.used, resetAt: quota.resetAt,
+        upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
+      });
       return;
     }
 
-    if (plan) {
-      const planInfo = await this.quotaService.getPlanType(req.user.userId);
-      if (planInfo) {
-        const quota = await this.quotaService.checkQuota(
-          req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
-        );
-        if (!quota.allowed) {
-          await reply.code(429).send({
-            error: 'quota_exceeded',
-            feature: quota.feature,
-            planType: quota.planType,
-            limit: quota.limit,
-            used: quota.used,
-            resetAt: quota.resetAt,
-            upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
-          });
-          return;
-        }
-      }
-    }
     logSession(req.user.userId, 'stream');
-    const cleanTranscript = sanitize(body.transcript);
-    const cleanCv         = body.cvText ? sanitize(body.cvText) : undefined;
-    const cleanJd         = body.jdText ? sanitize(body.jdText) : undefined;
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamAnswer({
-      transcript: cleanTranscript,
+      transcript: sanitize(body.transcript),
       reply: reply.raw,
-      cvText: cleanCv,
-      jdText: cleanJd,
+      cvText: body.cvText ? sanitize(body.cvText) : undefined,
+      jdText: body.jdText ? sanitize(body.jdText) : undefined,
     });
   }
 
@@ -187,83 +159,47 @@ export class AiController {
       throw new BadRequestException('Invalid image encoding');
     }
 
-    // A2-4: checkRateLimit wrapped in try-catch — Redis crash fails open
-    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
-    try {
-      rateLimitResult = await checkRateLimit(req.user.userId);
-    } catch (err) {
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
-    if (!sigResult.valid) {
-      await reply.code(403).send({ error: sigResult.reason });
-      return;
-    }
-    if (!canUse) {
-      await reply.code(403).send({ error: 'subscription_required' });
-      return;
-    }
-    if (!deviceAllowed) {
-      await reply.code(403).send({ error: 'device_locked' });
-      return;
-    }
-    if (!rateLimitResult.allowed) {
-      await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter });
+
+    if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
+
+    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
+    const [sessionCapResult, quota] = await Promise.all([
+      checkSessionCap(req.user.userId, plan).catch(() => ({ capped: false })),
+      validPlan && periodStart
+        ? this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart)
+        : Promise.resolve(null),
+    ]);
+
+    if (sessionCapResult.capped) { await reply.code(429).send({ error: 'session_cap' }); return; }
+    if (quota && !quota.allowed) {
+      await reply.code(429).send({
+        error: 'quota_exceeded', feature: quota.feature, planType: quota.planType,
+        limit: quota.limit, used: quota.used, resetAt: quota.resetAt,
+        upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
+      });
       return;
     }
 
-    // A2-4: checkSessionCap wrapped in try-catch — Redis crash fails open
-    let sessionCapResult: { capped: boolean } = { capped: false };
-    try {
-      sessionCapResult = await checkSessionCap(req.user.userId, plan);
-    } catch (err) {
-      console.warn('Redis unavailable — session cap skipped:', err);
-    }
-    if (sessionCapResult.capped) {
-      await reply.code(429).send({ error: 'session_cap' });
-      return;
-    }
-
-    if (plan) {
-      const planInfo = await this.quotaService.getPlanType(req.user.userId);
-      if (planInfo) {
-        const quota = await this.quotaService.checkQuota(
-          req.user.userId, 'copilot_requests', planInfo.planType, planInfo.periodStart,
-        );
-        if (!quota.allowed) {
-          await reply.code(429).send({
-            error: 'quota_exceeded',
-            feature: quota.feature,
-            planType: quota.planType,
-            limit: quota.limit,
-            used: quota.used,
-            resetAt: quota.resetAt,
-            upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
-          });
-          return;
-        }
-      }
-    }
     logSession(req.user.userId, 'screenshot');
-    const cleanImage = body.image;
-    const cleanCv    = body.cvText ? sanitize(body.cvText) : undefined;
-    const cleanJd    = body.jdText ? sanitize(body.jdText) : undefined;
     const cleanPriorContext = Array.isArray(body.priorContext)
-      ? body.priorContext
-          .slice(0, 5)
-          .map((s) => (typeof s === 'string' ? sanitize(s.slice(0, 300)) : ''))
-          .filter(Boolean)
+      ? body.priorContext.slice(0, 5).map((s) => (typeof s === 'string' ? sanitize(s.slice(0, 300)) : '')).filter(Boolean)
       : undefined;
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamScreenshot({
-      image: cleanImage,
+      image: body.image,
       reply: reply.raw,
-      cvText: cleanCv,
-      jdText: cleanJd,
+      cvText: body.cvText ? sanitize(body.cvText) : undefined,
+      jdText: body.jdText ? sanitize(body.jdText) : undefined,
       priorContext: cleanPriorContext,
     });
   }
@@ -277,7 +213,7 @@ export class AiController {
     @Headers('x-timestamp') timestamp: string | undefined,
     @Headers('x-signature') signature: string | undefined,
   ): Promise<{ quotaUsed: number; quotaLimit: number; resetAt: string }> {
-    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
+    const [sigResult, { canUse, deviceAllowed, plan, periodStart }] = await Promise.all([
       this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
       this.subscriptionService.checkAccess(req.user.userId, keyId),
     ]);
@@ -285,26 +221,18 @@ export class AiController {
     if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
     if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
 
-    if (!plan) {
-      return { quotaUsed: 0, quotaLimit: 0, resetAt: '' };
-    }
-
-    const planInfo = await this.quotaService.getPlanType(req.user.userId);
-    if (!planInfo) {
+    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
+    if (!validPlan || !periodStart) {
       return { quotaUsed: 0, quotaLimit: 0, resetAt: '' };
     }
 
     const quota = await this.quotaService.checkQuota(
-      req.user.userId, 'interviewer_sessions', planInfo.planType, planInfo.periodStart,
+      req.user.userId, 'interviewer_sessions', validPlan, periodStart,
     );
     if (!quota.allowed) {
       throw new HttpException({
-        error: 'quota_exceeded',
-        feature: quota.feature,
-        planType: quota.planType,
-        limit: quota.limit,
-        used: quota.used,
-        resetAt: quota.resetAt,
+        error: 'quota_exceeded', feature: quota.feature, planType: quota.planType,
+        limit: quota.limit, used: quota.used, resetAt: quota.resetAt,
         upgradeCta: 'Upgrade your plan at https://zoomguru.xyz/#pricing',
       }, 429);
     }
@@ -340,21 +268,16 @@ export class AiController {
       ? body.priorQuestions.slice(0, 30).map((q) => sanitize(String(q).slice(0, 500)))
       : [];
 
-    // A2-4: checkRateLimit wrapped in try-catch — Redis crash fails open
-    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
-    try {
-      rateLimitResult = await checkRateLimit(req.user.userId);
-    } catch (err) {
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
-    if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
-    if (!canUse) { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'interviewer');
@@ -388,41 +311,27 @@ export class AiController {
       throw new BadRequestException('Invalid entries');
     }
 
-    // A2-5: score-session now enforces rate limit (fail-open on Redis error)
-    try {
-      const { allowed, retryAfter } = await checkRateLimit(req.user.userId);
-      if (!allowed) {
-        throw new HttpException({ error: 'rate_limit', retryAfter }, 429);
-      }
-    } catch (err) {
-      if (err instanceof HttpException) throw err;
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
+    if (!rateLimitResult.allowed) throw new HttpException({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }, 429);
     if (!sigResult.valid) throw new HttpException({ error: sigResult.reason }, HttpStatus.FORBIDDEN);
     if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
     if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
 
-    if (plan) {
-      const planInfo = await this.quotaService.getPlanType(req.user.userId);
-      if (planInfo) {
-        const quota = await this.quotaService.checkQuota(
-          req.user.userId, 'scorer_reports', planInfo.planType, planInfo.periodStart,
-        );
-        if (!quota.allowed) {
-          throw new HttpException({
-            error: 'quota_exceeded',
-            feature: quota.feature,
-            limit: quota.limit,
-            used: quota.used,
-            resetAt: quota.resetAt,
-            upgradeCta: 'Upgrade your plan to unlock more feedback reports.',
-          }, 429);
-        }
+    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
+    if (validPlan && periodStart) {
+      const quota = await this.quotaService.checkQuota(req.user.userId, 'scorer_reports', validPlan, periodStart);
+      if (!quota.allowed) {
+        throw new HttpException({
+          error: 'quota_exceeded', feature: quota.feature,
+          limit: quota.limit, used: quota.used, resetAt: quota.resetAt,
+          upgradeCta: 'Upgrade your plan to unlock more feedback reports.',
+        }, 429);
       }
     }
 
@@ -448,25 +357,20 @@ export class AiController {
       throw new BadRequestException('Invalid text');
     }
 
-    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
-    try {
-      rateLimitResult = await checkRateLimit(req.user.userId);
-    } catch (err) {
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
-    if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
-    if (!canUse) { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'tts');
-    const cleanText = sanitize(body.text);
-    await this.aiService.streamTts(cleanText, reply.raw);
+    await this.aiService.streamTts(sanitize(body.text), reply.raw);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -486,20 +390,16 @@ export class AiController {
       throw new BadRequestException('Invalid docText');
     }
 
-    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
-    try {
-      rateLimitResult = await checkRateLimit(req.user.userId);
-    } catch (err) {
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
-    if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
-    if (!canUse) { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'meeting');
@@ -532,39 +432,27 @@ export class AiController {
       throw new BadRequestException('documents must be an array of 1–3 items');
     }
 
-    // A2-4: checkRateLimit wrapped in try-catch — Redis crash fails open
-    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
-    try {
-      rateLimitResult = await checkRateLimit(req.user.userId);
-    } catch (err) {
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed, plan }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
-    if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
-    if (!canUse)   { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed) { await reply.code(403).send({ error: 'device_locked' }); return; }
-    if (!rateLimitResult.allowed)  { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
+    if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
+    if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
+    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
+    if (!rateLimitResult.allowed) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
-    if (plan) {
-      const planInfo = await this.quotaService.getPlanType(req.user.userId);
-      if (planInfo) {
-        const quota = await this.quotaService.checkQuota(
-          req.user.userId, 'doc_copilot_requests', planInfo.planType, planInfo.periodStart,
-        );
-        if (!quota.allowed) {
-          await reply.code(429).send({
-            error: 'quota_exceeded',
-            feature: quota.feature,
-            limit: quota.limit,
-            used: quota.used,
-            resetAt: quota.resetAt,
-          });
-          return;
-        }
+    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
+    if (validPlan && periodStart) {
+      const quota = await this.quotaService.checkQuota(req.user.userId, 'doc_copilot_requests', validPlan, periodStart);
+      if (!quota.allowed) {
+        await reply.code(429).send({
+          error: 'quota_exceeded', feature: quota.feature,
+          limit: quota.limit, used: quota.used, resetAt: quota.resetAt,
+        });
+        return;
       }
     }
 
@@ -598,30 +486,17 @@ export class AiController {
       throw new BadRequestException('Invalid audio');
     }
 
-    // A2-4: checkRateLimit wrapped in try-catch — Redis crash fails open
-    let rateLimitResult: { allowed: boolean; retryAfter: number } = { allowed: true, retryAfter: 0 };
-    try {
-      rateLimitResult = await checkRateLimit(req.user.userId);
-    } catch (err) {
-      console.warn('Redis unavailable — rate limit skipped:', err);
-    }
-
-    const [sigResult, { canUse, deviceAllowed }] = await Promise.all([
-      this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+    const [rateLimitResult, [sigResult, { canUse, deviceAllowed }]] = await Promise.all([
+      checkRateLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 })),
+      Promise.all([
+        this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
+        this.subscriptionService.checkAccess(req.user.userId, keyId),
+      ]),
     ]);
-    if (!sigResult.valid) {
-      throw new HttpException({ error: sigResult.reason }, HttpStatus.FORBIDDEN);
-    }
-    if (!canUse) {
-      throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
-    }
-    if (!deviceAllowed) {
-      throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
-    }
-    if (!rateLimitResult.allowed) {
-      throw new HttpException({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }, 429);
-    }
+    if (!sigResult.valid)         throw new HttpException({ error: sigResult.reason }, HttpStatus.FORBIDDEN);
+    if (!canUse)                  throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
+    if (!deviceAllowed)           throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
+    if (!rateLimitResult.allowed) throw new HttpException({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }, 429);
     logSession(req.user.userId, 'transcribe');
     const cleanAudio = sanitize(body.audio);
     const transcript = await this.aiService.transcribe({ audio: cleanAudio });

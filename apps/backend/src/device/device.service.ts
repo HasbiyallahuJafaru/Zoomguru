@@ -1,9 +1,11 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { createVerify } from 'node:crypto';
 import { getDB } from '../database/db';
+import { getRedis } from '../redis/redis';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TIMESTAMP_TOLERANCE_SEC = 30;
+const PK_CACHE_TTL_SEC = 300;
 
 export interface SignatureResult {
   valid: boolean;
@@ -49,20 +51,37 @@ export class DeviceService {
       return { valid: false, reason: 'invalid_signature' };
     }
 
-    const pool = getDB();
-    const result = await pool.query<{ public_key: string }>(
-      `SELECT public_key FROM device_keys WHERE user_id = $1 AND key_id = $2 LIMIT 1`,
-      [userId, keyId],
-    );
-    if (result.rows.length === 0) {
-      return { valid: false, reason: 'not_registered' };
+    // Try Redis cache before hitting DB
+    const cacheKey = `dpk:${userId}:${keyId}`;
+    let publicKey: string | null = null;
+    try {
+      publicKey = await getRedis().get(cacheKey);
+    } catch {
+      // Redis unavailable — fall through to DB
+    }
+
+    if (!publicKey) {
+      const pool = getDB();
+      const result = await pool.query<{ public_key: string }>(
+        `SELECT public_key FROM device_keys WHERE user_id = $1 AND key_id = $2 LIMIT 1`,
+        [userId, keyId],
+      );
+      if (result.rows.length === 0) {
+        return { valid: false, reason: 'not_registered' };
+      }
+      publicKey = result.rows[0].public_key;
+      try {
+        await getRedis().set(cacheKey, publicKey, 'EX', PK_CACHE_TTL_SEC);
+      } catch {
+        // Redis unavailable — skip cache write
+      }
     }
 
     try {
       const message = `${userId}:${keyId}:${timestamp}`;
       const verifier = createVerify('SHA256');
       verifier.update(message);
-      const ok = verifier.verify(result.rows[0].public_key, signature, 'base64');
+      const ok = verifier.verify(publicKey, signature, 'base64');
       return ok
         ? { valid: true, reason: 'valid' as const }
         : { valid: false, reason: 'invalid_signature' };

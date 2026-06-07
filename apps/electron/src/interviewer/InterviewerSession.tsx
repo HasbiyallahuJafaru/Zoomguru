@@ -148,7 +148,7 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
         headers,
         body: JSON.stringify({ cvText, jdText, difficulty, questionNumber: qNum, priorQuestions, lastAnswerQuality: lastQuality }),
       });
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok || !res.body) throw new Error(`HTTP_${res.status}`);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -266,10 +266,12 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
       return data.transcript ?? '';
     }
 
+    function isAborted() { return cancelled || abortRef.current; }
+
     async function runSession() {
       const hasMic = await window.zoomguru.requestMicPermission();
-      if (!hasMic || cancelled) {
-        if (!cancelled) { setErrorMsg('Microphone permission required.'); setPhase('error'); }
+      if (!hasMic || isAborted()) {
+        if (!isAborted()) { setErrorMsg('Microphone permission required.'); setPhase('error'); }
         return;
       }
 
@@ -277,7 +279,7 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
       const priorQuestions: string[] = [];
       let lastQuality: AnswerQuality | undefined = undefined;
 
-      while (entries.length < TOTAL_QUESTIONS && !cancelled) {
+      while (entries.length < TOTAL_QUESTIONS && !isAborted()) {
         const qNum = entries.length + 1;
         setQuestionNumber(qNum);
 
@@ -286,13 +288,22 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
         let question = '';
         try {
           question = await fetchQuestion(qNum, priorQuestions, lastQuality);
-        } catch {
-          if (cancelled) return;
-          setErrorMsg('Failed to generate question. Please try again.');
+        } catch (err) {
+          if (isAborted()) return;
+          const msg = err instanceof Error ? err.message : '';
+          if (msg === 'HTTP_401') {
+            setErrorMsg('Session expired. Please exit and log in again.');
+          } else if (msg === 'HTTP_403') {
+            setErrorMsg('Subscription required. Please exit and upgrade.');
+          } else if (msg === 'HTTP_429') {
+            setErrorMsg('Rate limited. Please wait a moment, then try again.');
+          } else {
+            setErrorMsg('Failed to generate question. Please try again.');
+          }
           setPhase('error');
           return;
         }
-        if (cancelled) return;
+        if (isAborted()) return;
 
         setCurrentQuestion(question);
         priorQuestions.push(question);
@@ -300,12 +311,12 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
         // Speak question
         setPhase('speaking');
         try { await playTts(question); } catch { /* non-fatal */ }
-        if (cancelled) return;
+        if (isAborted()) return;
 
         // Brief pause before listening
         setPhase('waiting');
         await new Promise((r) => setTimeout(r, 400));
-        if (cancelled) return;
+        if (isAborted()) return;
 
         // Record answer
         setPhase('listening');
@@ -313,25 +324,25 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
         try {
           audioBase64 = await recordAnswer();
         } catch {
-          if (cancelled) return;
+          if (isAborted()) return;
           setErrorMsg('Could not record audio. Check microphone permissions.');
           setPhase('error');
           return;
         }
-        if (cancelled) return;
+        if (isAborted()) return;
 
         // Transcribe
         setPhase('transcribing');
         let answer = '';
         try { answer = await transcribeAudio(audioBase64); } catch { /* empty answer is valid */ }
-        if (cancelled) return;
+        if (isAborted()) return;
 
         // Evaluate
         setPhase('evaluating');
         entries.push({ question, answer });
         lastQuality = computeQuality(answer);
         await new Promise((r) => setTimeout(r, 300));
-        if (cancelled) return;
+        if (isAborted()) return;
       }
 
       setPhase('finishing');
@@ -345,6 +356,7 @@ export default function InterviewerSession({ cvText, jdText, difficulty, onFinis
       abortRef.current = true;
       cleanup();
     };
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

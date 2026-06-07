@@ -36,14 +36,18 @@ async function bootstrap(): Promise<void> {
     origin: (origin, callback) => {
       const appUrl = (process.env['APP_URL'] ?? '').replace(/\/$/, '');
       const adminCors = (process.env['ADMIN_CORS_ORIGIN'] ?? '').replace(/\/$/, '');
+      const electronOrigin = (process.env['ELECTRON_ORIGIN'] ?? '').replace(/\/$/, '');
       const allowed = [
         'http://localhost:5173',
         'http://localhost:5174',
         'app://.',
+        'app://zoomguru',
+        electronOrigin,
         appUrl,
         adminCors,
       ].filter(Boolean);
-      if (!origin || allowed.includes(origin)) {
+      // null/undefined origin = file:// or Electron packaged app — always allow
+      if (!origin || allowed.includes(origin) || origin.startsWith('app://')) {
         callback(null, true);
       } else {
         callback(null, false);

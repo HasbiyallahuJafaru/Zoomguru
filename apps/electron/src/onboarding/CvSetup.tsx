@@ -134,7 +134,9 @@ export default function CvSetup({ onDone, onBack }: CvSetupProps) {
   );
 }
 
-const s: Record<string, CSSProperties> = {
+type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
+
+const s: Record<string, ElectronStyle> = {
   root: {
     width: '100vw',
     height: '100vh',
@@ -146,6 +148,7 @@ const s: Record<string, CSSProperties> = {
     position: 'relative',
     overflow: 'hidden',
     fontFamily: SANS,
+    WebkitAppRegion: 'drag',
   },
   backBtn: {
     position: 'absolute',
@@ -160,6 +163,7 @@ const s: Record<string, CSSProperties> = {
     padding: '2px 4px',
     transition: 'color 120ms ease',
     fontFamily: SANS,
+    WebkitAppRegion: 'no-drag',
   },
   closeBtn: {
     position: 'absolute',
@@ -174,6 +178,7 @@ const s: Record<string, CSSProperties> = {
     padding: '2px 4px',
     transition: 'color 120ms ease',
     fontFamily: SANS,
+    WebkitAppRegion: 'no-drag',
   },
   content: {
     width: '100%',
@@ -182,6 +187,7 @@ const s: Record<string, CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'stretch',
     gap: '20px',
+    WebkitAppRegion: 'no-drag',
   },
   brand: {
     display: 'flex',
