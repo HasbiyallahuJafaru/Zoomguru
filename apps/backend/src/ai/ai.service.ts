@@ -79,6 +79,7 @@ const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_VISION_MODEL = 'llama-3.2-90b-vision-preview';
+const CF_VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
 
 export interface PerAnswerScore {
   questionNumber: number;
@@ -471,7 +472,7 @@ export class AiService {
     jdText?: string;
     priorContext?: string[];
     signal?: AbortSignal;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const { imageBase64, reply, cvText, jdText, priorContext } = params;
     const controller = new AbortController();
     wireSignal(controller, params.signal);
@@ -509,9 +510,7 @@ export class AiService {
           ? await response.text().catch(() => '')
           : '';
         console.error('[AiService] Groq vision error:', response.status, errText.slice(0, 300));
-        sseWrite(reply, { chunk: 'Vision AI unavailable. Please try again.', done: false });
-        sseEnd(reply);
-        return;
+        return false;
       }
 
       const SUMMARY_MARKER = '\nCONTEXT_SUMMARY:';
@@ -577,8 +576,129 @@ export class AiService {
         if (remaining) {
           sseWrite(reply, { chunk: remaining, done: false });
         } else if (summaryEmitted === 0) {
-          // Groq returned a body but no parseable SSE content
           console.error('[AiService] Groq vision returned empty stream');
+          return false;
+        }
+      }
+      sseEnd(reply, contextSummary ? { contextSummary } : undefined);
+      return true;
+    } catch (err) {
+      console.error('[AiService] Groq vision exception:', (err as Error)?.message);
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async streamToCloudflareVision(params: {
+    imageBase64: string;
+    reply: ServerResponse;
+    cvText?: string;
+    jdText?: string;
+    priorContext?: string[];
+    signal?: AbortSignal;
+  }): Promise<void> {
+    const { imageBase64, reply, cvText, jdText, priorContext } = params;
+    const controller = new AbortController();
+    wireSignal(controller, params.signal);
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    const accountId = process.env['CF_ACCOUNT_ID'] ?? '';
+    const apiToken = process.env['CF_API_TOKEN'] ?? '';
+    const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${CF_VISION_MODEL}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
+                { type: 'text', text: buildVisionPrompt(cvText, jdText, priorContext) },
+              ],
+            },
+          ],
+          max_tokens: 900,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        const errText = response.body ? await response.text().catch(() => '') : '';
+        console.error('[AiService] Cloudflare vision error:', response.status, errText.slice(0, 300));
+        sseWrite(reply, { chunk: 'Vision AI unavailable. Please try again.', done: false });
+        sseEnd(reply);
+        return;
+      }
+
+      const SUMMARY_MARKER = '\nCONTEXT_SUMMARY:';
+      const HOLD_BACK = SUMMARY_MARKER.length - 1;
+      let summaryFull = '';
+      let summaryEmitted = 0;
+      let summaryFound = false;
+      let contextSummary = '';
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streaming = true;
+
+      while (streaming) {
+        if (reply.destroyed) break;
+        const result = await reader.read();
+        if (result.done) break;
+        buffer += decoder.decode(result.value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (reply.destroyed) { streaming = false; break; }
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') { streaming = false; break; }
+          try {
+            const parsed = JSON.parse(data) as GroqChunk;
+            const content = parsed.choices[0]?.delta?.content;
+            if (content && !summaryFound) {
+              summaryFull += content;
+              const markerIdx = summaryFull.indexOf(SUMMARY_MARKER);
+              if (markerIdx !== -1) {
+                summaryFound = true;
+                const toEmit = summaryFull.slice(summaryEmitted, markerIdx);
+                summaryEmitted = summaryFull.length;
+                contextSummary = summaryFull.slice(markerIdx + SUMMARY_MARKER.length).trim();
+                if (toEmit) sseWrite(reply, { chunk: toEmit, done: false });
+              } else {
+                const safeEnd = Math.max(summaryEmitted, summaryFull.length - HOLD_BACK);
+                const toEmit = summaryFull.slice(summaryEmitted, safeEnd);
+                summaryEmitted = safeEnd;
+                if (toEmit) sseWrite(reply, { chunk: toEmit, done: false });
+              }
+            }
+          } catch {
+            // skip malformed SSE chunks
+          }
+        }
+      }
+
+      const finalMarkerIdx = summaryFull.indexOf(SUMMARY_MARKER);
+      if (finalMarkerIdx !== -1) {
+        const toEmit = summaryFull.slice(summaryEmitted, finalMarkerIdx);
+        if (toEmit) sseWrite(reply, { chunk: toEmit, done: false });
+        contextSummary = summaryFull.slice(finalMarkerIdx + SUMMARY_MARKER.length).trim();
+      } else {
+        const remaining = summaryFull.slice(summaryEmitted);
+        if (remaining) {
+          sseWrite(reply, { chunk: remaining, done: false });
+        } else if (summaryEmitted === 0) {
+          console.error('[AiService] Cloudflare vision returned empty stream');
           sseWrite(reply, { chunk: 'Vision AI returned no content. Please try again.', done: false });
         }
       }
@@ -631,7 +751,6 @@ export class AiService {
     const { image, reply, cvText, jdText, priorContext, signal } = params;
     const visionPrompt = buildVisionPrompt(cvText, jdText, priorContext);
 
-    // A2-3: Only the image is passed as the user-message part; visionPrompt goes to systemPrompt only
     const geminiHandled = await this.streamToGemini({
       parts: [
         {
@@ -648,7 +767,10 @@ export class AiService {
     });
 
     if (!geminiHandled) {
-      await this.streamToGroqVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
+      const groqHandled = await this.streamToGroqVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
+      if (!groqHandled) {
+        await this.streamToCloudflareVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
+      }
     }
   }
 
