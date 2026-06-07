@@ -268,7 +268,11 @@ export class AiService {
       }
 
       // All keys exhausted or non-retriable error — fall back
-      if (response.status !== 200 || !response.body) return false;
+      if (response.status !== 200 || !response.body) {
+        const errText = response.body ? await response.text().catch(() => '') : '';
+        console.error('[AiService] Gemini fallback triggered:', response.status, errText.slice(0, 300));
+        return false;
+      }
 
       streamingStarted = true;
       const SUMMARY_MARKER = '\nCONTEXT_SUMMARY:';
@@ -500,8 +504,12 @@ export class AiService {
         signal: controller.signal,
       });
 
-      if (!response.body) {
-        sseWrite(reply, { chunk: 'No response from vision AI.', done: false });
+      if (!response.ok || !response.body) {
+        const errText = response.body
+          ? await response.text().catch(() => '')
+          : '';
+        console.error('[AiService] Groq vision error:', response.status, errText.slice(0, 300));
+        sseWrite(reply, { chunk: 'Vision AI unavailable. Please try again.', done: false });
         sseEnd(reply);
         return;
       }
@@ -566,7 +574,13 @@ export class AiService {
         contextSummary = summaryFull.slice(finalMarkerIdx + SUMMARY_MARKER.length).trim();
       } else {
         const remaining = summaryFull.slice(summaryEmitted);
-        if (remaining) sseWrite(reply, { chunk: remaining, done: false });
+        if (remaining) {
+          sseWrite(reply, { chunk: remaining, done: false });
+        } else if (summaryEmitted === 0) {
+          // Groq returned a body but no parseable SSE content
+          console.error('[AiService] Groq vision returned empty stream');
+          sseWrite(reply, { chunk: 'Vision AI returned no content. Please try again.', done: false });
+        }
       }
       sseEnd(reply, contextSummary ? { contextSummary } : undefined);
     } catch (err) {
