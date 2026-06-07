@@ -72,9 +72,9 @@ function wireSignal(controller: AbortController, signal?: AbortSignal): void {
   }
 }
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse&key=';
-const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:streamGenerateContent?alt=sse&key=';
-const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
+const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
+const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -265,8 +265,18 @@ export class AiService {
       // A2-1: Loop over all configured keys on 429, not just one retry
       const keyCount = this.geminiKeys.length;
       let response = await this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal);
-      for (let attempt = 1; attempt < keyCount && response.status === 429; attempt++) {
-        response = await this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal);
+      if (response.status === 429 && keyCount > 1) {
+        const remaining = Array.from({ length: keyCount - 1 }, () =>
+          this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal)
+        );
+        const winner = await Promise.any(
+          remaining.map(async (p) => {
+            const r = await p;
+            if (r.status === 429) throw new Error('429');
+            return r;
+          })
+        ).catch(() => null);
+        if (winner) response = winner;
       }
 
       // All keys exhausted or non-retriable error — fall back
@@ -405,8 +415,18 @@ export class AiService {
 
     try {
       let response = await doFetch(this.nextDeepSeekKey());
-      for (let attempt = 1; attempt < this.deepseekKeys.length && response.status === 429; attempt++) {
-        response = await doFetch(this.nextDeepSeekKey());
+      if (response.status === 429 && this.deepseekKeys.length > 1) {
+        const remaining = Array.from({ length: this.deepseekKeys.length - 1 }, () =>
+          doFetch(this.nextDeepSeekKey())
+        );
+        const winner = await Promise.any(
+          remaining.map(async (p) => {
+            const r = await p;
+            if (r.status === 429) throw new Error('429');
+            return r;
+          })
+        ).catch(() => null);
+        if (winner) response = winner;
       }
 
       if (response.status === 429) {
@@ -805,8 +825,18 @@ export class AiService {
 
     try {
       let response = await doFetch(this.nextDeepSeekKey());
-      for (let attempt = 1; attempt < this.deepseekKeys.length && response.status === 429; attempt++) {
-        response = await doFetch(this.nextDeepSeekKey());
+      if (response.status === 429 && this.deepseekKeys.length > 1) {
+        const remaining = Array.from({ length: this.deepseekKeys.length - 1 }, () =>
+          doFetch(this.nextDeepSeekKey())
+        );
+        const winner = await Promise.any(
+          remaining.map(async (p) => {
+            const r = await p;
+            if (r.status === 429) throw new Error('429');
+            return r;
+          })
+        ).catch(() => null);
+        if (winner) response = winner;
       }
 
       if (!response.body) {
@@ -1114,7 +1144,7 @@ If the answer is empty or very short, score it 0-20.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'models/gemini-3.1-flash-lite',
+          model: 'models/gemini-2.5-flash',
           systemInstruction: { parts: [{ text: AiService.DOC_COPILOT_SYSTEM }] },
           contents: [
             { role: 'user',  parts: [{ text: docContent }] },

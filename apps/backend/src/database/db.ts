@@ -10,9 +10,9 @@ export function getDB(): Pool {
     }
     _pool = new Pool({
       connectionString,
-      max: process.env.DATABASE_POOL_URL ? 5 : 12,
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 5_000,
+      max: process.env.DATABASE_POOL_URL ? 20 : 12,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
     });
 
     // Prevent idle connection errors from crashing the process.
@@ -21,6 +21,10 @@ export function getDB(): Pool {
     _pool.on('error', (err: Error) => {
       console.error('[DB pool] idle client error:', err.message);
     });
+
+    setInterval(() => {
+      _pool!.query('SELECT 1').catch(() => {});
+    }, 4 * 60 * 1000);
   }
   return _pool;
 }
