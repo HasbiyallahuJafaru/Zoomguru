@@ -9,7 +9,7 @@ interface DashboardProps {
   onOpenMeeting: () => void;
   onOpenInterviewer: () => void;
   onLogout: () => void;
-  onStartTour?: () => void;
+  onStartTour?: () => void | Promise<void>;
 }
 
 type SubStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
@@ -533,16 +533,6 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
 
           {/* Actions row */}
           <div style={s.actions}>
-            {showContinue && !sub?.trialActive && (
-              <button
-                id="tour-continue-btn"
-                className="zg-primary"
-                style={s.continueBtn}
-                onClick={onContinue}
-              >
-                Continue →
-              </button>
-            )}
             {sub?.trialActive && trialMsLeft !== null && (
               <div style={s.trialCountdownRow}>
                 <span style={s.trialCountdownLabel}>Free trial ends in</span>
@@ -716,6 +706,7 @@ const s: Record<string, ElectronStyle> = {
   toolIcon: {
     fontSize: '18px',
     lineHeight: '1',
+    color: 'rgba(255,255,255,0.85)',
   },
   toolLabel: {
     fontSize: '9px',

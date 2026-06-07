@@ -7,6 +7,7 @@ export default defineConfig(() => {
     build: {
       outDir: 'dist-renderer',
       emptyOutDir: true,
+      target: 'chrome120',
       rollupOptions: {
         input: {
           main: 'index.html',

@@ -66,6 +66,12 @@ function sseEnd(reply: ServerResponse, extra?: Record<string, unknown>): void {
   }
 }
 
+function wireSignal(controller: AbortController, signal?: AbortSignal): void {
+  if (signal) {
+    signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+}
+
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=';
 const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
 const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
@@ -245,9 +251,11 @@ export class AiService {
     systemPrompt: string;
     reply: ServerResponse;
     extractSummary?: boolean;
+    signal?: AbortSignal;
   }): Promise<boolean> {
     const { parts, systemPrompt, reply } = params;
     const controller = new AbortController();
+    wireSignal(controller, params.signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
     let streamingStarted = false;
 
@@ -357,9 +365,11 @@ export class AiService {
     reply: ServerResponse;
     cvText?: string;
     jdText?: string;
+    signal?: AbortSignal;
   }): Promise<void> {
     const { transcript, reply, cvText, jdText } = params;
     const controller = new AbortController();
+    wireSignal(controller, params.signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
     const body = {
@@ -456,9 +466,11 @@ export class AiService {
     cvText?: string;
     jdText?: string;
     priorContext?: string[];
+    signal?: AbortSignal;
   }): Promise<void> {
     const { imageBase64, reply, cvText, jdText, priorContext } = params;
     const controller = new AbortController();
+    wireSignal(controller, params.signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
     try {
@@ -574,8 +586,9 @@ export class AiService {
     reply: ServerResponse;
     cvText?: string;
     jdText?: string;
+    signal?: AbortSignal;
   }): Promise<void> {
-    const { transcript, reply, cvText, jdText } = params;
+    const { transcript, reply, cvText, jdText, signal } = params;
 
     const geminiHandled = await this.streamToGemini({
       parts: [
@@ -585,10 +598,11 @@ export class AiService {
       ],
       systemPrompt: buildSystemPrompt(cvText, jdText),
       reply,
+      signal,
     });
 
     if (!geminiHandled) {
-      await this.streamToDeepSeek({ transcript, reply, cvText, jdText });
+      await this.streamToDeepSeek({ transcript, reply, cvText, jdText, signal });
     }
   }
 
@@ -598,8 +612,9 @@ export class AiService {
     cvText?: string;
     jdText?: string;
     priorContext?: string[];
+    signal?: AbortSignal;
   }): Promise<void> {
-    const { image, reply, cvText, jdText, priorContext } = params;
+    const { image, reply, cvText, jdText, priorContext, signal } = params;
     const visionPrompt = buildVisionPrompt(cvText, jdText, priorContext);
 
     // A2-3: Only the image is passed as the user-message part; visionPrompt goes to systemPrompt only
@@ -615,10 +630,11 @@ export class AiService {
       systemPrompt: visionPrompt,
       reply,
       extractSummary: true,
+      signal,
     });
 
     if (!geminiHandled) {
-      await this.streamToGroqVision({ imageBase64: image, reply, cvText, jdText, priorContext });
+      await this.streamToGroqVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
     }
   }
 
@@ -626,9 +642,11 @@ export class AiService {
     userMessage: string;
     systemPrompt: string;
     reply: ServerResponse;
+    signal?: AbortSignal;
   }): Promise<void> {
     const { userMessage, systemPrompt, reply } = params;
     const controller = new AbortController();
+    wireSignal(controller, params.signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
     const doFetch = (key: string) =>
@@ -709,12 +727,14 @@ export class AiService {
     priorQuestions: string[];
     lastAnswerQuality?: AnswerQuality;
     reply: ServerResponse;
+    signal?: AbortSignal;
   }): Promise<void> {
-    const { reply, ...rest } = params;
+    const { reply, signal, ...rest } = params;
     const systemPrompt = buildInterviewerSystemPrompt();
     const userMessage = buildInterviewerUserMessage(rest);
 
     const controller = new AbortController();
+    wireSignal(controller, signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
     let streamingStarted = false;
 
@@ -771,7 +791,7 @@ export class AiService {
       // Fall back to DeepSeek
       const systemPromptFb = buildInterviewerSystemPrompt();
       const userMessageFb = buildInterviewerUserMessage(rest);
-      await this.streamToDeepSeekQuestion({ userMessage: userMessageFb, systemPrompt: systemPromptFb, reply });
+      await this.streamToDeepSeekQuestion({ userMessage: userMessageFb, systemPrompt: systemPromptFb, reply, signal });
       return;
     }
     clearTimeout(timeout);
@@ -985,9 +1005,11 @@ If the answer is empty or very short, score it 0-20.`;
     cacheName: string,
     questionPart: string,
     reply: ServerResponse,
+    signal?: AbortSignal,
   ): Promise<void> {
     const key        = this.nextGeminiKey();
     const controller = new AbortController();
+    wireSignal(controller, signal);
     const timeout    = setTimeout(() => controller.abort(), 30_000);
 
     try {
@@ -1044,8 +1066,9 @@ If the answer is empty or very short, score it 0-20.`;
     transcript: string;
     docText: string;
     reply: ServerResponse;
+    signal?: AbortSignal;
   }): Promise<void> {
-    const { transcript, docText, reply } = params;
+    const { transcript, docText, reply, signal } = params;
     const docTruncated = truncateAtWord(docText, 6000);
     const systemPrompt = `${AiService.DOC_COPILOT_SYSTEM}\n\nDOCUMENT:\n\n${docTruncated}`;
     const questionPart = `<question>\n${stripInjection(truncateAtWord(transcript, 2000))}\n</question>`;
@@ -1054,18 +1077,21 @@ If the answer is empty or very short, score it 0-20.`;
       parts: [{ text: questionPart }],
       systemPrompt,
       reply,
+      signal,
     });
 
     if (!handled) {
       await this.streamToDeepSeek({
         transcript: `[Document context below — answer ONLY from this document]\n\n${docTruncated}\n\n---\n\nQuestion: ${transcript}`,
         reply,
+        signal,
       });
     }
   }
 
-  async streamTts(text: string, res: ServerResponse): Promise<void> {
+  async streamTts(text: string, res: ServerResponse, signal?: AbortSignal): Promise<void> {
     const controller = new AbortController();
+    wireSignal(controller, signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
       const response = await fetch('https://api.lemonfox.ai/v1/audio/speech', {
@@ -1110,8 +1136,9 @@ If the answer is empty or very short, score it 0-20.`;
     documents: Array<{ docId: string; fileName: string; serializedContent: string }>;
     cacheKey: string | undefined;
     reply: ServerResponse;
+    signal?: AbortSignal;
   }): Promise<void> {
-    const { transcript, documents, cacheKey, reply } = params;
+    const { transcript, documents, cacheKey, reply, signal } = params;
 
     const docContent = documents
       .map((d) => `=== ${d.fileName} ===\n\n${d.serializedContent}`)
@@ -1123,7 +1150,7 @@ If the answer is empty or very short, score it 0-20.`;
     if (cacheKey && docContent.length >= AiService.MIN_CACHE_CHARS) {
       const cacheName = await this.getOrCreateDocCache(cacheKey, docContent);
       if (cacheName) {
-        await this.streamGeminiCached(cacheName, questionPart, reply);
+        await this.streamGeminiCached(cacheName, questionPart, reply, signal);
         return;
       }
     }
@@ -1134,6 +1161,7 @@ If the answer is empty or very short, score it 0-20.`;
       parts: [{ text: questionPart }],
       systemPrompt: fullSystemPrompt,
       reply,
+      signal,
     });
 
     if (!handled) {
@@ -1141,6 +1169,7 @@ If the answer is empty or very short, score it 0-20.`;
       await this.streamToDeepSeek({
         transcript: `[Document context below — answer ONLY from these documents]\n\n${docContent}\n\n---\n\nQuestion: ${transcript}`,
         reply,
+        signal,
       });
     }
   }

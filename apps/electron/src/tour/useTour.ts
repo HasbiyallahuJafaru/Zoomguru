@@ -1,6 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { type Driver } from 'driver.js';
-import { buildTour } from './tour';
+import type { Driver } from 'driver.js';
 
 interface UseTourOptions {
   isSessionActive: boolean;
@@ -8,13 +7,14 @@ interface UseTourOptions {
 }
 
 export function useTour({ isSessionActive, autoLaunch = false }: UseTourOptions): {
-  startTour: () => void;
+  startTour: () => Promise<void>;
 } {
   const driverRef = useRef<Driver | null>(null);
   const pausedRef = useRef(false);
 
-  function getDriver(): Driver {
+  async function getDriver(): Promise<Driver> {
     if (!driverRef.current) {
+      const { buildTour } = await import('./tour');
       driverRef.current = buildTour(() => {
         void window.zoomguru.tourSetCompleted();
       });
@@ -22,8 +22,8 @@ export function useTour({ isSessionActive, autoLaunch = false }: UseTourOptions)
     return driverRef.current;
   }
 
-  const startTour = useCallback(() => {
-    const d = getDriver();
+  const startTour = useCallback(async () => {
+    const d = await getDriver();
     if (d.isActive()) return;
     pausedRef.current = false;
     d.drive();
@@ -34,7 +34,7 @@ export function useTour({ isSessionActive, autoLaunch = false }: UseTourOptions)
     void (async () => {
       const completed = await window.zoomguru.tourHasCompleted();
       if (!completed) {
-        startTour();
+        await startTour();
       }
     })();
   }, [autoLaunch, startTour]);

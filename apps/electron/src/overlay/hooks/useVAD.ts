@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type MutableRefObject } from 'react';
 import { createDenoisedStream } from '../noise-suppressor';
-import { makeDeviceHeaders } from '../../utils';
+import { blobToBase64, makeDeviceHeaders } from '../../utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const VAD_THRESHOLD = 0.015;
@@ -8,15 +8,6 @@ const SILENCE_MS = 1500;
 const MIN_SPEECH_MS = 2500;
 const MIN_BLOB_BYTES = 25_000;
 const MIN_WORDS = 4;
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
 
 interface UseVADOptions {
   sessionCapped: boolean;

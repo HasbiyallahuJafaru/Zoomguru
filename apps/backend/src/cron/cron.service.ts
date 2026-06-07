@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { EmailService } from '../email/email.service';
 import { QuotaService } from '../quota/quota.service';
 import { getDB } from '../database/db';
+import { getRedis } from '../redis/redis';
 
 interface ReminderRow {
   email: string;
@@ -128,6 +129,37 @@ export class CronService {
       }
     } catch (err) {
       console.error('[CronService] resetMonthlyUsage failed:', err);
+    }
+  }
+
+  @Cron('*/30 * * * * *')
+  async flushSessionLogQueue(): Promise<void> {
+    const redis = getRedis();
+    const BATCH = 100;
+    try {
+      const entries = await redis.lrange('session_log_queue', -BATCH, -1);
+      if (entries.length === 0) return;
+      await redis.ltrim('session_log_queue', 0, -(entries.length + 1));
+
+      type Entry = { userId: string; type: string; ts: number };
+      const rows: Entry[] = [];
+      for (const raw of entries) {
+        try { rows.push(JSON.parse(raw) as Entry); } catch { /* skip malformed */ }
+      }
+      if (rows.length === 0) return;
+
+      const values: unknown[] = [];
+      const placeholders = rows.map((r, i) => {
+        values.push(r.userId, r.type, new Date(r.ts));
+        const base = i * 3;
+        return `($${base + 1}, $${base + 2}, $${base + 3})`;
+      });
+      await getDB().query(
+        `INSERT INTO ai_sessions (user_id, type, created_at) VALUES ${placeholders.join(',')} ON CONFLICT DO NOTHING`,
+        values,
+      );
+    } catch (err) {
+      console.error('[CronService] flushSessionLogQueue failed:', err);
     }
   }
 }

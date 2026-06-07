@@ -24,24 +24,16 @@ async function checkIpRateLimit(
   max: number,
   windowSec: number,
 ): Promise<void> {
-  try {
-    const redis = getRedis();
-    const key = `rl:${prefix}:${ip}`;
-    const pipeline = redis.pipeline();
-    pipeline.incr(key);
-    pipeline.expire(key, windowSec);
-    const results = await pipeline.exec();
-    const count = (results?.[0]?.[1] as number) ?? 0;
-    if (count > max) {
-      const ttl = await redis.ttl(key);
-      throw new HttpException(
-        { error: 'rate_limit', retryAfter: ttl > 0 ? ttl : windowSec },
-        429,
-      );
-    }
-  } catch (err) {
-    if (err instanceof HttpException) throw err;
-    // Redis unavailable — fail open
+  const redis = getRedis();
+  const key = `rl:${prefix}:${ip}`;
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, windowSec);
+  if (count > max) {
+    const ttl = await redis.ttl(key);
+    throw new HttpException(
+      { error: 'rate_limit', retryAfter: ttl > 0 ? ttl : windowSec },
+      429,
+    );
   }
 }
 
@@ -69,7 +61,7 @@ export class AuthController {
     @Body() body: { email: string; name: string; password: string; referralCode?: string },
     @Req() req: FastifyRequest,
   ) {
-    await checkIpRateLimit(req.ip, 'register', 5, 60);
+    await checkIpRateLimit(req.ip, 'register', 5, 3600);
 
     if (!body.email || body.email.length > 254) {
       throw new BadRequestException('Invalid email');
@@ -100,7 +92,7 @@ export class AuthController {
     @Body() body: { email: string; password: string },
     @Req() req: FastifyRequest,
   ) {
-    await checkIpRateLimit(req.ip, 'login', 10, 60);
+    await checkIpRateLimit(req.ip, 'login', 10, 900);
 
     if (!body.email || body.email.length > 254) {
       throw new BadRequestException('Invalid email');
@@ -116,7 +108,7 @@ export class AuthController {
       throw new BadRequestException('Invalid identifier');
     }
 
-    return this.authService.login(cleanIdentifier, cleanPassword, req.ip);
+    return this.authService.login(cleanIdentifier, cleanPassword);
   }
 
   @Post('forgot-password')

@@ -10,6 +10,8 @@ export function getRedis(): Redis {
     _redis = new Redis(process.env.REDIS_URL, {
       maxRetriesPerRequest: 2,
       enableReadyCheck: false,
+      keepAlive: 30_000,
+      connectTimeout: 5_000,
     });
     _redis.on('error', (err) => {
       console.error('[Redis] client error:', err.message);

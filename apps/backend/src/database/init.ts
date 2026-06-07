@@ -1,7 +1,3 @@
-// PRODUCTION MIGRATION — run once on the Neon DB before deploying this version:
-//   ALTER TABLE subscriptions RENAME COLUMN locked_device_id TO locked_key_id;
-//   ALTER TABLE subscriptions RENAME COLUMN locked_device_id_2 TO locked_key_id_2;
-
 import { getDB } from './db';
 
 export async function initDB(): Promise<void> {
@@ -13,24 +9,6 @@ export async function initDB(): Promise<void> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const pool = getDB();
-
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS schema_version (
-          version     INTEGER PRIMARY KEY,
-          applied_at  TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-
-      const versionRow = await pool.query<{ version: number }>(
-        `SELECT version FROM schema_version ORDER BY version DESC LIMIT 1`,
-      );
-      const currentVersion = versionRow.rows[0]?.version ?? 0;
-      const TARGET_VERSION = 1;
-
-      if (currentVersion >= TARGET_VERSION) {
-        console.log(`DB schema at version ${currentVersion} — skipping migrations`);
-        return;
-      }
 
       await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
 
@@ -57,18 +35,24 @@ export async function initDB(): Promise<void> {
           current_period_end          TIMESTAMPTZ,
           paystack_customer_code      TEXT UNIQUE,
           paystack_subscription_code  TEXT UNIQUE,
-          locked_key_id               TEXT,
+          locked_device_id            TEXT,
           created_at                  TIMESTAMPTZ DEFAULT NOW(),
           updated_at                  TIMESTAMPTZ DEFAULT NOW()
         )
       `);
 
       await pool.query(`
-        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_key_id_2 TEXT
+        ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_device_id_2 TEXT
       `);
 
       await pool.query(`
         ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS paystack_reference TEXT
+      `);
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_paystack_reference
+          ON subscriptions(paystack_reference)
+          WHERE paystack_reference IS NOT NULL
       `);
 
       // Drop the UNIQUE constraint on paystack_customer_code if it still exists
@@ -133,7 +117,7 @@ export async function initDB(): Promise<void> {
         CREATE TABLE IF NOT EXISTS ai_sessions (
           id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
-          type        TEXT NOT NULL CHECK (type IN ('stream', 'screenshot', 'transcribe')),
+          type        TEXT NOT NULL CHECK (type IN ('stream', 'screenshot', 'transcribe', 'meeting', 'interviewer', 'doc_copilot', 'tts')),
           created_at  TIMESTAMPTZ DEFAULT NOW()
         )
       `);
@@ -153,16 +137,6 @@ export async function initDB(): Promise<void> {
             ON ai_sessions(created_at)
         `),
       ]);
-
-      await pool.query(`
-        ALTER TABLE ai_sessions
-          DROP CONSTRAINT IF EXISTS ai_sessions_type_check
-      `);
-      await pool.query(`
-        ALTER TABLE ai_sessions
-          ADD CONSTRAINT ai_sessions_type_check
-          CHECK (type IN ('stream', 'screenshot', 'transcribe', 'meeting', 'interviewer', 'doc_copilot', 'tts'))
-      `);
 
       // ── Referral system (additive — all nullable, safe for existing data) ──
 
@@ -233,80 +207,29 @@ export async function initDB(): Promise<void> {
         WHERE referral_code IS NULL
       `);
 
-      // ── Usage & quota tracking ──
+      // ── Schema versioning ────────────────────────────────────────────────────
+      // Versions are stamped only after all statements in the block succeed.
+      // No intermediate inserts — a crash leaves version unchanged so the
+      // block is retried in full on the next boot.
 
       await pool.query(`
-        CREATE TABLE IF NOT EXISTS usage (
-          id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          user_id              UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          plan_type            TEXT NOT NULL DEFAULT 'monthly',
-          copilot_requests     INTEGER NOT NULL DEFAULT 0,
-          interviewer_sessions INTEGER NOT NULL DEFAULT 0,
-          scorer_reports       INTEGER NOT NULL DEFAULT 0,
-          doc_copilot_requests INTEGER NOT NULL DEFAULT 0,
-          period_start         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
+        CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)
       `);
 
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage(user_id)
-      `);
-
-      // ── Broadcast mail ──
-
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS broadcasts (
-          id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          subject          TEXT NOT NULL,
-          body             TEXT NOT NULL,
-          target_filter    JSONB NOT NULL DEFAULT '{}',
-          status           TEXT NOT NULL DEFAULT 'scheduled'
-                             CHECK (status IN ('scheduled','sending','sent','failed','cancelled')),
-          scheduled_at     TIMESTAMPTZ NOT NULL,
-          sent_at          TIMESTAMPTZ,
-          recipient_count  INTEGER,
-          open_count       INTEGER NOT NULL DEFAULT 0,
-          created_at       TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS broadcast_batches (
-          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          broadcast_id  UUID NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
-          batch_index   INTEGER NOT NULL,
-          status        TEXT NOT NULL DEFAULT 'pending'
-                          CHECK (status IN ('pending','sending','sent','failed')),
-          recipients    TEXT[] NOT NULL,
-          scheduled_at  TIMESTAMPTZ NOT NULL,
-          sent_at       TIMESTAMPTZ,
-          error         TEXT,
-          retry_count   INTEGER NOT NULL DEFAULT 0,
-          created_at    TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-
-      await Promise.all([
-        pool.query(`
-          CREATE INDEX IF NOT EXISTS idx_broadcasts_status
-            ON broadcasts(status)
-        `),
-        pool.query(`
-          CREATE INDEX IF NOT EXISTS idx_broadcast_batches_due
-            ON broadcast_batches(scheduled_at)
-            WHERE status = 'pending'
-        `),
-        pool.query(`
-          CREATE INDEX IF NOT EXISTS idx_broadcast_batches_broadcast_id
-            ON broadcast_batches(broadcast_id)
-        `),
-      ]);
-
-      await pool.query(
-        `INSERT INTO schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING`,
-        [TARGET_VERSION],
+      const { rows: versionRows } = await pool.query<{ version: number }>(
+        `SELECT version FROM schema_version ORDER BY version DESC LIMIT 1`,
       );
+      const currentVersion = versionRows[0]?.version ?? 0;
+
+      // v1: expand ai_sessions type constraint to cover all current session types
+      if (currentVersion < 1) {
+        await pool.query(`ALTER TABLE ai_sessions DROP CONSTRAINT IF EXISTS ai_sessions_type_check`);
+        await pool.query(`
+          ALTER TABLE ai_sessions ADD CONSTRAINT ai_sessions_type_check
+            CHECK (type IN ('stream', 'screenshot', 'transcribe', 'meeting', 'interviewer', 'doc_copilot', 'tts'))
+        `);
+        await pool.query(`INSERT INTO schema_version (version) VALUES (1)`);
+      }
 
       console.log('✅ ZoomGuru DB ready');
       return;

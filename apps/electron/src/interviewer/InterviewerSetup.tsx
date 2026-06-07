@@ -74,6 +74,7 @@ export default function InterviewerSetup({ onStart, onBack }: Props) {
           'X-Signature': sig.signature,
         },
       });
+      if (res.status === 401) { onBack(); return; }
       if (res.status === 403) {
         const body = await res.json() as { error?: string };
         if (body.error === 'subscription_required') { setError('Active subscription required.'); return; }

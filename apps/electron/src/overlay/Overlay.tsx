@@ -14,7 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 
-export default function Overlay({ onLogout, onTrialExpired, onOpenReferral, onSessionActiveChange }: { onLogout: () => void; onTrialExpired?: () => void; onOpenReferral?: () => void; onSessionActiveChange?: (active: boolean) => void }) {
+export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferral, onSessionActiveChange }: { onLogout: () => void; onBack?: () => void; onTrialExpired?: () => void; onOpenReferral?: () => void; onSessionActiveChange?: (active: boolean) => void }) {
   // --- state ---
   const { cvText, jdText } = useCVContext();
 
@@ -446,6 +446,16 @@ export default function Overlay({ onLogout, onTrialExpired, onOpenReferral, onSe
         {/* ── Header ── */}
         <div style={s.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {onBack && (
+              <button
+                className="zg-ibtn"
+                style={{ ...s.logoutBtn, fontSize: '11px' }}
+                onClick={() => { stopAutoMode(); onBack(); }}
+                aria-label="Back to dashboard"
+              >
+                ← Back
+              </button>
+            )}
             <span style={s.wordmark}>ZoomGuru</span>
             {onOpenReferral && (
               <button
@@ -633,8 +643,8 @@ const s: Record<string, ElectronStyle> = {
     display: 'flex',
     flexDirection: 'column',
     background: 'rgba(7, 7, 11, 0.60)',
-    backdropFilter: 'blur(32px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+    backdropFilter: 'blur(16px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(16px) saturate(160%)',
     borderRadius: '16px',
     border: '1px solid rgba(255,255,255,0.07)',
     fontFamily: FONT,

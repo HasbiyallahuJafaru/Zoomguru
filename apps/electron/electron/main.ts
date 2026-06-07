@@ -15,8 +15,6 @@ import {
 } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import pdfParse from 'pdf-parse';
-import AdmZip from 'adm-zip';
 import Store from 'electron-store';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
@@ -315,6 +313,8 @@ if (!gotLock) {
         let text: string;
         if (ext === '.pdf') {
           const buffer = fs.readFileSync(filePath);
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const pdfParse = (require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>);
           const parsed = await pdfParse(buffer);
           text = parsed.text;
         } else {
@@ -420,9 +420,13 @@ if (!gotLock) {
         let text: string;
         if (ext === '.pdf') {
           const buffer = fs.readFileSync(filePath);
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const pdfParse = (require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>);
           const parsed = await pdfParse(buffer);
           text = parsed.text;
         } else if (ext === '.pptx') {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const AdmZip = require('adm-zip') as new (p: string) => { getEntries(): { entryName: string; getData(): Buffer }[]; };
           const zip = new AdmZip(filePath);
           const slideEntries = zip.getEntries()
             .filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
