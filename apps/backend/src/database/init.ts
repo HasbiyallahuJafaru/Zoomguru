@@ -117,7 +117,7 @@ export async function initDB(): Promise<void> {
         CREATE TABLE IF NOT EXISTS ai_sessions (
           id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
-          type        TEXT NOT NULL CHECK (type IN ('stream', 'screenshot', 'transcribe')),
+          type        TEXT NOT NULL CHECK (type IN ('stream', 'screenshot', 'transcribe', 'meeting', 'interviewer', 'doc_copilot', 'tts')),
           created_at  TIMESTAMPTZ DEFAULT NOW()
         )
       `);
@@ -206,6 +206,30 @@ export async function initDB(): Promise<void> {
         SET referral_code = upper(substring(encode(gen_random_bytes(6), 'hex') FROM 1 FOR 8))
         WHERE referral_code IS NULL
       `);
+
+      // ── Schema versioning ────────────────────────────────────────────────────
+      // Versions are stamped only after all statements in the block succeed.
+      // No intermediate inserts — a crash leaves version unchanged so the
+      // block is retried in full on the next boot.
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)
+      `);
+
+      const { rows: versionRows } = await pool.query<{ version: number }>(
+        `SELECT version FROM schema_version ORDER BY version DESC LIMIT 1`,
+      );
+      const currentVersion = versionRows[0]?.version ?? 0;
+
+      // v1: expand ai_sessions type constraint to cover all current session types
+      if (currentVersion < 1) {
+        await pool.query(`ALTER TABLE ai_sessions DROP CONSTRAINT IF EXISTS ai_sessions_type_check`);
+        await pool.query(`
+          ALTER TABLE ai_sessions ADD CONSTRAINT ai_sessions_type_check
+            CHECK (type IN ('stream', 'screenshot', 'transcribe', 'meeting', 'interviewer', 'doc_copilot', 'tts'))
+        `);
+        await pool.query(`INSERT INTO schema_version (version) VALUES (1)`);
+      }
 
       console.log('✅ ZoomGuru DB ready');
       return;

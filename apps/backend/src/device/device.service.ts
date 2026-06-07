@@ -47,7 +47,7 @@ export class DeviceService {
       return { valid: false, reason: 'invalid_signature' };
     }
     const now = Math.floor(Date.now() / 1000);
-    if (Math.abs(now - ts) > TIMESTAMP_TOLERANCE_SEC) {
+    if (ts > now + 5 || now - ts > TIMESTAMP_TOLERANCE_SEC) {
       return { valid: false, reason: 'invalid_signature' };
     }
 

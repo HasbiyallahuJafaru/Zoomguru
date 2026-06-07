@@ -16,20 +16,16 @@
     "release:mac": "npm run build && electron-builder --mac --publish always --config electron-builder.config.js"
   },
   "dependencies": {
-    "@types/adm-zip": "^0.5.8",
-    "@types/pdf-parse": "^1.1.5",
-    "@types/xml2js": "^0.4.14",
     "adm-zip": "^0.5.17",
     "driver.js": "^1.4.0",
     "electron-store": "^8.2.0",
-    "electron-updater": "^6.1.8",
-    "pdf-parse": "^1.1.1",
-    "xml2js": "^0.6.2",
-    "zustand": "^4.5.2"
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@rollup/rollup-win32-x64-msvc": "^4.60.4",
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^20.11.0",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.1",
@@ -38,7 +34,6 @@
     "electron": "^42.3.0",
     "electron-builder": "^26.8.1",
     "esbuild": "^0.28.0",
-    "playwright-core": "^1.60.0",
     "png-to-ico": "^3.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

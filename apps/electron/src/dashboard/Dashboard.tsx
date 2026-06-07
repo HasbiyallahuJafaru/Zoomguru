@@ -9,7 +9,7 @@ interface DashboardProps {
   onOpenMeeting: () => void;
   onOpenInterviewer: () => void;
   onLogout: () => void;
-  onStartTour?: () => void;
+  onStartTour?: () => void | Promise<void>;
 }
 
 type SubStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';

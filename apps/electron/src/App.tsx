@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import Login from './auth/Login';
 import Register from './auth/Register';
 import Dashboard from './dashboard/Dashboard';
 import CvSetup from './onboarding/CvSetup';
 import Overlay from './overlay/Overlay';
-import Referral from './referral/Referral';
-import MeetingSetup from './meeting/MeetingSetup';
-import MeetingOverlay from './meeting/MeetingOverlay';
-import InterviewerSetup from './interviewer/InterviewerSetup';
-import InterviewerSession, { type QAEntry } from './interviewer/InterviewerSession';
 import InterviewerReport, { type ScorerReport, fetchReport } from './interviewer/InterviewerReport';
 import { useTour } from './tour/useTour';
+import type { QAEntry } from './interviewer/InterviewerSession';
+
+const Referral = lazy(() => import('./referral/Referral'));
+const MeetingSetup = lazy(() => import('./meeting/MeetingSetup'));
+const MeetingOverlay = lazy(() => import('./meeting/MeetingOverlay'));
+const InterviewerSetup = lazy(() => import('./interviewer/InterviewerSetup'));
+const InterviewerSession = lazy(() => import('./interviewer/InterviewerSession'));
 
 type Step = 'loading' | 'login' | 'register' | 'dashboard' | 'cv' | 'overlay' | 'referral' | 'meeting-setup' | 'meeting' | 'interviewer-setup' | 'interviewer-session' | 'interviewer-scoring' | 'interviewer-report';
 
@@ -91,37 +93,45 @@ const App = () => {
     );
   }
 
+  const fallback = (
+    <div style={{ width: '100vw', height: '100vh', background: 'rgba(7,7,11,0.97)', borderRadius: '16px' }} />
+  );
+
   if (step === 'interviewer-setup') {
     return (
-      <InterviewerSetup
-        onStart={(config) => {
-          setInterviewConfig({ ...config, difficulty: config.difficulty as Difficulty });
-          setStep('interviewer-session');
-        }}
-        onBack={() => setStep('dashboard')}
-      />
+      <Suspense fallback={fallback}>
+        <InterviewerSetup
+          onStart={(config) => {
+            setInterviewConfig({ ...config, difficulty: config.difficulty as Difficulty });
+            setStep('interviewer-session');
+          }}
+          onBack={() => setStep('dashboard')}
+        />
+      </Suspense>
     );
   }
 
   if (step === 'interviewer-session' && interviewConfig) {
     return (
-      <InterviewerSession
-        cvText={interviewConfig.cvText}
-        jdText={interviewConfig.jdText}
-        difficulty={interviewConfig.difficulty}
-        onFinish={(entries: QAEntry[]) => {
-          setStep('interviewer-scoring');
-          setScoringError('');
-          void fetchReport(entries).then((report) => {
-            setInterviewReport(report);
-            setStep('interviewer-report');
-          }).catch(() => {
-            setScoringError('Could not generate report. Please try again.');
+      <Suspense fallback={fallback}>
+        <InterviewerSession
+          cvText={interviewConfig.cvText}
+          jdText={interviewConfig.jdText}
+          difficulty={interviewConfig.difficulty}
+          onFinish={(entries: QAEntry[]) => {
             setStep('interviewer-scoring');
-          });
-        }}
-        onExit={() => setStep('dashboard')}
-      />
+            setScoringError('');
+            void fetchReport(entries).then((report) => {
+              setInterviewReport(report);
+              setStep('interviewer-report');
+            }).catch(() => {
+              setScoringError('Could not generate report. Please try again.');
+              setStep('interviewer-scoring');
+            });
+          }}
+          onExit={() => setStep('dashboard')}
+        />
+      </Suspense>
     );
   }
 
@@ -155,30 +165,38 @@ const App = () => {
   }
 
   if (step === 'referral') {
-    return <Referral onBack={() => setStep('overlay')} />;
+    return (
+      <Suspense fallback={fallback}>
+        <Referral onBack={() => setStep('overlay')} />
+      </Suspense>
+    );
   }
 
   if (step === 'meeting-setup') {
     return (
-      <MeetingSetup
-        onDone={(text, filename) => {
-          setMeetingDocText(text);
-          setMeetingDocFilename(filename);
-          setStep('meeting');
-        }}
-        onBack={() => setStep('dashboard')}
-      />
+      <Suspense fallback={fallback}>
+        <MeetingSetup
+          onDone={(text, filename) => {
+            setMeetingDocText(text);
+            setMeetingDocFilename(filename);
+            setStep('meeting');
+          }}
+          onBack={() => setStep('dashboard')}
+        />
+      </Suspense>
     );
   }
 
   if (step === 'meeting') {
     return (
-      <MeetingOverlay
-        docText={meetingDocText}
-        docFilename={meetingDocFilename}
-        onEnd={() => setStep('dashboard')}
-        onLogout={handleLogout}
-      />
+      <Suspense fallback={fallback}>
+        <MeetingOverlay
+          docText={meetingDocText}
+          docFilename={meetingDocFilename}
+          onEnd={() => setStep('dashboard')}
+          onLogout={handleLogout}
+        />
+      </Suspense>
     );
   }
 
