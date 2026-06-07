@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { Resend } from 'resend';
 import { timingSafeEqual } from 'node:crypto';
 import { FastifyRequest } from 'fastify';
 import {
@@ -88,5 +89,21 @@ export class AdminController {
   @Get('referrals')
   getReferrals(): Promise<ReferralCommissionRow[]> {
     return this.adminService.getReferrals();
+  }
+
+  @Get('email-test')
+  async emailTest(@Query('to') to?: string): Promise<unknown> {
+    const apiKey = process.env['RESEND_API_KEY'];
+    const from = `ZoomGuru <${process.env['FROM_EMAIL'] ?? 'noreply@example.com'}>`;
+    const recipient = to ?? 'jafaruhasbiyallahu@gmail.com';
+    if (!apiKey) return { error: 'RESEND_API_KEY is not set on this server' };
+    const resend = new Resend(apiKey);
+    const result = await resend.emails.send({
+      from,
+      to: recipient,
+      subject: 'ZoomGuru email diagnostic test',
+      html: '<p>This is a diagnostic test email sent from the ZoomGuru backend.</p>',
+    });
+    return { from, to: recipient, result };
   }
 }
