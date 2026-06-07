@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type MutableRefObject } from 'react';
 
-const CAP_MONTHLY = 50;
+const CAP_MONTHLY = 200;
 
 export function useSessionCap() {
   const [questionCount, setQuestionCount] = useState(0);
