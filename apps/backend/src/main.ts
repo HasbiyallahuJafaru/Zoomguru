@@ -22,10 +22,6 @@ async function bootstrap(): Promise<void> {
     console.warn('⚠️  DATABASE_POOL_URL not set — falling back to DATABASE_URL (not recommended for multi-instance deploys)');
   }
 
-  if (!process.env['ADMIN_EMAIL']) {
-    console.warn('ADMIN_EMAIL not set — no user will be identified as admin');
-  }
-
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: false, trustProxy: true, bodyLimit: 15_728_640 }),
@@ -36,18 +32,14 @@ async function bootstrap(): Promise<void> {
     origin: (origin, callback) => {
       const appUrl = (process.env['APP_URL'] ?? '').replace(/\/$/, '');
       const adminCors = (process.env['ADMIN_CORS_ORIGIN'] ?? '').replace(/\/$/, '');
-      const electronOrigin = (process.env['ELECTRON_ORIGIN'] ?? '').replace(/\/$/, '');
       const allowed = [
         'http://localhost:5173',
         'http://localhost:5174',
         'app://.',
-        'app://zoomguru',
-        electronOrigin,
         appUrl,
         adminCors,
       ].filter(Boolean);
-      // null/undefined origin = file:// or Electron packaged app — always allow
-      if (!origin || allowed.includes(origin) || origin.startsWith('app://')) {
+      if (!origin || allowed.includes(origin) || origin === 'app://zoomguru') {
         callback(null, true);
       } else {
         callback(null, false);

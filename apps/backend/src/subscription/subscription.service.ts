@@ -623,7 +623,13 @@ export class SubscriptionService {
       await Promise.all([this.invalidateDeviceCache(uid), delSubCache(uid)]);
     } else if (event.event === 'subscription.create') {
       const data = event.data as SubscriptionCreateData;
-      const plan = 'monthly';
+      const intervalMap: Record<string, 'weekly' | 'monthly' | 'yearly'> = {
+        weekly: 'weekly',
+        monthly: 'monthly',
+        annually: 'yearly',
+        yearly: 'yearly',
+      };
+      const plan: 'weekly' | 'monthly' | 'yearly' = intervalMap[data.plan.interval] ?? 'monthly';
       const updateResult = await pool.query(
         `UPDATE subscriptions SET
            status = 'active',
@@ -642,7 +648,8 @@ export class SubscriptionService {
         ],
       );
       if ((updateResult.rowCount ?? 0) === 0) {
-        throw new BadRequestException('Subscription row not found; Paystack will retry');
+        // Row not found yet — verify() hasn't run. Return silently; Paystack will retry naturally.
+        return;
       }
     } else if (
       event.event === 'subscription.disable' ||
