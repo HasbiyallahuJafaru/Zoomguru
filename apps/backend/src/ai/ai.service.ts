@@ -78,8 +78,9 @@ const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_VISION_MODEL = 'llama-3.2-90b-vision-preview';
-const CF_VISION_MODEL = '@cf/meta/llama-3.2-11b-vision-instruct';
+const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const OPENAI_VISION_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_VISION_MODEL = 'gpt-4o-mini';
 
 export interface PerAnswerScore {
   questionNumber: number;
@@ -590,7 +591,7 @@ export class AiService {
     }
   }
 
-  private async streamToCloudflareVision(params: {
+  private async streamToOpenAIVision(params: {
     imageBase64: string;
     reply: ServerResponse;
     cvText?: string;
@@ -603,23 +604,20 @@ export class AiService {
     wireSignal(controller, params.signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
-    const accountId = process.env['CF_ACCOUNT_ID'] ?? '';
-    const apiToken = process.env['CF_API_TOKEN'] ?? '';
-    const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${CF_VISION_MODEL}`;
-
     try {
-      const response = await fetch(url, {
+      const response = await fetch(OPENAI_VISION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiToken}`,
+          Authorization: `Bearer ${process.env['OPENAI_API_KEY'] ?? ''}`,
         },
         body: JSON.stringify({
+          model: OPENAI_VISION_MODEL,
           messages: [
             {
               role: 'user',
               content: [
-                { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
+                { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}`, detail: 'high' } },
                 { type: 'text', text: buildVisionPrompt(cvText, jdText, priorContext) },
               ],
             },
@@ -632,7 +630,7 @@ export class AiService {
 
       if (!response.ok || !response.body) {
         const errText = response.body ? await response.text().catch(() => '') : '';
-        console.error('[AiService] Cloudflare vision error:', response.status, errText.slice(0, 300));
+        console.error('[AiService] OpenAI vision error:', response.status, errText.slice(0, 300));
         sseWrite(reply, { chunk: 'Vision AI unavailable. Please try again.', done: false });
         sseEnd(reply);
         return;
@@ -698,7 +696,7 @@ export class AiService {
         if (remaining) {
           sseWrite(reply, { chunk: remaining, done: false });
         } else if (summaryEmitted === 0) {
-          console.error('[AiService] Cloudflare vision returned empty stream');
+          console.error('[AiService] OpenAI vision returned empty stream');
           sseWrite(reply, { chunk: 'Vision AI returned no content. Please try again.', done: false });
         }
       }
@@ -769,7 +767,7 @@ export class AiService {
     if (!geminiHandled) {
       const groqHandled = await this.streamToGroqVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
       if (!groqHandled) {
-        await this.streamToCloudflareVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
+        await this.streamToOpenAIVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
       }
     }
   }
