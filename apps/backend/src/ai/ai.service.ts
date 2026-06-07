@@ -78,7 +78,7 @@ const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const GROQ_VISION_MODEL = 'llama-3.2-90b-vision-preview';
 
 export interface PerAnswerScore {
   questionNumber: number;
