@@ -53,6 +53,7 @@ interface PaystackSetupConfig {
   plan?: string;
   amount?: number;
   ref: string;
+  channels?: string[];
   onClose(): void;
   callback(response: PaystackResponse): void;
 }
@@ -69,6 +70,16 @@ function getEmailFromJwt(token: string): string {
   try {
     const payload = JSON.parse(atob(token.split('.')[1])) as { email: string };
     return payload.email;
+  } catch {
+    return '';
+  }
+}
+
+function getFirstNameFromJwt(token: string): string {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1])) as { name?: string; email?: string };
+    if (payload.name) return payload.name.split(' ')[0];
+    return '';
   } catch {
     return '';
   }
@@ -104,6 +115,7 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
   const [trialError, setTrialError] = useState<string | null>(null);
   const [deviceRegError, setDeviceRegError] = useState<string | null>(null);
   const [trialMsLeft, setTrialMsLeft] = useState<number | null>(null);
+  const [firstName, setFirstName] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const checkingOutRef = useRef(false);
 
@@ -148,6 +160,7 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
     void (async () => {
       try {
         const token = await window.zoomguru.getToken();
+        setFirstName(getFirstNameFromJwt(token));
 
         try {
           const { keyId, publicKey } = await window.zoomguru.getDevicePublicKey();
@@ -243,6 +256,7 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
       key: pubKey,
       email,
       ref: `zg_${Date.now()}`,
+      channels: ['bank_transfer', 'ussd', 'opay'],
       onClose: () => {
         setCheckingOut(false);
         checkingOutRef.current = false;
@@ -286,47 +300,24 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
     pop.setup(payConfig).openIframe();
   }
 
-  function statusBadgeStyle(): CSSProperties {
-    if (sub?.status === 'active') {
-      return { ...s.statusBadge, color: 'rgba(52,211,153,0.9)', background: 'rgba(52,211,153,0.12)' };
-    }
-    if (sub?.trialActive) {
-      return { ...s.statusBadge, color: 'rgba(251,191,36,0.9)', background: 'rgba(251,191,36,0.12)' };
-    }
-    if (sub?.status === 'past_due') {
-      return { ...s.statusBadge, color: 'rgba(248,113,113,0.9)', background: 'rgba(248,113,113,0.12)' };
-    }
-    return s.statusBadge;
-  }
-
-  function statusLabel(): string {
-    if (loadingSub) return 'Loading…';
-    if (!sub) return '—';
-    if (sub.status === 'active') return 'Active';
-    if (sub.trialActive) return 'Trial';
-    if (sub.status === 'past_due') return 'Payment overdue';
-    if (sub.status === 'cancelled') return 'Cancelled';
-    return 'No active plan';
-  }
-
   function daysLabel(): string {
-    if (loadingSub) return 'Loading…';
+    if (loadingSub) return '—';
     if (!sub) return '—';
     if (sub.status === 'active') {
-      if (sub.plan === 'yearly') return 'Yearly';
+      if (sub.plan === 'yearly') return 'Yearly plan';
       if (sub.daysRemaining === 0) return 'Expired';
-      return `${sub.daysRemaining ?? '—'} days`;
+      return `${sub.daysRemaining ?? '—'} days left`;
     }
+    if (sub.trialActive) return 'Trial active';
     return '—';
   }
 
-  function billingLabel(): string {
-    if (loadingSub) return 'Loading…';
+  function planLabel(): string {
+    if (loadingSub) return '—';
     if (!sub) return '—';
-    if (sub.status === 'active') return sub.plan ? PLAN_LABELS[sub.plan] : '—';
+    if (sub.status === 'active' && sub.plan) return PLAN_LABELS[sub.plan];
     if (sub.trialActive) return 'Free trial';
-    if (sub.trialStartedAt && !sub.trialActive) return 'Trial used';
-    return '—';
+    return 'No active plan';
   }
 
   const isActive = sub?.status === 'active';
@@ -355,8 +346,8 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
         .zg-plan:hover { opacity: 0.85; }
         .zg-trial:hover:not(:disabled) { opacity: 0.85; }
-        .zg-tool:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
-        .zg-tool:active:not(:disabled) { transform: scale(0.97); }
+        .zg-tool-main:hover:not(:disabled) { background: rgba(255,255,255,0.07) !important; }
+        .zg-tool-main:active:not(:disabled) { transform: scale(0.99); }
         .zg-admin:hover { color: rgba(255,255,255,0.45) !important; }
       `}</style>
 
@@ -374,69 +365,71 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
           {/* Wordmark */}
           <div style={s.brand}>
             <span style={s.brandName}>ZoomGuru</span>
-            <span style={s.brandTag}>Your invisible interview edge</span>
           </div>
+
+          {/* Welcome */}
+          {!loadingSub && (
+            <div style={s.welcome}>
+              <span style={s.welcomeText}>
+                {firstName ? `Welcome back, ${firstName}.` : 'Welcome back.'}
+              </span>
+            </div>
+          )}
 
           {deviceRegError && (
             <p style={s.errorMsg}>{deviceRegError}</p>
           )}
 
-          {/* Subscription card */}
-          <div id="tour-plan-status" style={s.card}>
-            <div style={s.cardRow}>
-              <span style={s.cardLabel}>Status</span>
-              <span style={statusBadgeStyle()}>{statusLabel()}</span>
-            </div>
-
-            <div style={s.divider} />
-
-            <div style={s.cardRow}>
-              <span style={s.cardLabel}>Days remaining</span>
-              <span style={s.cardValue}>{daysLabel()}</span>
-            </div>
-
-            <div style={s.divider} />
-
-            <div style={s.cardRow}>
-              <span style={s.cardLabel}>Billing</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {isActive && sub.plan && (
-                  <span style={s.planBadge}>{PLAN_LABELS[sub.plan]}</span>
-                )}
-                <span style={s.cardValue}>{billingLabel()}</span>
+          {/* Subscription status — only show when active or trial */}
+          {(isActive || sub?.trialActive) && (
+            <div style={s.subInfo}>
+              <div style={s.subInfoRow}>
+                <span style={s.subInfoLabel}>Plan</span>
+                <span style={s.subInfoValue}>{planLabel()}</span>
+              </div>
+              <div style={s.subDivider} />
+              <div style={s.subInfoRow}>
+                <span style={s.subInfoLabel}>Access</span>
+                <span style={s.subInfoValue}>{daysLabel()}</span>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Tool launchers — only shown when active or trial */}
+          {/* Trial countdown */}
+          {sub?.trialActive && trialMsLeft !== null && (
+            <div style={s.trialCountdownRow}>
+              <span style={s.trialCountdownLabel}>Trial ends in</span>
+              <span style={s.trialCountdownValue}>{formatCountdown(trialMsLeft)}</span>
+            </div>
+          )}
+
+          {/* Interview Assistant — primary action */}
           {showContinue && (
-            <div id="tour-tools" style={s.toolGrid}>
+            <div id="tour-tools" style={s.toolSection}>
               <button
-                className="zg-tool"
-                style={s.toolBtn}
+                className="zg-tool-main"
+                style={s.mainToolBtn}
                 onClick={onContinue}
               >
-                <span style={s.toolIcon}>MIC</span>
-                <span style={s.toolLabel}>Interview Assistant</span>
+                <span style={s.mainToolLabel}>Interview Assistant</span>
+                <span style={s.mainToolDesc}>
+                  Sits invisibly on your screen during interviews. Listens to questions,
+                  captures screenshots, and streams AI answers in real time — visible
+                  only to you.
+                </span>
+                <span style={s.mainToolArrow}>→</span>
               </button>
-              <button
-                className="zg-tool"
-                style={{ ...s.toolBtn, opacity: 0.45, cursor: 'default' }}
-                disabled
-              >
-                <span style={s.toolIcon}>DOC</span>
-                <span style={s.toolLabel}>Meeting Assistant</span>
-                <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.30)', fontFamily: 'system-ui', letterSpacing: '0.3px' }}>Coming Soon</span>
-              </button>
-              <button
-                className="zg-tool"
-                style={{ ...s.toolBtn, opacity: 0.45, cursor: 'default' }}
-                disabled
-              >
-                <span style={s.toolIcon}>AI</span>
-                <span style={s.toolLabel}>AI Interviewer</span>
-                <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.30)', fontFamily: 'system-ui', letterSpacing: '0.3px' }}>Coming Soon</span>
-              </button>
+
+              <div style={s.secondaryTools}>
+                <div style={s.secondaryTool}>
+                  <span style={s.secondaryToolLabel}>Meeting Assistant</span>
+                  <span style={s.comingSoon}>Soon</span>
+                </div>
+                <div style={s.secondaryTool}>
+                  <span style={s.secondaryToolLabel}>AI Interviewer</span>
+                  <span style={s.comingSoon}>Soon</span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -450,23 +443,21 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
             </div>
           )}
 
-          {/* Upgrade CTA for weekly / monthly */}
+          {/* Upgrade CTA */}
           {showUpgradeCta && (
             <div style={s.upgradeCta}>
-              <span style={s.upgradeText}>Upgrade to Yearly for 4× more quota</span>
+              <span style={s.upgradeText}>Upgrade to Yearly — 4× more quota</span>
               <button
                 className="zg-primary"
                 style={s.upgradeBtn}
-                onClick={() => {
-                  void handleSubscribe('yearly');
-                }}
+                onClick={() => { void handleSubscribe('yearly'); }}
               >
                 Upgrade to Yearly
               </button>
             </div>
           )}
 
-          {/* Free trial button — only shown when eligible */}
+          {/* Free trial */}
           {showTrialButton && (
             <button
               className="zg-trial"
@@ -481,38 +472,25 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
             </button>
           )}
 
-          {trialError && (
-            <p style={s.errorMsg}>{trialError}</p>
-          )}
+          {trialError && <p style={s.errorMsg}>{trialError}</p>}
 
-          {/* Plan selector — hidden only when subscription is fully active */}
+          {/* Plan selector */}
           {!isActive && (
             <div style={s.planSelector}>
-              <button
-                className="zg-plan"
-                style={selectedPlan === 'weekly' ? s.planBtnActive : s.planBtn}
-                onClick={() => setSelectedPlan('weekly')}
-              >
-                Weekly
-              </button>
-              <button
-                className="zg-plan"
-                style={selectedPlan === 'monthly' ? s.planBtnActive : s.planBtn}
-                onClick={() => setSelectedPlan('monthly')}
-              >
-                Monthly
-              </button>
-              <button
-                className="zg-plan"
-                style={selectedPlan === 'yearly' ? s.planBtnActive : s.planBtn}
-                onClick={() => setSelectedPlan('yearly')}
-              >
-                Yearly
-              </button>
+              {(['weekly', 'monthly', 'yearly'] as const).map((p) => (
+                <button
+                  key={p}
+                  className="zg-plan"
+                  style={selectedPlan === p ? s.planBtnActive : s.planBtn}
+                  onClick={() => setSelectedPlan(p)}
+                >
+                  {PLAN_LABELS[p]}
+                </button>
+              ))}
             </div>
           )}
 
-          {/* Subscribe button */}
+          {/* Subscribe */}
           {!isActive && (
             <button
               className="zg-primary"
@@ -533,27 +511,17 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
             </p>
           )}
 
-          {/* Actions row */}
+          {/* Footer actions */}
           <div style={s.actions}>
-            {sub?.trialActive && trialMsLeft !== null && (
-              <div style={s.trialCountdownRow}>
-                <span style={s.trialCountdownLabel}>Free trial ends in</span>
-                <span style={s.trialCountdownValue}>{formatCountdown(trialMsLeft)}</span>
-              </div>
-            )}
             {onStartTour && (
-              <button
-                className="zg-ghost"
-                style={s.tourBtn}
-                onClick={onStartTour}
-              >
+              <button className="zg-ghost" style={s.footerBtn} onClick={onStartTour}>
                 Take the Tour
               </button>
             )}
             {sub?.isAdmin && (
               <button
                 className="zg-admin"
-                style={s.adminBtn}
+                style={{ ...s.footerBtn, color: 'rgba(248,113,113,0.40)' }}
                 onClick={() => {
                   const adminUrl = (import.meta.env.VITE_ADMIN_URL as string | undefined) ?? `${API_URL.replace(':3000', ':5174')}`;
                   void window.zoomguru.openExternal(`${adminUrl}/broadcast`);
@@ -562,11 +530,7 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
                 Broadcast Mail
               </button>
             )}
-            <button
-              className="zg-ghost"
-              style={s.logoutBtn}
-              onClick={onLogout}
-            >
+            <button className="zg-ghost" style={s.footerBtn} onClick={onLogout}>
               Log out
             </button>
           </div>
@@ -607,11 +571,11 @@ const s: Record<string, ElectronStyle> = {
   },
   content: {
     width: '100%',
-    maxWidth: '310px',
+    maxWidth: '300px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: '14px',
+    gap: '12px',
     WebkitAppRegion: 'no-drag',
     overflowY: 'auto',
     maxHeight: 'calc(100vh - 32px)',
@@ -621,101 +585,137 @@ const s: Record<string, ElectronStyle> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '7px',
-    marginBottom: '4px',
+    marginBottom: '2px',
   },
   brandName: {
-    fontSize: '28px',
+    fontSize: '22px',
     fontWeight: 400,
     fontStyle: 'italic',
     fontFamily: SERIF,
-    color: 'rgba(255,255,255,0.92)',
+    color: 'rgba(255,255,255,0.80)',
     letterSpacing: '0.2px',
     textAlign: 'center',
   },
-  brandTag: {
-    fontSize: '11px',
-    color: 'rgba(255,255,255,0.28)',
+  welcome: {
+    textAlign: 'center',
+    marginBottom: '4px',
+  },
+  welcomeText: {
+    fontSize: '13px',
+    fontWeight: 400,
+    color: 'rgba(255,255,255,0.55)',
     fontFamily: SANS,
-    letterSpacing: '0.2px',
-    textAlign: 'center',
+    letterSpacing: '-0.1px',
   },
-  card: {
-    border: '1px solid rgba(255,255,255,0.08)',
+  subInfo: {
+    border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: '8px',
     overflow: 'hidden',
   },
-  cardRow: {
+  subInfoRow: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '11px 14px',
+    padding: '10px 14px',
   },
-  divider: {
+  subDivider: {
     height: '1px',
-    background: 'rgba(255,255,255,0.06)',
+    background: 'rgba(255,255,255,0.05)',
   },
-  cardLabel: {
+  subInfoLabel: {
     fontSize: '11px',
-    color: 'rgba(255,255,255,0.30)',
+    color: 'rgba(255,255,255,0.25)',
     fontFamily: SANS,
     letterSpacing: '0.1px',
   },
-  cardValue: {
+  subInfoValue: {
     fontSize: '11px',
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(255,255,255,0.60)',
     fontFamily: SANS,
   },
-  statusBadge: {
+  trialCountdownRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+  },
+  trialCountdownLabel: {
     fontSize: '10px',
-    fontWeight: 600,
-    letterSpacing: '0.2px',
-    color: 'rgba(255,255,255,0.28)',
-    background: 'rgba(255,255,255,0.06)',
-    padding: '3px 8px',
-    borderRadius: '4px',
+    color: 'rgba(251,191,36,0.45)',
     fontFamily: SANS,
   },
-  planBadge: {
-    fontSize: '9px',
+  trialCountdownValue: {
+    fontSize: '12px',
     fontWeight: 600,
-    letterSpacing: '0.3px',
-    color: 'rgba(99,179,237,0.85)',
-    background: 'rgba(99,179,237,0.12)',
-    padding: '2px 6px',
-    borderRadius: '3px',
+    color: 'rgba(251,191,36,0.80)',
     fontFamily: SANS,
-    textTransform: 'uppercase' as const,
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '0.5px',
   },
-  toolGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '8px',
-  },
-  toolBtn: {
+  toolSection: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
     gap: '6px',
-    padding: '12px 6px',
+  },
+  mainToolBtn: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '6px',
+    padding: '16px',
     background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'opacity 120ms ease, transform 100ms ease',
+    transition: 'background 140ms ease, transform 100ms ease',
+    fontFamily: SANS,
+    textAlign: 'left' as const,
+    position: 'relative',
+  },
+  mainToolLabel: {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: 'rgba(255,255,255,0.88)',
+    fontFamily: SANS,
+    letterSpacing: '-0.1px',
+  },
+  mainToolDesc: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.35)',
+    fontFamily: SANS,
+    lineHeight: '1.55',
+    letterSpacing: '0.05px',
+  },
+  mainToolArrow: {
+    fontSize: '14px',
+    color: 'rgba(255,255,255,0.30)',
+    alignSelf: 'flex-end',
+    marginTop: '2px',
+  },
+  secondaryTools: {
+    display: 'flex',
+    gap: '6px',
+  },
+  secondaryTool: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '9px 12px',
+    border: '1px solid rgba(255,255,255,0.05)',
+    borderRadius: '8px',
+    background: 'rgba(255,255,255,0.02)',
+  },
+  secondaryToolLabel: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.22)',
     fontFamily: SANS,
   },
-  toolIcon: {
-    fontSize: '18px',
-    lineHeight: '1',
-    color: 'rgba(255,255,255,0.85)',
-  },
-  toolLabel: {
+  comingSoon: {
     fontSize: '9px',
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(255,255,255,0.15)',
     fontFamily: SANS,
-    letterSpacing: '0.1px',
-    textAlign: 'center' as const,
+    letterSpacing: '0.2px',
   },
   usageSection: {
     display: 'flex',
@@ -724,11 +724,10 @@ const s: Record<string, ElectronStyle> = {
     padding: '12px 14px',
     border: '1px solid rgba(255,255,255,0.06)',
     borderRadius: '8px',
-    background: 'rgba(255,255,255,0.02)',
   },
   usageSectionLabel: {
     fontSize: '10px',
-    color: 'rgba(255,255,255,0.25)',
+    color: 'rgba(255,255,255,0.20)',
     fontFamily: SANS,
     letterSpacing: '0.3px',
     textTransform: 'uppercase' as const,
@@ -739,13 +738,12 @@ const s: Record<string, ElectronStyle> = {
     flexDirection: 'column',
     gap: '8px',
     padding: '12px 14px',
-    border: '1px solid rgba(99,179,237,0.15)',
+    border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: '8px',
-    background: 'rgba(99,179,237,0.04)',
   },
   upgradeText: {
     fontSize: '10px',
-    color: 'rgba(99,179,237,0.70)',
+    color: 'rgba(255,255,255,0.35)',
     fontFamily: SANS,
     textAlign: 'center' as const,
   },
@@ -758,11 +756,11 @@ const s: Record<string, ElectronStyle> = {
     fontFamily: SANS,
     letterSpacing: '0.1px',
     textAlign: 'center' as const,
-    background: 'rgba(99,179,237,0.15)',
-    color: 'rgba(99,179,237,0.90)',
-    border: '1px solid rgba(99,179,237,0.25)',
+    background: 'rgba(255,255,255,0.08)',
+    color: 'rgba(255,255,255,0.70)',
+    border: '1px solid rgba(255,255,255,0.10)',
     cursor: 'pointer',
-    transition: 'opacity 120ms ease, transform 100ms ease',
+    transition: 'opacity 120ms ease',
   },
   trialBtn: {
     width: '100%',
@@ -775,20 +773,20 @@ const s: Record<string, ElectronStyle> = {
     textAlign: 'center',
     transition: 'opacity 120ms ease',
     cursor: 'pointer',
-    border: '1px solid rgba(251,191,36,0.25)',
+    border: '1px solid rgba(255,255,255,0.08)',
   },
   trialBtnEnabled: {
-    background: 'rgba(251,191,36,0.10)',
-    color: 'rgba(251,191,36,0.85)',
+    background: 'rgba(255,255,255,0.06)',
+    color: 'rgba(255,255,255,0.60)',
   },
   trialBtnDisabled: {
-    background: 'rgba(255,255,255,0.05)',
-    color: 'rgba(255,255,255,0.25)',
+    background: 'rgba(255,255,255,0.03)',
+    color: 'rgba(255,255,255,0.20)',
     cursor: 'not-allowed',
   },
   planSelector: {
     display: 'flex',
-    border: '1px solid rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: '6px',
     overflow: 'hidden',
   },
@@ -797,7 +795,7 @@ const s: Record<string, ElectronStyle> = {
     padding: '8px',
     background: 'transparent',
     border: 'none',
-    color: 'rgba(255,255,255,0.35)',
+    color: 'rgba(255,255,255,0.30)',
     fontSize: '11px',
     fontWeight: 500,
     cursor: 'pointer',
@@ -833,69 +831,29 @@ const s: Record<string, ElectronStyle> = {
     border: '1px solid rgba(255,255,255,0.10)',
   },
   subscribeBtnEnabled: {
-    background: 'rgba(255,255,255,0.12)',
-    color: 'rgba(255,255,255,0.80)',
+    background: 'rgba(255,255,255,0.10)',
+    color: 'rgba(255,255,255,0.78)',
     cursor: 'pointer',
   },
   subscribeBtnDisabled: {
-    background: 'rgba(255,255,255,0.07)',
-    color: 'rgba(255,255,255,0.28)',
+    background: 'rgba(255,255,255,0.05)',
+    color: 'rgba(255,255,255,0.22)',
     cursor: 'not-allowed',
   },
   actions: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '4px',
+    gap: '2px',
+    marginTop: '4px',
   },
-  continueBtn: {
+  footerBtn: {
     width: '100%',
-    padding: '11px',
-    background: '#ffffff',
-    border: 'none',
-    borderRadius: '6px',
-    color: '#07070b',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: SANS,
-    transition: 'opacity 120ms ease, transform 100ms ease',
-    letterSpacing: '-0.1px',
-    textAlign: 'center' as const,
-  },
-  tourBtn: {
-    width: '100%',
-    padding: '8px',
+    padding: '7px',
     background: 'transparent',
     border: 'none',
-    color: 'rgba(255,255,255,0.35)',
-    fontSize: '11px',
-    cursor: 'pointer',
-    fontFamily: SANS,
-    transition: 'color 120ms ease',
-    letterSpacing: '0.1px',
-    textAlign: 'center' as const,
-  },
-  adminBtn: {
-    width: '100%',
-    padding: '8px',
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(248,113,113,0.50)',
-    fontSize: '11px',
-    cursor: 'pointer',
-    fontFamily: SANS,
-    transition: 'color 120ms ease',
-    letterSpacing: '0.1px',
-    textAlign: 'center' as const,
-  },
-  logoutBtn: {
-    width: '100%',
-    padding: '8px',
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(255,255,255,0.22)',
-    fontSize: '11px',
+    color: 'rgba(255,255,255,0.20)',
+    fontSize: '10px',
     cursor: 'pointer',
     fontFamily: SANS,
     transition: 'color 120ms ease',
@@ -905,30 +863,9 @@ const s: Record<string, ElectronStyle> = {
   errorMsg: {
     margin: 0,
     fontSize: '10px',
-    color: 'rgba(248,113,113,0.85)',
+    color: 'rgba(248,113,113,0.80)',
     textAlign: 'center' as const,
     fontFamily: SANS,
     letterSpacing: '0.1px',
-  },
-  trialCountdownRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    padding: '4px 0',
-  },
-  trialCountdownLabel: {
-    fontSize: '10px',
-    color: 'rgba(251,191,36,0.55)',
-    fontFamily: SANS,
-    letterSpacing: '0.1px',
-  },
-  trialCountdownValue: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: 'rgba(251,191,36,0.9)',
-    fontFamily: SANS,
-    fontVariantNumeric: 'tabular-nums',
-    letterSpacing: '0.5px',
   },
 };

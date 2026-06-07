@@ -95,7 +95,7 @@ export class AuthService {
     const registeredUser = user;
 
     const accessToken = this.jwtService.sign(
-      { sub: registeredUser.id, email: registeredUser.email },
+      { sub: registeredUser.id, email: registeredUser.email, name: registeredUser.name },
       { expiresIn: '30d' },
     );
 
@@ -134,7 +134,7 @@ export class AuthService {
     }
 
     const accessToken = this.jwtService.sign(
-      { sub: user.id, email: user.email },
+      { sub: user.id, email: user.email, name: user.name },
       { expiresIn: '30d' },
     );
 

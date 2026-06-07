@@ -250,7 +250,7 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
                 </>
               ) : (
                 <p style={s.forgotHint}>
-                  If that email is registered, a reset link is on its way. Check your inbox.
+                  If that email is registered, a reset link is on its way. Check your inbox — and your spam folder if it doesn't arrive within a minute.
                 </p>
               )}
               <button type="button" className="zg-forgot" style={s.forgotLink}
