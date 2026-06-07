@@ -37,7 +37,7 @@ zoomguru/
 | Database | Neon PostgreSQL, `@neondatabase/serverless`, raw SQL |
 | Auth | JWT via `@nestjs/jwt`, 30-day expiry |
 | Text answers | Gemini 2.0 Flash (primary), DeepSeek V3 (fallback), with key rotation |
-| Screenshot reading | Groq vision (`llama-4-scout`) |
+| Screenshot reading | Gemini 2.0 Flash (primary), Groq `llama-3.2-90b-vision` (fallback), Cloudflare Workers AI `llama-3.2-11b-vision` (third fallback) |
 | Voice transcription | Groq Whisper (`whisper-large-v3-turbo`) |
 | Payments | Paystack (inline.js, monthly recurring + lifetime one-time) |
 | Email | Resend |
@@ -51,6 +51,7 @@ zoomguru/
 - A Neon PostgreSQL database
 - A Gemini API key (required) and DeepSeek API key (fallback)
 - A Groq API key
+- A Cloudflare account with Workers AI enabled (third vision fallback)
 - A Paystack account
 - A Redis instance
 - A Resend account (for transactional email)
@@ -80,6 +81,8 @@ GEMINI_API_KEY=...
 GEMINI_API_KEY_2=...        # optional key rotation
 DEEPSEEK_API_KEY=sk-...
 GROQ_API_KEY=gsk_...
+CF_ACCOUNT_ID=...           # Cloudflare account ID (vision fallback)
+CF_API_TOKEN=...            # Cloudflare API token with Workers AI permission
 
 PAYSTACK_SECRET_KEY=sk_test_...
 RESEND_API_KEY=re_...
