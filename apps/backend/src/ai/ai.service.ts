@@ -238,7 +238,7 @@ export class AiService {
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
         systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
+        generationConfig: { maxOutputTokens: 800, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } },
       }),
       signal,
     });
@@ -909,7 +909,7 @@ export class AiService {
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: userMessage }] }],
           systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig: { maxOutputTokens: 300, temperature: 0.85 },
+          generationConfig: { maxOutputTokens: 300, temperature: 0.85, thinkingConfig: { thinkingBudget: 0 } },
         }),
         signal: controller.signal,
       });
@@ -1005,6 +1005,7 @@ If the answer is empty or very short, score it 0-20.`;
             maxOutputTokens: 2000,
             temperature: 0.3,
             responseMimeType: 'application/json',
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
         signal: controller.signal,
@@ -1184,7 +1185,7 @@ If the answer is empty or very short, score it 0-20.`;
         body: JSON.stringify({
           cachedContent: cacheName,
           contents: [{ role: 'user', parts: [{ text: questionPart }] }],
-          generationConfig: { maxOutputTokens: 600, temperature: 0.1 },
+          generationConfig: { maxOutputTokens: 600, temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
         }),
         signal: controller.signal,
       });
