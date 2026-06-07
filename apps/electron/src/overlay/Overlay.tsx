@@ -166,6 +166,11 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
         }
         return;
       }
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({})) as { message?: string; error?: string };
+        setAnswer(`Screenshot failed (${response.status}): ${errBody.message ?? errBody.error ?? 'Unknown error'}`);
+        return;
+      }
       if (!response.body) { setAnswer('No response from server.'); return; }
       incrementQuestion();
       const reader = response.body.getReader();

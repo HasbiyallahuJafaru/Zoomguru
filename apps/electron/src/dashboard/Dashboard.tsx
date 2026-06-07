@@ -421,19 +421,21 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
               </button>
               <button
                 className="zg-tool"
-                style={s.toolBtn}
-                onClick={onOpenMeeting}
+                style={{ ...s.toolBtn, opacity: 0.45, cursor: 'default' }}
+                disabled
               >
                 <span style={s.toolIcon}>DOC</span>
                 <span style={s.toolLabel}>Meeting Assistant</span>
+                <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.30)', fontFamily: 'system-ui', letterSpacing: '0.3px' }}>Coming Soon</span>
               </button>
               <button
                 className="zg-tool"
-                style={s.toolBtn}
-                onClick={onOpenInterviewer}
+                style={{ ...s.toolBtn, opacity: 0.45, cursor: 'default' }}
+                disabled
               >
                 <span style={s.toolIcon}>AI</span>
                 <span style={s.toolLabel}>AI Interviewer</span>
+                <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.30)', fontFamily: 'system-ui', letterSpacing: '0.3px' }}>Coming Soon</span>
               </button>
             </div>
           )}

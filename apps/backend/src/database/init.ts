@@ -231,6 +231,23 @@ export async function initDB(): Promise<void> {
         await pool.query(`INSERT INTO schema_version (version) VALUES (1)`);
       }
 
+      // v2: usage table for per-plan quota tracking (QuotaService)
+      if (currentVersion < 2) {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS usage (
+            user_id              UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            plan_type            TEXT NOT NULL,
+            period_start         TIMESTAMPTZ NOT NULL,
+            copilot_requests     INTEGER NOT NULL DEFAULT 0,
+            interviewer_sessions INTEGER NOT NULL DEFAULT 0,
+            scorer_reports       INTEGER NOT NULL DEFAULT 0,
+            doc_copilot_requests INTEGER NOT NULL DEFAULT 0,
+            updated_at           TIMESTAMPTZ DEFAULT NOW()
+          )
+        `);
+        await pool.query(`INSERT INTO schema_version (version) VALUES (2)`);
+      }
+
       console.log('✅ ZoomGuru DB ready');
       return;
     } catch (err) {

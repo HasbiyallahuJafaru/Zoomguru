@@ -158,7 +158,7 @@ export default function Referral({ onBack }: ReferralProps) {
     setPayoutLoading(true);
     try {
       const token = await window.zoomguru.getToken();
-      const res = await authFetch('/referral/payout/request', token, { method: 'POST' });
+      const res = await authFetch('/referral/payout/request', token, { method: 'POST', body: '{}' });
       const data = (await res.json()) as { message?: string };
       setPayoutMsg(data.message ?? (res.ok ? 'Request submitted.' : 'Something went wrong.'));
       if (res.ok) await loadDashboard();
