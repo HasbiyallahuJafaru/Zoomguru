@@ -1,0 +1,27 @@
+# ZoomGuru
+
+> ZoomGuru is an AI interview copilot desktop app for Windows. It runs as
+> an invisible overlay during video interviews (Zoom, Google Meet,
+> Microsoft Teams), listens to interviewer questions, and streams coached
+> answers in under two seconds. It also includes an AI mock interviewer,
+> answer scoring with reports, a document copilot, and screenshot
+> walk-throughs for technical problems. Pricing starts at NGN 15,000
+> per week, with monthly (NGN 40,000) and yearly (NGN 400,000) plans.
+> Payments via Paystack in NGN and USD. A free 30-minute trial is
+> available with no card required.
+
+Key facts:
+- The overlay is not visible to interviewers during screen share.
+- Responses begin streaming in under two seconds.
+- Sessions are held in memory only: no transcripts stored, no user data
+  used for model training.
+- Windows 10/11 (64-bit) supported today; macOS is in development.
+
+## Product
+- [Homepage](https://zoomguru.xyz/): Features, pricing, and download
+- [FAQ](https://zoomguru.xyz/faq.html): 16 answered questions covering stealth, speed, privacy, plans, refunds
+
+## Policies
+- [Privacy policy](https://zoomguru.xyz/privacy.html)
+- [Terms of service](https://zoomguru.xyz/terms.html)
+- [Refund policy](https://zoomguru.xyz/refund.html)
