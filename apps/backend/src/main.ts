@@ -40,15 +40,7 @@ async function bootstrap(): Promise<void> {
         appUrl,
         adminCors,
       ].filter(Boolean);
-      // Packaged Electron loads via file:// and sends Origin "null" or "file://".
-      // These endpoints authenticate via Bearer JWT + device signature, so CORS is
-      // not the security boundary; allow the desktop app's opaque origin.
-      const isDesktopApp =
-        !origin ||
-        origin === 'null' ||
-        origin.startsWith('file://') ||
-        origin.startsWith('app://');
-      if (isDesktopApp || allowed.includes(origin)) {
+      if (!origin || allowed.includes(origin) || origin === 'app://zoomguru') {
         callback(null, true);
       } else {
         callback(null, false);
