@@ -4,10 +4,15 @@ let _pool: Pool | null = null;
 
 export function getDB(): Pool {
   if (!_pool) {
-    const connectionString = process.env.DATABASE_POOL_URL ?? process.env.DATABASE_URL;
-    if (!connectionString) {
+    const raw = process.env.DATABASE_POOL_URL ?? process.env.DATABASE_URL;
+    if (!raw) {
       throw new Error('DATABASE_URL not set');
     }
+    // Strip any sslmode param from the URL: pg lets the connection string's
+    // sslmode override the ssl option below, and `sslmode=require` forces cert
+    // verification, which fails against Supabase's pooler ("self-signed
+    // certificate in certificate chain"). Removing it lets our ssl config win.
+    const connectionString = raw.replace(/[?&]sslmode=[^&]*/gi, '');
     _pool = new Pool({
       connectionString,
       max: process.env.DATABASE_POOL_URL ? 20 : 12,
