@@ -207,6 +207,60 @@ export async function initDB(): Promise<void> {
         WHERE referral_code IS NULL
       `);
 
+      // ── Device keys (device locking) ─────────────────────────────────────────
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS device_keys (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          key_id      TEXT UNIQUE NOT NULL,
+          public_key  TEXT NOT NULL,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_device_keys_user_id ON device_keys(user_id)
+      `);
+
+      // The active subscription is bound to up to two device key IDs.
+      await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_key_id TEXT`);
+      await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS locked_key_id_2 TEXT`);
+
+      // ── Broadcast email campaigns (admin) ────────────────────────────────────
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS broadcasts (
+          id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          subject         TEXT NOT NULL,
+          body            TEXT NOT NULL,
+          target_filter   JSONB,
+          status          TEXT NOT NULL DEFAULT 'scheduled'
+                            CHECK (status IN ('scheduled', 'sending', 'sent', 'cancelled', 'failed')),
+          scheduled_at    TIMESTAMPTZ NOT NULL,
+          sent_at         TIMESTAMPTZ,
+          recipient_count INTEGER NOT NULL DEFAULT 0,
+          open_count      INTEGER NOT NULL DEFAULT 0,
+          created_at      TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS broadcast_batches (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          broadcast_id  UUID NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+          batch_index   INTEGER NOT NULL,
+          status        TEXT NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending', 'sending', 'sent', 'failed')),
+          recipients    TEXT[] NOT NULL,
+          scheduled_at  TIMESTAMPTZ NOT NULL,
+          sent_at       TIMESTAMPTZ,
+          error         TEXT,
+          retry_count   INTEGER NOT NULL DEFAULT 0,
+          created_at    TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_broadcast_batches_due
+          ON broadcast_batches(status, scheduled_at)
+      `);
+
       // ── Schema versioning ────────────────────────────────────────────────────
       // Versions are stamped only after all statements in the block succeed.
       // No intermediate inserts — a crash leaves version unchanged so the
@@ -259,5 +313,12 @@ export async function initDB(): Promise<void> {
     }
   }
 
-  throw lastError;
+  // Never throw — a temporarily-unreachable DB must not crash-loop the app.
+  // The server keeps serving (e.g. /health); retry schema setup in the
+  // background so it self-heals once the database becomes reachable.
+  console.error(
+    '[DB init] all attempts failed — starting without a verified schema, retrying in 30s. Last error:',
+    (lastError as Error)?.message,
+  );
+  setTimeout(() => { void initDB(); }, 30_000);
 }

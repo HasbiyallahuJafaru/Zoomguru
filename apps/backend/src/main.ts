@@ -49,7 +49,10 @@ async function bootstrap(): Promise<void> {
     credentials: true,
   });
 
-  await initDB();
+  // Fire-and-forget: the server must start listening (and answer /health)
+  // even if the database is temporarily unreachable. initDB() never throws —
+  // it retries the schema setup in the background until it succeeds.
+  void initDB();
 
   await app.listen(process.env['PORT'] ?? 3000, '0.0.0.0');
 
