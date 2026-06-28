@@ -33,6 +33,12 @@ contextBridge.exposeInMainWorld('zoomguru', {
   quitApp: (): Promise<void> =>
     ipcRenderer.invoke('window:quit'),
 
+  getWindowBounds: (): Promise<{ x: number; y: number; width: number; height: number }> =>
+    ipcRenderer.invoke('window:getBounds'),
+
+  setWindowBounds: (bounds: { x: number; y: number; width: number; height: number }): Promise<void> =>
+    ipcRenderer.invoke('window:setBounds', bounds),
+
   requestMicPermission: (): Promise<boolean> =>
     ipcRenderer.invoke('permissions:request-mic'),
 

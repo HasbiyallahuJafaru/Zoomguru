@@ -50,6 +50,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
   const handleClearRef = useRef<() => void>(() => {});
   const handleAutoRef = useRef<() => void>(() => {});
   const streamAbortRef = useRef<AbortController | null>(null);
+  const isResizingRef = useRef(false);
 
   // --- streaming ---
 
@@ -433,6 +434,9 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
       void window.zoomguru.setMouseIgnore(next);
     };
     const onMove = (e: MouseEvent): void => {
+      // While dragging a resize handle the cursor can race off the thin handle;
+      // keep mouse capture on so the drag isn't interrupted by click-through.
+      if (isResizingRef.current) return;
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const interactive = !!el && !!el.closest('[data-zg-interactive]');
       apply(!interactive);
@@ -450,6 +454,53 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
   const isRec = isListening || isAutoListening;
   const isGen = isStreaming;
   const isAutoOn = isAutoMode && !isAutoListening;
+
+  // --- edge/corner resize ---
+  // dir is a compass string ('n','se','w'…). We grab the window bounds at
+  // mousedown and drive new bounds from the global cursor delta, throttled to
+  // one setBounds per animation frame so the IPC isn't flooded mid-drag.
+  function startResize(e: React.MouseEvent, dir: string): void {
+    e.preventDefault();
+    const startMouseX = e.screenX;
+    const startMouseY = e.screenY;
+    isResizingRef.current = true;
+    void window.zoomguru.setMouseIgnore(false);
+
+    let start: { x: number; y: number; width: number; height: number } | null = null;
+    void window.zoomguru.getWindowBounds().then((b) => { start = b; });
+
+    let raf = 0;
+    let pending: { x: number; y: number; width: number; height: number } | null = null;
+    const flush = (): void => {
+      raf = 0;
+      if (pending) { void window.zoomguru.setWindowBounds(pending); pending = null; }
+    };
+
+    const onMove = (ev: MouseEvent): void => {
+      if (!start) return;
+      const dx = ev.screenX - startMouseX;
+      const dy = ev.screenY - startMouseY;
+      let { x, y, width, height } = start;
+      if (dir.includes('e')) width = start.width + dx;
+      if (dir.includes('s')) height = start.height + dy;
+      if (dir.includes('w')) { width = start.width - dx; x = start.x + dx; }
+      if (dir.includes('n')) { height = start.height - dy; y = start.y + dy; }
+      if (width < 320) { if (dir.includes('w')) x -= 320 - width; width = 320; }
+      if (height < 320) { if (dir.includes('n')) y -= 320 - height; height = 320; }
+      pending = { x, y, width, height };
+      if (!raf) raf = requestAnimationFrame(flush);
+    };
+
+    const onUp = (): void => {
+      isResizingRef.current = false;
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
 
   function fbg(id: string, activeColor?: string): CSSProperties {
     const isH = hovered === id;
@@ -504,7 +555,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
                 onClick={onOpenReferral}
                 aria-label="Referral programme"
               >
-                Refer
+                Refer & Earn
               </button>
             )}
           </div>
@@ -682,6 +733,16 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
             <span style={s.btnHint}>⌘⇧C</span>
           </button>
         </div>
+
+        {/* ── Resize handles (frameless window has no native resize border) ── */}
+        <div data-zg-interactive="1" style={s.resizeN}  onMouseDown={(e) => startResize(e, 'n')} />
+        <div data-zg-interactive="1" style={s.resizeS}  onMouseDown={(e) => startResize(e, 's')} />
+        <div data-zg-interactive="1" style={s.resizeW}  onMouseDown={(e) => startResize(e, 'w')} />
+        <div data-zg-interactive="1" style={s.resizeE}  onMouseDown={(e) => startResize(e, 'e')} />
+        <div data-zg-interactive="1" style={s.resizeNW} onMouseDown={(e) => startResize(e, 'nw')} />
+        <div data-zg-interactive="1" style={s.resizeNE} onMouseDown={(e) => startResize(e, 'ne')} />
+        <div data-zg-interactive="1" style={s.resizeSW} onMouseDown={(e) => startResize(e, 'sw')} />
+        <div data-zg-interactive="1" style={s.resizeSE} onMouseDown={(e) => startResize(e, 'se')} />
 
       </div>
     </>
@@ -956,4 +1017,15 @@ const s: Record<string, ElectronStyle> = {
     lineHeight: '1',
     fontFamily: FONT,
   },
+
+  // Resize handles — invisible strips at the window edges/corners. no-drag so
+  // they don't trigger the header's window-move region; corners sit above edges.
+  resizeN:  { position: 'absolute', top: 0, left: 0, right: 0, height: '6px', cursor: 'ns-resize', WebkitAppRegion: 'no-drag', zIndex: 20 },
+  resizeS:  { position: 'absolute', bottom: 0, left: 0, right: 0, height: '6px', cursor: 'ns-resize', WebkitAppRegion: 'no-drag', zIndex: 20 },
+  resizeW:  { position: 'absolute', top: 0, bottom: 0, left: 0, width: '6px', cursor: 'ew-resize', WebkitAppRegion: 'no-drag', zIndex: 20 },
+  resizeE:  { position: 'absolute', top: 0, bottom: 0, right: 0, width: '6px', cursor: 'ew-resize', WebkitAppRegion: 'no-drag', zIndex: 20 },
+  resizeNW: { position: 'absolute', top: 0, left: 0, width: '14px', height: '14px', cursor: 'nwse-resize', WebkitAppRegion: 'no-drag', zIndex: 21 },
+  resizeNE: { position: 'absolute', top: 0, right: 0, width: '14px', height: '14px', cursor: 'nesw-resize', WebkitAppRegion: 'no-drag', zIndex: 21 },
+  resizeSW: { position: 'absolute', bottom: 0, left: 0, width: '14px', height: '14px', cursor: 'nesw-resize', WebkitAppRegion: 'no-drag', zIndex: 21 },
+  resizeSE: { position: 'absolute', bottom: 0, right: 0, width: '14px', height: '14px', cursor: 'nwse-resize', WebkitAppRegion: 'no-drag', zIndex: 21 },
 };

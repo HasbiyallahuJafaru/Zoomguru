@@ -21,6 +21,8 @@ interface ZoomGuruBridge {
   signRequest(userId: string): Promise<SignedRequest>;
   hideWindow(): Promise<void>;
   quitApp(): Promise<void>;
+  getWindowBounds(): Promise<{ x: number; y: number; width: number; height: number }>;
+  setWindowBounds(bounds: { x: number; y: number; width: number; height: number }): Promise<void>;
   requestMicPermission(): Promise<boolean>;
   parseCV(): Promise<CvResult | CvError | null>;
   loadCV(): Promise<CvResult | null>;

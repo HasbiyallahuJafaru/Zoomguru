@@ -276,13 +276,24 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
     pop.setup(payConfig).openIframe();
   }
 
+  // Break a raw day count into "X months, Y days left" so longer plans (monthly
+  // renewals, yearly) read naturally instead of e.g. "340 days left".
+  function formatRemaining(days: number): string {
+    if (days <= 0) return 'Expired';
+    const months = Math.floor(days / 30);
+    const rest = days % 30;
+    const monthPart = months > 0 ? `${months} month${months === 1 ? '' : 's'}` : '';
+    const dayPart = rest > 0 ? `${rest} day${rest === 1 ? '' : 's'}` : '';
+    const joined = [monthPart, dayPart].filter(Boolean).join(', ');
+    return `${joined} left`;
+  }
+
   function daysLabel(): string {
     if (loadingSub) return '—';
     if (!sub) return '—';
     if (sub.status === 'active') {
-      if (sub.plan === 'yearly') return 'Yearly plan';
-      if (sub.daysRemaining === 0) return 'Expired';
-      return `${sub.daysRemaining ?? '—'} days left`;
+      if (sub.daysRemaining === null) return '—';
+      return formatRemaining(sub.daysRemaining);
     }
     if (sub.trialActive) return 'Trial active';
     return '—';

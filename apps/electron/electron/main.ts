@@ -22,6 +22,8 @@ import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
 interface WindowStore {
   windowX: number;
   windowY: number;
+  windowWidth: number;
+  windowHeight: number;
   cvText?: string;
   cvFilename?: string;
   jdText?: string;
@@ -120,12 +122,16 @@ if (!gotLock) {
 
     const savedX = store.get('windowX', defaultX);
     const savedY = store.get('windowY', defaultY);
+    const savedWidth = store.get('windowWidth', 420);
+    const savedHeight = store.get('windowHeight', 600);
 
     mainWindow = new BrowserWindow({
-      width: 420,
-      height: 600,
+      width: savedWidth,
+      height: savedHeight,
       x: savedX,
       y: savedY,
+      minWidth: 320,
+      minHeight: 320,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -184,6 +190,13 @@ if (!gotLock) {
       const [x, y] = mainWindow.getPosition();
       store.set('windowX', x);
       store.set('windowY', y);
+    });
+
+    mainWindow.on('resized', () => {
+      if (!mainWindow) return;
+      const [width, height] = mainWindow.getSize();
+      store.set('windowWidth', width);
+      store.set('windowHeight', height);
     });
 
     if (!app.isPackaged) {
@@ -296,6 +309,27 @@ if (!gotLock) {
       isQuitting = true;
       app.quit();
     });
+
+    ipcMain.handle('window:getBounds', () => {
+      return mainWindow?.getBounds() ?? { x: 0, y: 0, width: 420, height: 600 };
+    });
+
+    // Edge/corner resize: the frameless overlay has no native resize border on
+    // Windows, so the renderer drives resizing by sending new bounds while the
+    // user drags a handle. Clamp to the same minimum the window was created with.
+    ipcMain.handle(
+      'window:setBounds',
+      (_event, bounds: { x: number; y: number; width: number; height: number }) => {
+        if (!mainWindow) return;
+        if (!bounds || typeof bounds.width !== 'number') return;
+        mainWindow.setBounds({
+          x: Math.round(bounds.x),
+          y: Math.round(bounds.y),
+          width: Math.max(320, Math.round(bounds.width)),
+          height: Math.max(320, Math.round(bounds.height)),
+        });
+      },
+    );
 
     ipcMain.handle('device:getPublicKey', () => {
       return getPublicKeyInfo();
