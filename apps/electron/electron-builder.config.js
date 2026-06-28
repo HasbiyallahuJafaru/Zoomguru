@@ -24,6 +24,9 @@ module.exports = {
   win: {
     target: [{ target: 'portable', arch: ['x64'] }],
     icon: 'assets/icon.ico',
+    // Pin exact filename so the GitHub release download URL stays valid:
+    // https://github.com/.../releases/download/v1.0.0/ZoomGuru.1.0.0.exe
+    artifactName: '${productName}.${version}.${ext}',
   },
 
   mac: {
