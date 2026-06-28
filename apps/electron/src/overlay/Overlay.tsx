@@ -40,6 +40,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
   const [screenshotContext, setScreenshotContext] = useState<string[]>([]);
   const [noiseEnabled, setNoiseEnabled] = useState(true);
   const noiseEnabledRef = useRef(true);
+  const [darkMode, setDarkMode] = useState(false);
 
   // --- refs (manual listen) ---
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -365,6 +366,12 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
     void window.zoomguru.setNoiseSuppressor(next);
   }
 
+  function toggleDarkMode(): void {
+    const next = !darkMode;
+    setDarkMode(next);
+    void window.zoomguru.setDarkMode(next);
+  }
+
   useHotkeys(
     () => handleListenRef.current(),
     () => handleScreenshotRef.current(),
@@ -388,6 +395,8 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
       setNoiseEnabled(v);
     });
 
+    void window.zoomguru.getDarkMode().then((v) => setDarkMode(v));
+
     void window.zoomguru.requestMicPermission().then((osGranted) => {
       if (!osGranted) {
         setMicGranted(false);
@@ -407,6 +416,32 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
       stopAutoMode();
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  // --- click-through ---
+  // The overlay window ignores the mouse by default so clicks land on the app
+  // underneath (Zoom, IDE, etc.). When the cursor moves over an element marked
+  // data-zg-interactive (the draggable header, the footer controls), we
+  // re-enable mouse capture so that control stays clickable/draggable.
+
+  useEffect(() => {
+    let ignoring = false;
+    const apply = (next: boolean): void => {
+      if (next === ignoring) return;
+      ignoring = next;
+      void window.zoomguru.setMouseIgnore(next);
+    };
+    const onMove = (e: MouseEvent): void => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const interactive = !!el && !!el.closest('[data-zg-interactive]');
+      apply(!interactive);
+    };
+    window.addEventListener('mousemove', onMove);
+    apply(true); // enter click-through mode while the overlay is mounted
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      void window.zoomguru.setMouseIgnore(false); // restore full interactivity
     };
   }, []);
 
@@ -446,10 +481,10 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
         }
       `}</style>
 
-      <div style={s.root}>
+      <div style={{ ...s.root, ...(darkMode ? s.rootDark : {}) }}>
 
-        {/* ── Header ── */}
-        <div style={s.header}>
+        {/* ── Header (draggable + controls — interactive) ── */}
+        <div style={s.header} data-zg-interactive="1">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {onBack && (
               <button
@@ -516,6 +551,18 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
             </button>
             <button
               className="zg-ibtn"
+              style={{
+                ...s.logoutBtn,
+                color: darkMode ? 'rgba(99,102,241,0.85)' : 'rgba(255,255,255,0.22)',
+              }}
+              onClick={toggleDarkMode}
+              aria-label={darkMode ? 'Dark mode on — click for translucent' : 'Dark mode off — click for solid dark, more readable text'}
+              title={darkMode ? 'Dark: ON' : 'Dark: OFF'}
+            >
+              DM
+            </button>
+            <button
+              className="zg-ibtn"
               style={s.logoutBtn}
               onClick={() => { stopAutoMode(); onLogout(); }}
               aria-label="Log out"
@@ -545,7 +592,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
 
         {/* ── Content ── */}
         {sessionCapped ? (
-          <div style={s.capNotice}>
+          <div style={s.capNotice} data-zg-interactive="1">
             <span style={s.capCount}>{sessionCap} / {sessionCap}</span>
             <p style={s.capMessage}>Session complete</p>
             <p style={s.capSub}>Start a new session to continue.</p>
@@ -557,8 +604,8 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
           <AnswerStream answer={answer} isStreaming={isStreaming} />
         )}
 
-        {/* ── Footer ── */}
-        <div style={s.footer}>
+        {/* ── Footer (controls — interactive) ── */}
+        <div style={s.footer} data-zg-interactive="1">
           <button
             className="zg-fbtn"
             style={{
@@ -654,6 +701,12 @@ const s: Record<string, ElectronStyle> = {
     border: '1px solid rgba(255,255,255,0.07)',
     fontFamily: FONT,
     overflow: 'hidden',
+  },
+  // Dark mode: near-solid backdrop so the answer text is readable over any
+  // bright content behind the overlay.
+  rootDark: {
+    background: 'rgba(7, 7, 11, 0.93)',
+    border: '1px solid rgba(255,255,255,0.10)',
   },
 
   // Header

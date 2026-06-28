@@ -42,6 +42,12 @@ body {
   background: transparent;
 }
 
+/* Payment modals (Paystack) inject a full-window iframe. In a frameless
+   window the drag region can swallow clicks; keep injected iframes interactive. */
+iframe {
+  -webkit-app-region: no-drag;
+}
+
 /* ── Login ─────────────────────────────────────────────── */
 
 .auth-container {

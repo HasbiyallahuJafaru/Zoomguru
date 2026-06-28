@@ -29,6 +29,7 @@ interface WindowStore {
   meetingDocFilename?: string;
   accessToken?: string;
   noiseSuppressor?: boolean;
+  darkMode?: boolean;
   tourCompleted?: boolean;
 }
 
@@ -162,6 +163,21 @@ if (!gotLock) {
 
     mainWindow.setAlwaysOnTop(true, 'screen-saver');
     mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+    // Paystack opens auth/OTP/3-D-Secure popups via window.open. Without this
+    // handler they get trapped behind the always-on-top overlay (so the modal's
+    // buttons appear dead). Allow Paystack popups as real focusable windows
+    // above the overlay; route any other link to the system browser.
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (/paystack\.(co|com)/i.test(url)) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: { alwaysOnTop: true, autoHideMenuBar: true },
+        };
+      }
+      void shell.openExternal(url);
+      return { action: 'deny' };
+    });
 
     mainWindow.on('moved', () => {
       if (!mainWindow) return;
@@ -388,6 +404,26 @@ if (!gotLock) {
 
     ipcMain.handle('settings:setNoiseSuppressor', (_event, enabled: boolean) => {
       if (typeof enabled === 'boolean') store.set('noiseSuppressor', enabled);
+    });
+
+    ipcMain.handle('settings:getDarkMode', () => {
+      return store.get('darkMode', false);
+    });
+
+    ipcMain.handle('settings:setDarkMode', (_event, enabled: boolean) => {
+      if (typeof enabled === 'boolean') store.set('darkMode', enabled);
+    });
+
+    // Click-through: when ignore=true the overlay passes mouse events to the
+    // app underneath; { forward: true } still delivers mousemove to the renderer
+    // so it can re-enable interactivity when the cursor enters a control.
+    ipcMain.handle('overlay:setMouseIgnore', (_event, ignore: boolean) => {
+      if (!mainWindow) return;
+      if (ignore) {
+        mainWindow.setIgnoreMouseEvents(true, { forward: true });
+      } else {
+        mainWindow.setIgnoreMouseEvents(false);
+      }
     });
 
     ipcMain.handle('tour:hasCompleted', () => {

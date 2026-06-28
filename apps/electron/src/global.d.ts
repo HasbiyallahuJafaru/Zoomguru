@@ -37,6 +37,9 @@ interface ZoomGuruBridge {
   setSessionActive(active: boolean): Promise<void>;
   getNoiseSuppressor(): Promise<boolean>;
   setNoiseSuppressor(enabled: boolean): Promise<void>;
+  getDarkMode(): Promise<boolean>;
+  setDarkMode(enabled: boolean): Promise<void>;
+  setMouseIgnore(ignore: boolean): Promise<void>;
   printReport(): Promise<void>;
   tourHasCompleted(): Promise<boolean>;
   tourSetCompleted(): Promise<void>;

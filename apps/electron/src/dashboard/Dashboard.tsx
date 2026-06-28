@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { formatCountdown } from '../utils';
-import UsageMeter from './UsageMeter';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -24,19 +23,6 @@ interface SubData {
   trialEndAt: string | null;
   trialActive: boolean;
   isAdmin: boolean;
-}
-
-interface FeatureUsage {
-  used: number;
-  limit: number;
-  resetAt: string;
-}
-
-interface UsageData {
-  planType: PlanType | null;
-  copilot_requests: FeatureUsage;
-  scorer_reports: FeatureUsage;
-  doc_copilot_requests: FeatureUsage;
 }
 
 interface PaystackResponse {
@@ -106,7 +92,6 @@ const PLAN_LABELS: Record<PlanType, string> = {
 export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer, onLogout, onStartTour }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
-  const [usage, setUsage] = useState<UsageData | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState(false);
@@ -175,23 +160,14 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
           return;
         }
 
-        const [statusRes, usageRes] = await Promise.all([
-          fetch(`${API_URL}/subscription/status`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${API_URL}/subscription/usage`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
+        const statusRes = await fetch(`${API_URL}/subscription/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         if (statusRes.status === 401) { onLogout(); return; }
         if (statusRes.ok) {
           const data = await statusRes.json() as SubData;
           setSub(data);
-        }
-        if (usageRes.ok) {
-          const data = await usageRes.json() as UsageData;
-          setUsage(data);
         }
       } finally {
         setLoadingSub(false);
@@ -334,8 +310,7 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
 
   const showTrialButton = !loadingSub && !isActive && !sub?.trialStartedAt;
   const showContinue = isActive || (sub?.trialActive ?? false);
-  const showUpgradeCta = isActive && sub?.plan !== 'yearly';
-  const showUsage = isActive && usage !== null;
+  const showUpgradeCta = isActive && sub?.plan !== 'yearly' && (sub?.plan as string | null) !== 'lifetime';
 
   return (
     <>
@@ -419,34 +394,13 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
                 </span>
                 <span style={s.mainToolArrow}>→</span>
               </button>
-
-              <div style={s.secondaryTools}>
-                <div style={s.secondaryTool}>
-                  <span style={s.secondaryToolLabel}>Meeting Assistant</span>
-                  <span style={s.comingSoon}>Soon</span>
-                </div>
-                <div style={s.secondaryTool}>
-                  <span style={s.secondaryToolLabel}>AI Interviewer</span>
-                  <span style={s.comingSoon}>Soon</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Usage meters */}
-          {showUsage && (
-            <div style={s.usageSection}>
-              <span style={s.usageSectionLabel}>Usage this period</span>
-              <UsageMeter label="Copilot Requests" data={usage.copilot_requests} />
-              <UsageMeter label="Scorer Reports" data={usage.scorer_reports} />
-              <UsageMeter label="Doc Copilot Requests" data={usage.doc_copilot_requests} />
             </div>
           )}
 
           {/* Upgrade CTA */}
           {showUpgradeCta && (
             <div style={s.upgradeCta}>
-              <span style={s.upgradeText}>Upgrade to Yearly — 4× more quota</span>
+              <span style={s.upgradeText}>Get more with the Yearly plan</span>
               <button
                 className="zg-primary"
                 style={s.upgradeBtn}
@@ -692,47 +646,6 @@ const s: Record<string, ElectronStyle> = {
     color: 'rgba(255,255,255,0.30)',
     alignSelf: 'flex-end',
     marginTop: '2px',
-  },
-  secondaryTools: {
-    display: 'flex',
-    gap: '6px',
-  },
-  secondaryTool: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '9px 12px',
-    border: '1px solid rgba(255,255,255,0.05)',
-    borderRadius: '8px',
-    background: 'rgba(255,255,255,0.02)',
-  },
-  secondaryToolLabel: {
-    fontSize: '10px',
-    color: 'rgba(255,255,255,0.22)',
-    fontFamily: SANS,
-  },
-  comingSoon: {
-    fontSize: '9px',
-    color: 'rgba(255,255,255,0.15)',
-    fontFamily: SANS,
-    letterSpacing: '0.2px',
-  },
-  usageSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    padding: '12px 14px',
-    border: '1px solid rgba(255,255,255,0.06)',
-    borderRadius: '8px',
-  },
-  usageSectionLabel: {
-    fontSize: '10px',
-    color: 'rgba(255,255,255,0.20)',
-    fontFamily: SANS,
-    letterSpacing: '0.3px',
-    textTransform: 'uppercase' as const,
-    marginBottom: '2px',
   },
   upgradeCta: {
     display: 'flex',

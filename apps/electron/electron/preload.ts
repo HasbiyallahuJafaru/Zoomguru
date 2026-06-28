@@ -81,6 +81,15 @@ contextBridge.exposeInMainWorld('zoomguru', {
   setNoiseSuppressor: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke('settings:setNoiseSuppressor', enabled),
 
+  getDarkMode: (): Promise<boolean> =>
+    ipcRenderer.invoke('settings:getDarkMode'),
+
+  setDarkMode: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('settings:setDarkMode', enabled),
+
+  setMouseIgnore: (ignore: boolean): Promise<void> =>
+    ipcRenderer.invoke('overlay:setMouseIgnore', ignore),
+
   printReport: (): Promise<void> =>
     ipcRenderer.invoke('report:print'),
 
