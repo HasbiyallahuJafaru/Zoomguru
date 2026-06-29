@@ -25,41 +25,9 @@ interface SubData {
   isAdmin: boolean;
 }
 
-interface PaystackResponse {
-  reference: string;
-}
-
-interface PaystackHandler {
-  openIframe(): void;
-}
-
-interface PaystackSetupConfig {
-  key: string;
-  email: string;
-  plan?: string;
-  amount?: number;
-  ref: string;
-  channels?: string[];
-  onClose(): void;
-  callback(response: PaystackResponse): void;
-}
-
-interface PaystackPopInterface {
-  setup(config: PaystackSetupConfig): PaystackHandler;
-}
-
 const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
-
-function getEmailFromJwt(token: string): string {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1])) as { email: string };
-    return payload.email;
-  } catch {
-    return '';
-  }
-}
 
 function getFirstNameFromJwt(token: string): string {
   try {
@@ -69,18 +37,6 @@ function getFirstNameFromJwt(token: string): string {
   } catch {
     return '';
   }
-}
-
-function loadPaystackScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (document.getElementById('paystack-inline')) { resolve(); return; }
-    const script = document.createElement('script');
-    script.id = 'paystack-inline';
-    script.src = 'https://js.paystack.co/v1/inline.js';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Paystack'));
-    document.head.appendChild(script);
-  });
 }
 
 const PLAN_LABELS: Record<PlanType, string> = {
@@ -207,73 +163,98 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
     }
   }
 
+  // Poll /subscription/status until it reports active. confirmCheckout activates
+  // synchronously before the success redirect (and getStatus reads the DB
+  // directly, no cache), so the first poll normally wins instantly.
+  async function pollUntilActive(attempts: number, intervalMs: number): Promise<boolean> {
+    const token = await window.zoomguru.getToken();
+    for (let i = 0; i < attempts; i++) {
+      const res = await fetch(`${API_URL}/subscription/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 401) { onLogout(); return false; }
+      if (res.ok) {
+        const data = await res.json() as SubData;
+        setSub(data);
+        if (data.status === 'active') return true;
+      }
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return false;
+  }
+
+  // Authenticated last-resort verify. If the hosted-checkout confirm didn't land
+  // (e.g. its request was cut off when the payment window closed), verify the
+  // reference directly with our JWT + device key. This also binds the device.
+  // Safe against double-activation: the backend rejects already-used references.
+  async function verifyReference(reference: string): Promise<boolean> {
+    try {
+      const [token, { keyId }] = await Promise.all([
+        window.zoomguru.getToken(),
+        window.zoomguru.getDevicePublicKey(),
+      ]);
+      const res = await fetch(`${API_URL}/subscription/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Key-ID': keyId,
+        },
+        body: JSON.stringify({ reference }),
+      });
+      if (res.ok) { await refreshStatus(); return true; }
+    } catch {
+      // fall back to polling for the webhook
+    }
+    return false;
+  }
+
   async function handleSubscribe(planOverride?: 'weekly' | 'monthly' | 'yearly'): Promise<void> {
     const plan = planOverride ?? selectedPlan;
-    const token = await window.zoomguru.getToken();
-    const email = getEmailFromJwt(token);
-    const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string;
-
-    if (!email) return;
 
     setVerifyError(false);
     setCheckingOut(true);
     checkingOutRef.current = true;
 
     try {
-      await loadPaystackScript();
-    } catch {
-      setCheckingOut(false);
-      return;
-    }
+      const token = await window.zoomguru.getToken();
+      const res = await fetch(`${API_URL}/payments/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plan }),
+      });
+      if (res.status === 401) { onLogout(); return; }
+      if (!res.ok) { setVerifyError(true); return; }
 
-    const pop = (window as unknown as { PaystackPop: PaystackPopInterface }).PaystackPop;
+      const { checkout_url } = await res.json() as { checkout_url: string };
+      const result = await window.zoomguru.openPayment(checkout_url);
 
-    const payConfig: PaystackSetupConfig = {
-      key: pubKey,
-      email,
-      ref: `zg_${Date.now()}`,
-      channels: ['bank_transfer', 'ussd', 'opay'],
-      onClose: () => {
-        setCheckingOut(false);
-        checkingOutRef.current = false;
-      },
-      callback: (response) => {
-        setCheckingOut(false);
-        checkingOutRef.current = false;
+      if (result.status === 'success') {
         setVerifying(true);
-        void (async () => {
-          try {
-            const [freshToken, { keyId }] = await Promise.all([
-              window.zoomguru.getToken(),
-              window.zoomguru.getDevicePublicKey(),
-            ]);
-            const res = await fetch(`${API_URL}/subscription/verify`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${freshToken}`,
-                'X-Key-ID': keyId,
-              },
-              body: JSON.stringify({ reference: response.reference }),
-            });
-            if (res.status === 401) { onLogout(); return; }
-            if (!res.ok) { setVerifyError(true); return; }
-            await refreshStatus();
-          } finally {
-            setVerifying(false);
+        try {
+          // Fast path: confirm already activated → first poll wins (~instant).
+          let active = await pollUntilActive(4, 700);
+          // Reliable path: confirm was interrupted → verify the reference directly.
+          if (!active && result.reference) {
+            active = await verifyReference(result.reference);
           }
-        })();
-      },
-    };
-
-    const PLAN_AMOUNTS: Record<PlanType, number> = {
-      weekly:  1_500_000,
-      monthly: 4_500_000,
-      yearly: 45_000_000,
-    };
-    payConfig.amount = PLAN_AMOUNTS[plan];
-
-    pop.setup(payConfig).openIframe();
+          // Backstop: give the Paystack webhook a little longer to land.
+          if (!active) active = await pollUntilActive(6, 1500);
+          if (!active) setVerifyError(true);
+        } finally {
+          setVerifying(false);
+        }
+      }
+      // 'cancelled' / 'error' — leave the dashboard as-is so the user can retry.
+    } catch {
+      setVerifyError(true);
+    } finally {
+      setCheckingOut(false);
+      checkingOutRef.current = false;
+    }
   }
 
   // Break a raw day count into "X months, Y days left" so longer plans (monthly

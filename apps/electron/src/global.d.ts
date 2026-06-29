@@ -23,6 +23,7 @@ interface ZoomGuruBridge {
   quitApp(): Promise<void>;
   getWindowBounds(): Promise<{ x: number; y: number; width: number; height: number }>;
   setWindowBounds(bounds: { x: number; y: number; width: number; height: number }): Promise<void>;
+  openPayment(checkoutUrl: string): Promise<{ status: 'success' | 'cancelled' | 'error'; reference?: string }>;
   requestMicPermission(): Promise<boolean>;
   parseCV(): Promise<CvResult | CvError | null>;
   loadCV(): Promise<CvResult | null>;

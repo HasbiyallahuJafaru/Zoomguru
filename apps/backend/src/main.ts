@@ -33,12 +33,17 @@ async function bootstrap(): Promise<void> {
     origin: (origin, callback) => {
       const appUrl = (process.env['APP_URL'] ?? '').replace(/\/$/, '');
       const adminCors = (process.env['ADMIN_CORS_ORIGIN'] ?? '').replace(/\/$/, '');
+      const checkoutUrl = (process.env['CHECKOUT_URL'] ?? 'https://zoomguru.xyz').replace(/\/$/, '');
       const allowed = [
         'http://localhost:5173',
         'http://localhost:5174',
         'app://.',
         appUrl,
         adminCors,
+        // Hosted checkout page (zoomguru.xyz) calls /payments/session + /confirm.
+        checkoutUrl,
+        'https://zoomguru.xyz',
+        'https://www.zoomguru.xyz',
       ].filter(Boolean);
       if (!origin || allowed.includes(origin) || origin === 'app://zoomguru') {
         callback(null, true);

@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual, randomBytes } from 'node:crypto';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 import { EmailService } from '../email/email.service';
@@ -82,9 +82,21 @@ interface PaystackVerifyResponse {
 }
 
 const KEY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SESSION_TOKEN_RE = /^[0-9a-f]{64}$/i;
 const DEVICE_CACHE_TTL_SEC = 10;
 const SUB_CACHE_TTL_SEC = 30;
 const TRIAL_DURATION_MS = 30 * 60_000;
+// Checkout session tokens are single-use and expire so an abandoned link can't
+// be replayed later. 30 minutes is comfortably longer than a Paystack flow.
+const CHECKOUT_TTL_SEC = 30 * 60;
+
+interface CheckoutSession {
+  userId: string;
+  email: string;
+  plan: 'weekly' | 'monthly' | 'yearly';
+  amount: number;
+  createdAt: number;
+}
 
 async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void> {
   try {
@@ -370,7 +382,7 @@ export class SubscriptionService {
   async checkAccess(
     userId: string,
     keyId: string | undefined,
-  ): Promise<{ canUse: boolean; deviceAllowed: boolean; plan: string | null; periodStart: Date | null }> {
+  ): Promise<{ canUse: boolean; deviceAllowed: boolean; plan: string | null; periodStart: Date | null; subActive: boolean }> {
     const pool = getDB();
     const validKeyId = keyId && KEY_ID_RE.test(keyId) ? keyId : null;
 
@@ -471,7 +483,9 @@ export class SubscriptionService {
     }
 
     const periodStart = periodStartStr ? new Date(periodStartStr) : null;
-    return { canUse, deviceAllowed, plan, periodStart };
+    // subActive distinguishes a paid, active subscription from a trial/inactive
+    // user — used to grant a higher AI rate limit to paying customers.
+    return { canUse, deviceAllowed, plan, periodStart, subActive: status === 'active' };
   }
 
   async invalidateDeviceCache(userId: string, keyId?: string): Promise<void> {
@@ -487,18 +501,46 @@ export class SubscriptionService {
     }
   }
 
+  // Verifies a reference with Paystack, retrying transient failures (network
+  // errors, 5xx, 429) with a short backoff and a 5s per-attempt timeout. A
+  // single blip on Paystack's side would otherwise drop the user onto the slow
+  // webhook path; this keeps the authoritative confirm fast and reliable.
+  private async paystackVerify(reference: string, secretKey: string): Promise<PaystackVerifyResponse> {
+    const url = `${PAYSTACK_BASE}/transaction/verify/${encodeURIComponent(reference)}`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        let res: Response;
+        try {
+          res = await fetch(url, {
+            headers: { Authorization: `Bearer ${secretKey}` },
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timer);
+        }
+
+        if (res.ok) return (await res.json()) as PaystackVerifyResponse;
+
+        // 4xx (other than rate-limit) won't change on retry — fail fast.
+        if (res.status < 500 && res.status !== 429) {
+          throw new BadRequestException('Could not verify payment');
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+        // network/abort error — fall through to retry
+      }
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+    throw new BadRequestException('Could not reach Paystack');
+  }
+
   async verify(userId: string, userEmail: string, reference: string, keyId?: string): Promise<{ success: boolean }> {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
-    const res = await fetch(
-      `${PAYSTACK_BASE}/transaction/verify/${encodeURIComponent(reference)}`,
-      { headers: { Authorization: `Bearer ${secretKey}` } },
-    );
-
-    if (!res.ok) throw new BadRequestException('Could not reach Paystack');
-
-    const body = (await res.json()) as PaystackVerifyResponse;
+    const body = await this.paystackVerify(reference, secretKey);
     if (!body.status || body.data.status !== 'success') {
       throw new BadRequestException('Payment not successful');
     }
@@ -528,6 +570,37 @@ export class SubscriptionService {
 
     const lockedKeyId = (keyId && KEY_ID_RE.test(keyId)) ? keyId : null;
 
+    await this.activatePaidSubscription({
+      userId,
+      customerCode: txData.customer.customer_code,
+      reference,
+      amount: txData.amount,
+      plan,
+      periodEnd,
+      lockedKeyId,
+    });
+
+    return { success: true };
+  }
+
+  // Shared activation path for a confirmed Paystack payment. Used both by the
+  // legacy in-app verify() and the hosted-checkout confirmCheckout(). Writes the
+  // subscription, busts caches, resets quota, emails the receipt, and records a
+  // first-payment referral commission. Device binding is optional: in-app verify
+  // passes the device key; hosted checkout passes null and the device locks on
+  // first AI use (checkAccess) exactly as the webhook path already does.
+  private async activatePaidSubscription(params: {
+    userId: string;
+    customerCode: string;
+    reference: string;
+    amount: number;
+    plan: 'weekly' | 'monthly' | 'yearly';
+    periodEnd: string;
+    lockedKeyId: string | null;
+  }): Promise<void> {
+    const { userId, customerCode, reference, amount, plan, periodEnd, lockedKeyId } = params;
+    const pool = getDB();
+
     await pool.query(
       `INSERT INTO subscriptions
          (user_id, paystack_customer_code, paystack_reference, status, plan, current_period_end, locked_key_id, updated_at)
@@ -540,7 +613,7 @@ export class SubscriptionService {
          current_period_end      = $5,
          locked_key_id           = COALESCE(subscriptions.locked_key_id, $6),
          updated_at              = NOW()`,
-      [userId, txData.customer.customer_code, reference, plan, periodEnd, lockedKeyId],
+      [userId, customerCode, reference, plan, periodEnd, lockedKeyId],
     );
 
     await Promise.all([this.invalidateDeviceCache(userId), delSubCache(userId)]);
@@ -562,7 +635,7 @@ export class SubscriptionService {
         [userId],
       );
       if (existingCommission.rows.length === 0) {
-        const commissionKobo = Math.floor(txData.amount * 0.1);
+        const commissionKobo = Math.floor(amount * 0.1);
         await pool.query(
           `INSERT INTO referral_commissions
              (referrer_user_id, referred_user_id, amount_kobo, payment_reference)
@@ -571,8 +644,144 @@ export class SubscriptionService {
         );
       }
     }
+  }
 
-    return { success: true };
+  // ── Hosted checkout (zoomguru.xyz) ──────────────────────────────────────────
+  // The desktop app no longer initialises Paystack. Instead it asks the backend
+  // to mint a single-use session token, then opens https://zoomguru.xyz/checkout
+  // which runs Paystack InlineJS so transactions originate from the registered
+  // domain rather than a file:/// path.
+
+  async createCheckout(
+    userId: string,
+    email: string,
+    plan: string,
+  ): Promise<{ checkout_url: string }> {
+    const match = PAYSTACK_PLAN_AMOUNTS.find((p) => p.plan === plan);
+    if (!match) throw new BadRequestException('Invalid plan');
+
+    const token = randomBytes(32).toString('hex');
+    const session: CheckoutSession = {
+      userId,
+      email,
+      plan: match.plan,
+      amount: match.kobo,
+      createdAt: Date.now(),
+    };
+
+    try {
+      await getRedis().set(`ps:${token}`, JSON.stringify(session), 'EX', CHECKOUT_TTL_SEC);
+    } catch {
+      throw new InternalServerErrorException('Could not start checkout');
+    }
+
+    const base = (process.env.CHECKOUT_URL ?? 'https://zoomguru.xyz').replace(/\/$/, '');
+    return { checkout_url: `${base}/checkout.html?session=${token}` };
+  }
+
+  // Public endpoint hit by the checkout page. Returns only what the browser
+  // needs to render Paystack — never the secret key.
+  async getCheckout(
+    token: string,
+  ): Promise<{ email: string; amount: number; plan: string; publicKey: string }> {
+    if (!token || !SESSION_TOKEN_RE.test(token)) {
+      throw new BadRequestException('Invalid session');
+    }
+
+    let raw: string | null;
+    try {
+      raw = await getRedis().get(`ps:${token}`);
+    } catch {
+      throw new InternalServerErrorException('Checkout unavailable');
+    }
+    if (!raw) throw new BadRequestException('Session expired');
+
+    const session = JSON.parse(raw) as CheckoutSession;
+    const publicKey = process.env.PAYSTACK_PUBLIC_KEY ?? '';
+    if (!publicKey) throw new InternalServerErrorException('Paystack public key not configured');
+
+    return { email: session.email, amount: session.amount, plan: session.plan, publicKey };
+  }
+
+  // Public endpoint hit by the checkout page after Paystack returns a reference.
+  // Verifies server-side, activates the subscription, and consumes the token so
+  // it cannot be replayed. Idempotent if the webhook already activated.
+  async confirmCheckout(
+    token: string,
+    reference: string,
+  ): Promise<{ success: boolean; status: 'active' }> {
+    if (!token || !SESSION_TOKEN_RE.test(token)) {
+      throw new BadRequestException('Invalid session');
+    }
+    if (!reference || typeof reference !== 'string') {
+      throw new BadRequestException('reference is required');
+    }
+
+    const redis = getRedis();
+    let raw: string | null;
+    try {
+      raw = await redis.get(`ps:${token}`);
+    } catch {
+      throw new InternalServerErrorException('Checkout unavailable');
+    }
+    if (!raw) throw new BadRequestException('Session expired');
+    const session = JSON.parse(raw) as CheckoutSession;
+
+    const secretKey = process.env.PAYSTACK_SECRET_KEY;
+    if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
+
+    const pool = getDB();
+
+    // Fast path: if the webhook (or a prior confirm) already recorded this
+    // reference for this user, the subscription is active — skip the Paystack
+    // round trip and return immediately.
+    const pre = await pool.query<{ user_id: string }>(
+      `SELECT user_id FROM subscriptions WHERE paystack_reference = $1 LIMIT 1`,
+      [reference],
+    );
+    if (pre.rows.length > 0 && pre.rows[0].user_id === session.userId) {
+      try { await redis.del(`ps:${token}`); } catch { /* TTL will expire it */ }
+      return { success: true, status: 'active' };
+    }
+
+    const body = await this.paystackVerify(reference, secretKey);
+    if (!body.status || body.data.status !== 'success') {
+      throw new BadRequestException('Payment not successful');
+    }
+    const txData = body.data;
+
+    // Guard: the paid transaction must match the session it claims to fulfil.
+    if (txData.customer.email.toLowerCase() !== session.email.toLowerCase()) {
+      throw new BadRequestException('Payment does not match this checkout');
+    }
+    const resolved = resolvePlan(txData.amount);
+    if (!resolved || txData.amount !== session.amount) {
+      throw new BadRequestException('Invalid payment amount');
+    }
+    const { plan, periodEnd } = resolved;
+
+    // Replay guard: covers a webhook landing between the pre-check and now.
+    const existing = await pool.query<{ user_id: string }>(
+      `SELECT user_id FROM subscriptions WHERE paystack_reference = $1 LIMIT 1`,
+      [reference],
+    );
+    if (existing.rows.length > 0) {
+      try { await redis.del(`ps:${token}`); } catch { /* TTL will expire it */ }
+      return { success: true, status: 'active' };
+    }
+
+    await this.activatePaidSubscription({
+      userId: session.userId,
+      customerCode: txData.customer.customer_code,
+      reference,
+      amount: txData.amount,
+      plan,
+      periodEnd,
+      lockedKeyId: null,
+    });
+
+    try { await redis.del(`ps:${token}`); } catch { /* TTL will expire it */ }
+    return { success: true, status: 'active' };
   }
 
   async handleWebhook(rawBody: Buffer, signature: string): Promise<void> {

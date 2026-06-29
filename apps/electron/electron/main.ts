@@ -331,6 +331,69 @@ if (!gotLock) {
       },
     );
 
+    // Embedded hosted checkout. The renderer hands us a zoomguru.xyz checkout URL
+    // (minted by the backend); we open it in a child window that loads Paystack
+    // from the registered domain. We watch for the /payment-success navigation to
+    // know the payment completed, and treat a manual close as a cancellation.
+    // A separate session partition keeps the overlay's CSP/permission rules off
+    // this window so the page behaves like an ordinary browser tab.
+    ipcMain.handle('payment:open', (_event, checkoutUrl: string) => {
+      if (typeof checkoutUrl !== 'string' || !/^https:\/\/(www\.)?zoomguru\.xyz\//i.test(checkoutUrl)) {
+        return { status: 'error' as const };
+      }
+
+      return new Promise<{ status: 'success' | 'cancelled' | 'error'; reference?: string }>((resolve) => {
+        const payWin = new BrowserWindow({
+          width: 480,
+          height: 720,
+          parent: mainWindow ?? undefined,
+          modal: true,
+          title: 'ZoomGuru — Secure Checkout',
+          backgroundColor: '#0a0a0a',
+          autoHideMenuBar: true,
+          webPreferences: {
+            partition: 'payment',
+            contextIsolation: true,
+            nodeIntegration: false,
+          },
+        });
+        payWin.setAlwaysOnTop(true, 'screen-saver');
+
+        let settled = false;
+        const finish = (status: 'success' | 'cancelled' | 'error', reference?: string): void => {
+          if (settled) return;
+          settled = true;
+          resolve({ status, reference });
+          if (!payWin.isDestroyed()) payWin.close();
+        };
+
+        const checkUrl = (url: string): void => {
+          if (!/\/payment-success(\.html)?/i.test(url)) return;
+          // Carry the Paystack reference back so the renderer can run an
+          // authenticated last-resort verify if status polling lags.
+          let reference: string | undefined;
+          try { reference = new URL(url).searchParams.get('reference') ?? undefined; } catch { /* keep undefined */ }
+          finish('success', reference);
+        };
+        payWin.webContents.on('did-navigate', (_e, url) => checkUrl(url));
+        payWin.webContents.on('did-navigate-in-page', (_e, url) => checkUrl(url));
+        payWin.webContents.on('will-redirect', (_e, url) => checkUrl(url));
+
+        // Paystack opens OTP / 3-D Secure popups via window.open — allow those as
+        // real child windows; route anything else to the system browser.
+        payWin.webContents.setWindowOpenHandler(({ url }) => {
+          if (/paystack\.(co|com)/i.test(url)) {
+            return { action: 'allow', overrideBrowserWindowOptions: { alwaysOnTop: true, autoHideMenuBar: true } };
+          }
+          void shell.openExternal(url);
+          return { action: 'deny' };
+        });
+
+        payWin.on('closed', () => finish('cancelled'));
+        void payWin.loadURL(checkoutUrl);
+      });
+    });
+
     ipcMain.handle('device:getPublicKey', () => {
       return getPublicKeyInfo();
     });
