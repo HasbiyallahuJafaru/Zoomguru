@@ -32,6 +32,11 @@ const LIMITS: Record<PlanType, Record<QuotaFeature, number>> = {
   },
 };
 
+// No plan carries per-feature quotas — all subscribers are uncapped (the
+// per-minute rate limit + daily session cap still apply). Add a plan here to
+// re-enable its feature quotas; the numbers above are kept for reference.
+const CAPPED_PLANS = new Set<PlanType>();
+
 export interface QuotaResult {
   allowed: boolean;
   planType: PlanType;
@@ -90,10 +95,16 @@ export class QuotaService {
     const col = COLUMN_MAP[feature];
     if (!col) throw new Error(`Unknown feature: ${feature}`);
 
-    const pool = getDB();
     const limit = LIMITS[planType][feature];
     const days = windowDays(planType);
     const resetAt = new Date(periodStart.getTime() + days * 86_400_000).toISOString();
+
+    // Monthly and yearly plans are uncapped — allow immediately without metering.
+    if (!CAPPED_PLANS.has(planType)) {
+      return { allowed: true, planType, feature, limit, used: 0, resetAt };
+    }
+
+    const pool = getDB();
 
     // Optimistic path: attempt increment without ensureRow.
     // Succeeds on the fast path (row exists, under limit) with no extra write.
