@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('zoomguru', {
   setWindowBounds: (bounds: { x: number; y: number; width: number; height: number }): Promise<void> =>
     ipcRenderer.invoke('window:setBounds', bounds),
 
+  openPayment: (checkoutUrl: string): Promise<{ status: 'success' | 'cancelled' | 'error'; reference?: string }> =>
+    ipcRenderer.invoke('payment:open', checkoutUrl),
+
   requestMicPermission: (): Promise<boolean> =>
     ipcRenderer.invoke('permissions:request-mic'),
 
