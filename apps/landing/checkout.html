@@ -98,6 +98,9 @@
             email: d.email,
             amount: d.amount,
             currency: 'NGN',
+            // Restrict methods so bank transfer is the default (and hide the QR
+            // "barcode" option); matches the pre-migration in-app behaviour.
+            channels: ['bank_transfer', 'ussd', 'opay'],
             onClose: function () {
               fail('Payment cancelled. You can try again or close this window.');
             },
