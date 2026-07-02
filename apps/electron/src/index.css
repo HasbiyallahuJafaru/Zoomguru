@@ -17,6 +17,12 @@ body {
   50% { opacity: 0.4; }
 }
 
+/* Keep the normal arrow cursor on buttons — no pointer/finger on hover.
+   Disabled buttons keep their not-allowed cursor. */
+button:not(:disabled) {
+  cursor: default !important;
+}
+
 /* ── Scrollbars — slim, theme-matched, draggable ───────── */
 
 ::-webkit-scrollbar {

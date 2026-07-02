@@ -45,6 +45,9 @@ const PLAN_LABELS: Record<PlanType, string> = {
   yearly: 'Yearly',
 };
 
+// Ordering used to decide which plans count as an "upgrade" from the current one.
+const PLAN_RANK: Record<string, number> = { weekly: 1, monthly: 2, yearly: 3, lifetime: 4 };
+
 export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer, onLogout, onStartTour }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
@@ -302,7 +305,12 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
 
   const showTrialButton = !loadingSub && !isActive && !sub?.trialStartedAt;
   const showContinue = isActive || (sub?.trialActive ?? false);
-  const showUpgradeCta = isActive && sub?.plan !== 'yearly' && (sub?.plan as string | null) !== 'lifetime';
+  // Every plan ranked above the current one is offered as an upgrade — e.g. a
+  // weekly subscriber sees both Monthly and Yearly, a monthly sees Yearly.
+  const upgradeTargets = (['monthly', 'yearly'] as const).filter(
+    (p) => PLAN_RANK[p] > (PLAN_RANK[sub?.plan ?? ''] ?? 0),
+  );
+  const showUpgradeCta = isActive && upgradeTargets.length > 0;
 
   return (
     <>
@@ -392,14 +400,17 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
           {/* Upgrade CTA */}
           {showUpgradeCta && (
             <div style={s.upgradeCta}>
-              <span style={s.upgradeText}>Get more with the Yearly plan</span>
-              <button
-                className="zg-primary"
-                style={s.upgradeBtn}
-                onClick={() => { void handleSubscribe('yearly'); }}
-              >
-                Upgrade to Yearly
-              </button>
+              <span style={s.upgradeText}>Upgrade your plan</span>
+              {upgradeTargets.map((p) => (
+                <button
+                  key={p}
+                  className="zg-primary"
+                  style={s.upgradeBtn}
+                  onClick={() => { void handleSubscribe(p); }}
+                >
+                  Upgrade to {PLAN_LABELS[p]}
+                </button>
+              ))}
             </div>
           )}
 
