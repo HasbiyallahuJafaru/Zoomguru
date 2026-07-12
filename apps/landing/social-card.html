@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  ZoomGuru Social Card Template
+  Open this file in a browser, then screenshot the rendered card area
+  (1200×630) to create social-card.png.
+  Or use a headless screenshot tool:
+    npx screencap social-card.html social-card.png --width 1200 --height 630
+-->
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1200, initial-scale=1" />
+<title>ZoomGuru Social Card</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: #111;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Georgia', 'Times New Roman', serif;
+  }
+  .card {
+    width: 1200px; height: 630px;
+    background: #111;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    position: relative;
+  }
+  .doodles {
+    position: absolute; inset: 0; opacity: 0.06; pointer-events: none;
+  }
+  .content {
+    text-align: center; z-index: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 0;
+  }
+  .accent-line {
+    width: 80px; height: 1.5px; background: rgba(245,243,238,0.5); margin-bottom: 36px;
+  }
+  .brand {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-weight: 900; font-size: 96px; color: #f5f3ee; letter-spacing: -2px;
+    line-height: 1;
+  }
+  .brand em {
+    font-style: italic; font-weight: 400; letter-spacing: -1px;
+  }
+  .tagline {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 26px; color: #888074; margin-top: 24px; letter-spacing: -0.2px;
+  }
+  .divider {
+    width: 120px; height: 1px; background: rgba(245,243,238,0.16);
+    margin: 32px 0;
+  }
+  .domain {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 17px; color: rgba(245,243,238,0.34); letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+  /* doodle accents — matching site SVG */
+  .d { position: absolute; border: 1px solid #f5f3ee; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="doodles">
+    <div class="d" style="width:80px;height:80px;top:60px;left:80px;"></div>
+    <div class="d" style="width:44px;height:44px;top:80px;right:100px;"></div>
+    <div class="d" style="width:32px;height:32px;bottom:100px;right:150px;"></div>
+    <div class="d" style="width:20px;height:20px;bottom:80px;left:200px;"></div>
+    <div style="position:absolute;top:90px;left:80px;color:#f5f3ee;font-size:18px;line-height:1;">&#x2726;</div>
+    <div style="position:absolute;bottom:140px;right:130px;color:#f5f3ee;font-size:14px;line-height:1;">&#x2736;</div>
+  </div>
+  <div class="content">
+    <div class="accent-line"></div>
+    <span class="brand">Zoom<em>Guru</em></span>
+    <p class="tagline">AI Interview Copilot for Live Interviews</p>
+    <div class="divider"></div>
+    <p class="domain">zoomguru.xyz</p>
+  </div>
+</div>
+</body>
+</html>
