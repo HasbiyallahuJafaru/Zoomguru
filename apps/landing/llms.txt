@@ -6,8 +6,8 @@
 > answers in under two seconds. It also includes an AI mock interviewer,
 > answer scoring with reports, a document copilot, and screenshot
 > walk-throughs for technical problems. Pricing starts at NGN 15,000
-> per week, with monthly (NGN 40,000) and yearly (NGN 400,000) plans.
-> Payments via Paystack in NGN and USD. A free 30-minute trial is
+> per week, with monthly (NGN 45,000) and yearly (NGN 450,000) plans.
+> Payments via Paystack in NGN. A free 30-minute trial is
 > available with no card required.
 
 Key facts:
@@ -25,3 +25,6 @@ Key facts:
 - [Privacy policy](https://zoomguru.xyz/privacy.html)
 - [Terms of service](https://zoomguru.xyz/terms.html)
 - [Refund policy](https://zoomguru.xyz/refund.html)
+
+## Extended context
+- [Full product description](https://zoomguru.xyz/llms-full.txt)

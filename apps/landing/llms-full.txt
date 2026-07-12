@@ -1,0 +1,98 @@
+# ZoomGuru — Full Product Description for LLMs
+
+## What ZoomGuru Is
+
+ZoomGuru is an AI-powered interview coaching desktop application for Windows.
+It runs as a transparent overlay on the user's screen during job interviews,
+listening to questions via microphone and streaming AI-generated coached
+answers in real time. The overlay uses OS-level content protection (Electron's
+setContentProtection API) to remain invisible to screen-sharing software
+including Zoom, Google Meet, Microsoft Teams, and Webex.
+
+## Core Features
+
+### 1. Live AI Coaching
+Speak any interview question aloud (Ctrl+Shift+L) and get a structured,
+role-tailored answer streaming back in under two seconds. The answer is
+grounded in the job description and CV you provided, not a generic template.
+
+### 2. Hands-Free Auto Mode
+Toggle auto mode (Ctrl+Shift+D) and ZoomGuru listens continuously using voice
+activity detection. It transcribes and answers automatically the moment each
+question ends — no hotkeys, no clicks needed.
+
+### 3. Screenshot Walk-Through
+Press Ctrl+Shift+S to capture your screen. ZoomGuru reads the coding challenge,
+system design diagram, or case study and walks you through a full solution
+including reasoning, code, and explanation.
+
+### 4. AI Mock Interviewer
+Run a full simulated interview for your specific role. The AI generates
+realistic questions, listens to your spoken answers via microphone, and
+produces a detailed score report with feedback on clarity, depth, relevance,
+and confidence for every response.
+
+### 5. Document Copilot
+Upload your CV, a PDF case study, or a PPTX deck and ask questions about it.
+ZoomGuru reads every page and gives grounded, document-backed answers.
+
+### 6. Answer Scoring & Reports
+After every practice session, each answer is scored on clarity, depth,
+relevance, and confidence. A written report provides specific, actionable
+feedback on every response.
+
+## Hotkeys
+
+- Ctrl+Shift+L — Speak a question for coached answer
+- Ctrl+Shift+S — Screenshot screen for walk-through
+- Ctrl+Shift+D — Toggle hands-free auto mode
+- Ctrl+Shift+H — Hide/show overlay instantly
+- Ctrl+Shift+C — Clear current answer from screen
+
+## Pricing (NGN)
+
+- Weekly: ₦15,000 (7 days, one-time). 30 AI coaching sessions, 3 mock
+  interviews, 3 answer score reports, 5 document copilot queries, screenshot
+  walk-throughs.
+- Monthly: ₦45,000/month. 120 AI coaching sessions, 10 mock interviews, 10
+  answer score reports, 20 document copilot queries, screenshot walk-throughs.
+  Cancel anytime.
+- Yearly: ₦450,000/year (two months free vs monthly). 400 AI coaching
+  sessions, 40 mock interviews, 40 answer score reports, 80 document copilot
+  queries, screenshot walk-throughs, all future features included.
+
+Free 30-minute trial available with no credit card required. One trial per
+device. Payments processed securely by Paystack.
+
+## Platform Support
+
+- Windows 10 and 11 (64-bit) — fully supported
+- macOS — in development, coming soon
+
+## Privacy & Data Handling
+
+- Interview questions and answers live only in memory during the session.
+- No transcripts are stored on any server.
+- No session content is used to train AI models.
+- Screenshots are transmitted for processing and immediately discarded.
+- Account data: email, name, hashed password, subscription status.
+- Payments processed by Paystack — no card details stored on ZoomGuru servers.
+- Device fingerprint (non-sensitive hardware properties) used only for
+  subscription device-limit enforcement.
+- Full details: https://zoomguru.xyz/privacy.html
+
+## Device Locking
+
+Subscriptions are locked to a maximum of two devices. The first device used
+after subscribing is registered automatically. Contact support to switch
+devices.
+
+## Company
+
+- Domain: zoomguru.xyz
+- Support: support@zoomguru.xyz
+- Payments: Paystack (NGN)
+- Backend: NestJS on Render
+- Database: Neon PostgreSQL
+- AI: Gemini 2.0 Flash (primary), DeepSeek (fallback), Groq Whisper
+  (transcription)

@@ -23,3 +23,7 @@ User-agent: Bingbot
 Allow: /
 
 Sitemap: https://zoomguru.xyz/sitemap.xml
+
+# LLM context files
+Allow: /llms.txt
+Allow: /llms-full.txt
