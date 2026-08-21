@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type FormEvent, type CSSProperties } from 'react';
+import { API_URL } from '../utils';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -12,7 +13,6 @@ interface RegisterApiResponse {
   message?: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 

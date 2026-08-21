@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { QAEntry } from './InterviewerSession';
+import { API_URL } from '../utils';
 
 interface PerAnswerScore {
   questionNumber: number;
@@ -22,7 +23,6 @@ interface Props {
   onDone: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
 function scoreColor(score: number): string {

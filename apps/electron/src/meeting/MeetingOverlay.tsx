@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import AnswerStream from '../overlay/AnswerStream';
-import { blobToBase64, makeDeviceHeaders } from '../utils';
+import { API_URL, blobToBase64, makeDeviceHeaders } from '../utils';
 
 interface MeetingOverlayProps {
   docText: string;
@@ -9,7 +9,6 @@ interface MeetingOverlayProps {
   onLogout: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
 export default function MeetingOverlay({ docText, docFilename, onEnd, onLogout }: MeetingOverlayProps) {

@@ -43,7 +43,7 @@
       // Fallback confirmation: if the checkout page's confirm call was interrupted
       // by the redirect, retry it here. The backend treats this idempotently and
       // the Paystack webhook is the ultimate backstop.
-      var API = 'https://zoomguru.onrender.com';
+      var API = 'https://zoomguru-backend-production.up.railway.app';
       var params = new URLSearchParams(window.location.search);
       var session = params.get('session');
       var reference = params.get('reference');

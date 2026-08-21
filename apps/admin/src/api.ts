@@ -12,7 +12,7 @@ import type {
   TargetFilter,
 } from './types';
 
-const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://zoomguru.onrender.com';
+const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://zoomguru-backend-production.up.railway.app';
 const adminKey = (import.meta.env.VITE_ADMIN_KEY as string | undefined) ?? '';
 if (!adminKey?.trim()) {
   console.error('[ZoomGuru Admin] VITE_ADMIN_KEY is not set. All API requests will fail.');

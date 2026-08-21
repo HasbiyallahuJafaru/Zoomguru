@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
-import { formatCountdown } from '../utils';
+import { API_URL, formatCountdown } from '../utils';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -25,7 +25,6 @@ interface SubData {
   isAdmin: boolean;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 

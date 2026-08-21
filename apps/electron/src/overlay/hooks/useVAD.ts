@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, type MutableRefObject } from 'react';
 import { createDenoisedStream } from '../noise-suppressor';
-import { blobToBase64, makeDeviceHeaders } from '../../utils';
+import { API_URL, blobToBase64, makeDeviceHeaders } from '../../utils';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const VAD_THRESHOLD = 0.015;
 const SILENCE_MS = 1500;
 const MIN_SPEECH_MS = 2500;

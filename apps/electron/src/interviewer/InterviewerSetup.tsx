@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
+import { API_URL } from '../utils';
 
 type Difficulty = 'easy' | 'medium' | 'hard' | 'dynamic';
 
@@ -8,7 +9,6 @@ interface Props {
   onBack: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
 const DIFFICULTIES: { value: Difficulty; label: string; desc: string }[] = [

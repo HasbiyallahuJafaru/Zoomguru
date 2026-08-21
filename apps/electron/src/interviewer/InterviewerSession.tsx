@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
+import { API_URL } from '../utils';
 
 type Phase =
   | 'starting'
@@ -29,7 +30,6 @@ interface Props {
 }
 
 const TOTAL_QUESTIONS = 25;
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
 const ORB_CSS = `

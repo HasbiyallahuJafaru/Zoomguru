@@ -1,4 +1,5 @@
 import { useState, useEffect, type CSSProperties } from 'react';
+import { API_URL } from '../utils';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
@@ -21,7 +22,6 @@ interface DashboardData {
 
 type View = 'dashboard' | 'add-bank';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 

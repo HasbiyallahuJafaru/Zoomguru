@@ -1,3 +1,7 @@
+// Keep in sync with the connect-src entry in electron/main.ts — the packaged
+// app's CSP blocks any origin not listed there, even if this value points at it.
+export const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru-backend-production.up.railway.app';
+
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

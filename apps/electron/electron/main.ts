@@ -623,7 +623,7 @@ if (!gotLock) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       const connectSrc = [
         "'self'",
-        'https://zoomguru.onrender.com',
+        'https://zoomguru-backend-production.up.railway.app',
         'https://api.groq.com',
         'https://*.paystack.co',
         'https://*.paystack.com',

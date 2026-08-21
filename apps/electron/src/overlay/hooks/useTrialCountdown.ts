@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
+import { API_URL } from '../../utils';
 
 export function useTrialCountdown(
   setSessionCap: (cap: number) => void,

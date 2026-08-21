@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import AnswerStream from './AnswerStream';
-import { blobToBase64, formatCountdown, makeDeviceHeaders } from '../utils';
+import { API_URL, blobToBase64, formatCountdown, makeDeviceHeaders } from '../utils';
 import { useCVContext } from './hooks/useCVContext';
 import { useSessionCap } from './hooks/useSessionCap';
 import { useTrialCountdown } from './hooks/useTrialCountdown';
@@ -10,7 +10,6 @@ import { createDenoisedStream } from './noise-suppressor';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://zoomguru.onrender.com';
 const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 
