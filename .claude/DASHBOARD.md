@@ -425,10 +425,9 @@ PAYSTACK_SUCCESS_URL=http://localhost:5173/payment-success
 Add all four to the startup validation array in main.ts:
 ```typescript
 const REQUIRED = [
-  'DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'QWEN_API_KEY',
-  'PAYSTACK_SECRET_KEY',
-  'PAYSTACK_PLAN_MONTHLY', 'PAYSTACK_PLAN_ANNUAL',
-  'PAYSTACK_SUCCESS_URL',
+  'DATABASE_URL', 'JWT_SECRET', 'REDIS_URL', 'GEMINI_API_KEY',
+  'DEEPSEEK_API_KEY', 'GROQ_API_KEY', 'PAYSTACK_SECRET_KEY',
+  'RESEND_API_KEY', 'FROM_EMAIL', 'ADMIN_KEY',
 ];
 ```
 

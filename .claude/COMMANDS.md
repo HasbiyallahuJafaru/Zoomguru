@@ -51,10 +51,10 @@ npx tsc --noEmit
 
 ---
 
-## Create Your First User in Neon
+## Create Your First User in Supabase
 
 ```sql
--- Run in Neon SQL Editor (console.neon.tech)
+-- Run in Supabase SQL Editor (supabase.com/dashboard)
 INSERT INTO users (email, password_hash, name, username, is_pro)
 VALUES (
   'test@zoomguru.com',
@@ -79,10 +79,17 @@ VITE_API_URL=http://localhost:3000
 VITE_APP_ENV=development
 
 # apps/backend/.env (create this if missing)
-DATABASE_URL=postgresql://...neon.tech/zoomguru?sslmode=require
+DATABASE_URL=postgresql://postgres.<ref>:<pw>@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+DATABASE_POOL_URL=          # required when NODE_ENV=production
 JWT_SECRET=zoomguru_local_dev_secret_change_this
-DEEPSEEK_API_KEY=sk-...
-QWEN_API_KEY=sk-...
+REDIS_URL=redis://localhost:6379
+GEMINI_API_KEY=AIza...      # primary AI
+DEEPSEEK_API_KEY=sk-...     # fallback AI
+GROQ_API_KEY=gsk_...        # transcription + vision
+PAYSTACK_SECRET_KEY=sk_...
+RESEND_API_KEY=re_...
+FROM_EMAIL=noreply@zoomguru.xyz
+ADMIN_KEY=...
 PORT=3000
 NODE_ENV=development
 ```
@@ -130,7 +137,7 @@ FLOW 4 — Screenshot:
 ```
 Issue: Backend not starting
 Fix: Check .env exists with all required vars
-     Check Neon DB is accessible
+     Check Supabase project is not PAUSED (free tier pauses after ~7 days idle)
      Run: cd apps/backend && npm install
 
 Issue: Electron window not appearing

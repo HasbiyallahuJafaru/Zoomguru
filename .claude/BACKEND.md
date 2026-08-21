@@ -1,101 +1,110 @@
-# ZoomGuru MVP — Backend
+# ZoomGuru — Backend
 
 ## Purpose
-Local NestJS server that handles auth, proxies AI calls,
-and streams responses back to the Electron app.
-Runs on http://localhost:3000 during development.
+NestJS + Fastify server handling auth, subscriptions, payments,
+referrals, admin, email broadcasts, and AI proxying/streaming.
+
+```
+Production : https://zoomguru-backend-production.up.railway.app  (Railway)
+Local dev  : http://localhost:3000
+```
 
 ---
 
-## File Structure (MVP — nothing else)
+## File Structure
 
 ```
 apps/backend/
 ├── src/
-│   ├── main.ts                    ← bootstrap, port 3000
+│   ├── main.ts                    ← bootstrap, env validation, CORS
 │   ├── app.module.ts              ← root module
+│   ├── health.controller.ts       ← GET /health (liveness only)
 │   ├── database/
-│   │   ├── db.ts                  ← neon client singleton
-│   │   └── init.ts                ← CREATE TABLE IF NOT EXISTS
-│   ├── auth/
-│   │   ├── auth.module.ts
-│   │   ├── auth.controller.ts     ← POST /auth/login only
-│   │   ├── auth.service.ts        ← login logic + JWT
-│   │   └── jwt.strategy.ts        ← passport JWT
-│   └── ai/
-│       ├── ai.module.ts
-│       ├── ai.controller.ts       ← POST /ai/stream + /ai/screenshot
-│       └── ai.service.ts          ← DeepSeek + Qwen calls
+│   │   ├── db.ts                  ← pg Pool singleton (Supabase)
+│   │   └── init.ts                ← CREATE TABLE IF NOT EXISTS (12 tables)
+│   ├── redis/redis.ts             ← ioredis singleton
+│   ├── auth/                      ← register, login, password reset
+│   ├── device/                    ← POST /device/register (keypairs)
+│   ├── ai/                        ← stream, screenshot, transcribe, tts,
+│   │                                 interviewer, scoring, copilots
+│   ├── subscription/              ← status, usage, trial, verify, webhook
+│   ├── payments/                  ← hosted checkout (create/session/confirm)
+│   ├── referral/                  ← dashboard, banks, payouts
+│   ├── admin/                     ← stats, users, broadcasts
+│   ├── analytics/                 ← GET /analytics/download
+│   └── cron/cron.service.ts       ← 5 scheduled jobs (see CLAUDE.md warning)
+├── migrations/
 ├── .env                           ← secrets (never commit)
 ├── tsconfig.json
+├── nest-cli.json
 └── package.json
 ```
 
 ---
 
-## The Three Endpoints (MVP — nothing else)
+## Endpoints
 
+44 routes across auth, device, ai, subscription, payments, referral,
+admin, broadcast webhook, analytics, and health.
+
+**The full endpoint list lives in `.claude/CLAUDE.md`** — single source of
+truth, do not duplicate it here. Regenerate it from the controllers rather
+than trusting any hand-written list:
+
+```bash
+grep -rn "@Controller\|@Get(\|@Post(" apps/backend/src --include=*.ts
 ```
-POST /auth/login
-    Headers: X-Device-ID: <fingerprint>
-    Body: { email: string, password: string }
-    Returns: {
-      accessToken: string,
-      user: { id, email, name, username }
-    }
-    Auth: none (this IS the auth endpoint)
 
-POST /ai/stream
-    Headers: Authorization: Bearer <token>
-             X-Device-ID: <fingerprint>
-    Body: { transcript: string, sessionId?: string }
-    Returns: text/event-stream
-    Chunks: data: {"chunk":"word "}\n\n
-    Final:  data: {"done":true}\n\n
-    Auth: JwtAuthGuard
-
-POST /ai/screenshot
-    Headers: Authorization: Bearer <token>
-             X-Device-ID: <fingerprint>
-    Body: { image: string (base64), sessionId?: string }
-    Returns: text/event-stream
-    Same chunk format as /ai/stream
-    Auth: JwtAuthGuard
-```
+Auth model:
+- `JwtAuthGuard` (Bearer token) on user endpoints
+- `X-Admin-Key` header on `/admin/*`
+- HMAC signature on `/subscription/webhook` and `/broadcast/webhook`
+- Device signature headers (`X-Key-ID`, `X-Timestamp`, `X-Signature`) on
+  AI endpoints — see Device Locking in CLAUDE.md
 
 ---
 
-## Database (Neon — direct SQL)
+## Database (Supabase — direct SQL)
 
-Driver: @neondatabase/serverless
-No ORM. No Prisma. Raw SQL only.
+Driver: `pg` (node-postgres) connection pool.
+No ORM. No Prisma. Raw SQL with positional parameters only.
+
+`@neondatabase/serverless` appears in package.json but is never imported —
+dead dependency. The database is **Supabase**, not Neon.
 
 ```typescript
 // database/db.ts
-import { neon } from '@neondatabase/serverless';
-let _sql: ReturnType<typeof neon> | null = null;
-export function getDB() {
-  if (!_sql) _sql = neon(process.env.DATABASE_URL!);
-  return _sql;
+import { Pool } from 'pg';
+let _pool: Pool | null = null;
+export function getDB(): Pool {
+  if (!_pool) {
+    const raw = process.env.DATABASE_POOL_URL ?? process.env.DATABASE_URL;
+    if (!raw) throw new Error('DATABASE_URL not set');
+    // sslmode stripped on purpose — it overrides the ssl option below and
+    // breaks against Supabase's pooler. See .claude/DATABASE.md.
+    const connectionString = raw.replace(/[?&]sslmode=[^&]*/gi, '');
+    _pool = new Pool({
+      connectionString,
+      max: process.env.DATABASE_POOL_URL ? 20 : 12,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+      ssl: { rejectUnauthorized: false },
+    });
+    _pool.on('error', (err: Error) => {
+      console.error('[DB pool] idle client error:', err.message);
+    });
+  }
+  return _pool;
 }
 ```
 
-Tables needed for MVP:
-```sql
--- users table (minimal)
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
-  name TEXT,
-  username TEXT UNIQUE,
-  is_pro BOOLEAN DEFAULT true,  -- everyone is pro locally
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
+The live schema is **12 tables**, all created by `initDB()` on boot:
+`users, subscriptions, device_keys, usage, password_reset_tokens,
+referral_commissions, referral_bank_accounts, broadcasts,
+broadcast_batches, ai_sessions, downloads, schema_version`.
 
-That is the only table needed for local MVP.
-Sessions, payments, referrals — all deferred.
+Full column-level schema lives in **`.claude/DATABASE.md`** — that is the
+single source of truth. Do not duplicate it here.
 
 ---
 
@@ -115,25 +124,37 @@ Sessions, payments, referrals — all deferred.
 }
 ```
 
-No refresh tokens for local MVP.
-No device fingerprint binding.
-Just: valid JWT = access granted.
+No refresh tokens.
+
+**Device binding IS enforced** — but at AI endpoint time, not at login.
+A valid JWT alone is not enough to reach `/ai/*`: the request must also
+carry `X-Key-ID` / `X-Timestamp` / `X-Signature`, verified against the
+public key registered in `device_keys`. See Device Locking in CLAUDE.md.
 
 ---
 
 ## AI Service — Model Routing
 
 ```
-Question type detection (simple keyword matching):
-    coding/algorithm keywords  → deepseek-reasoner (R1)
-    system design keywords     → deepseek-reasoner (R1)
-    math/calculate keywords    → deepseek-reasoner (R1)
-    everything else            → deepseek-chat (V3)
+Text answers:
+    Gemini 2.0 Flash  → PRIMARY for all text answers
+                        Key rotation: GEMINI_API_KEY .. GEMINI_API_KEY_5
+    DeepSeek (deepseek-chat)
+                      → FALLBACK when Gemini is unavailable
+                        Key rotation: DEEPSEEK_API_KEY .. DEEPSEEK_API_KEY_5
 
-Screenshot:
-    Step 1: Qwen VL reads the image → text description
-    Step 2: deepseek-reasoner solves it (always R1 for screenshots)
+Transcription:
+    Groq Whisper      → /ai/transcribe
+
+Vision / screenshot:
+    Groq Llama-4-Scout → /ai/screenshot
+
+Text-to-speech:
+    LemonFox          → /ai/tts (AI Interviewer)
+                        Optional — interviewer runs silently without it
 ```
+
+Qwen is **not** used anywhere. Any `QWEN_API_KEY` reference is stale.
 
 ---
 
@@ -176,63 +197,93 @@ The renderer splits on `\n`, looks for lines starting with
 
 ## CORS Configuration
 
-For local development, allow everything:
+Origin-callback based, driven by env vars (`main.ts`):
+
 ```typescript
 app.enableCors({
-  origin: [
-    'http://localhost:5173',  // Vite dev server
-    'app://.',                // Electron production
-  ],
+  origin: (origin, callback) => {
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'app://.',
+      process.env.APP_URL,
+      process.env.ADMIN_CORS_ORIGIN,
+      process.env.CHECKOUT_URL ?? 'https://zoomguru.xyz',
+      'https://zoomguru.xyz',
+      'https://www.zoomguru.xyz',
+    ].filter(Boolean);
+    // Requests with no Origin (Electron main process) are allowed.
+    callback(null, !origin || allowed.includes(origin) || origin === 'app://zoomguru');
+  },
   credentials: true,
 });
 ```
+
+Note the Railway `*.up.railway.app` domain is **not** in this list. Anything
+browser-based calling the API from that origin needs `APP_URL` or
+`ADMIN_CORS_ORIGIN` set accordingly.
 
 ---
 
 ## Environment Variables
 
-```env
-# apps/backend/.env
-DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/zoomguru?sslmode=require
-JWT_SECRET=any_long_random_string_for_local_dev
-DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
-QWEN_API_KEY=sk-xxxxxxxxxxxxxxxx
-PORT=3000
-NODE_ENV=development
-```
+The full annotated list lives in `.claude/CLAUDE.md` and
+`apps/backend/.env.example`. Startup validation (`main.ts`):
 
-Validation on startup:
 ```typescript
-const REQUIRED = ['DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'QWEN_API_KEY'];
-const missing = REQUIRED.filter(k => !process.env[k]);
+const REQUIRED = [
+  'DATABASE_URL', 'JWT_SECRET', 'REDIS_URL', 'GEMINI_API_KEY',
+  'DEEPSEEK_API_KEY', 'GROQ_API_KEY', 'PAYSTACK_SECRET_KEY',
+  'RESEND_API_KEY', 'FROM_EMAIL', 'ADMIN_KEY',
+];
+const missing = REQUIRED.filter((k) => !process.env[k]);
 if (missing.length) {
-  console.error('Missing env vars:', missing);
+  console.error('❌ Missing env vars:', missing.join(', '));
+  process.exit(1);
+}
+
+// DATABASE_POOL_URL is additionally required in production
+if (!process.env['DATABASE_POOL_URL'] && process.env['NODE_ENV'] === 'production') {
+  console.error('❌ DATABASE_POOL_URL is required in production');
   process.exit(1);
 }
 ```
 
+`QWEN_API_KEY` is stale — it does not exist.
+
 ---
 
-## main.ts (Local MVP)
+## main.ts
 
 ```typescript
-// Runs on port 3000
-// Fastify adapter for speed
-// No SSL locally
-// CORS open for localhost
+const app = await NestFactory.create<NestFastifyApplication>(
+  AppModule,
+  new FastifyAdapter({
+    logger: false,
+    trustProxy: true,        // req.ip behind Railway's proxy (rate limiting)
+    bodyLimit: 15_728_640,   // 15 MB — screenshots are base64
+  }),
+  { rawBody: true },         // REQUIRED: Paystack HMAC is over the raw body
+);
 
-async function bootstrap() {
-  // env validation first
-  const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule,
-    new FastifyAdapter({ logger: false })
-  );
-  app.enableCors({ origin: true, credentials: true });
-  await initDB();
-  await app.listen(process.env.PORT || 3000, '0.0.0.0');
-  console.log('ZoomGuru backend running on http://localhost:3000');
-}
+app.enableCors({ /* see CORS Configuration above */ });
+
+// Fire-and-forget on purpose: the server must listen and answer /health
+// even if the database is briefly unreachable. initDB() never throws —
+// it retries schema setup in the background every 30s.
+void initDB();
+
+await app.listen(process.env['PORT'] ?? 3000, '0.0.0.0');
 ```
+
+Three things here are load-bearing — do not "simplify" them away:
+
+1. **`{ rawBody: true }`** — without it `req.rawBody` is undefined and every
+   Paystack webhook fails signature verification. Payments stop confirming.
+2. **`trustProxy: true`** — without it `req.ip` is the proxy's address, so
+   IP-based rate limiting collapses to a single bucket.
+3. **`void initDB()`** — deliberately *not* awaited. Awaiting it means a
+   database blip prevents the process from ever listening.
 
 ---
 

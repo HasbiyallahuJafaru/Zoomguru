@@ -18,11 +18,51 @@ The user sees it. The interviewer does not.
 
 ## Current Phase
 
-LIVE MVP — backend deployed on Render, payments live via Paystack,
+LIVE MVP — backend deployed on **Railway**, payments live via Paystack,
 landing page live, admin dashboard running.
-Four core flows are working. Device locking is enforced.
+The five core flows work. Device locking is enforced.
+Beyond the core flows, the product now also ships: AI Interviewer
+(mock interview + scoring), Meeting/Doc Copilot, a referral system
+with Paystack payouts, email broadcasts, and free trials.
+
 Next priorities: brute-force protection on auth, JWT migration
 from localStorage to electron-store.
+
+---
+
+## Hosting & Infrastructure
+
+```
+Backend    → Railway
+             Project:  supportive-flow
+             Service:  zoomguru-backend  (root dir: apps/backend)
+             URL:      https://zoomguru-backend-production.up.railway.app
+             Region:   EU West
+             Builder:  Railpack (no Dockerfile)
+             Replicas: 1  ← MUST STAY 1, see "Cron Jobs" below
+
+Redis      → Railway managed Redis 8.2 (same project, EU West)
+             REDIS_URL is a Railway *reference*: ${{Redis.REDIS_URL}}
+             Resolves to the private .railway.internal domain.
+             Never paste a literal Redis URL over this reference.
+
+Database   → Supabase PostgreSQL 17  (NOT Neon — see warning below)
+             Project ref: vjrmlvlufesmdyicpnbt  ("zoomguru", eu-west-1)
+             Connected via the Supavisor pooler
+             (aws-0-eu-west-1.pooler.supabase.com)
+
+Downloads  → Cloudflare R2
+```
+
+> **The database is Supabase, not Neon.** Earlier revisions of these docs
+> said Neon throughout. That was wrong and caused a near-miss where the
+> backend was almost pointed at the wrong database. If you see a Neon
+> reference anywhere in `.claude/`, it is stale — treat Supabase as truth.
+
+> **Supabase free-tier projects auto-pause after ~7 days idle.** When
+> paused, Supavisor returns `tenant/user postgres.<ref> not found` and the
+> whole backend 500s while still reporting `/health` 200. This has already
+> taken production down once (2026-08-21).
 
 ---
 
@@ -67,18 +107,29 @@ FLOW 5: Screenshot
 ```
 zoomguru/
 ├── .claude/
-│   ├── CLAUDE.md          ← this file
+│   ├── CLAUDE.md          ← this file (master context)
 │   ├── BIBLE.md           ← code generation law
 │   ├── ELECTRON.md        ← electron app spec
 │   ├── BACKEND.md         ← backend spec
-│   └── DATABASE.md        ← neon schema
+│   ├── DATABASE.md        ← database schema
+│   ├── DASHBOARD.md       ← admin dashboard spec
+│   ├── AUDIT.md           ← audit notes
+│   ├── COMMANDS.md        ← command reference
+│   ├── OPTIMIZATION.md    ← performance notes
+│   ├── SECURITY-FIXES.md  ← security remediation log
+│   ├── SESSION-PROMPTS.md ← session prompt history
+│   └── gemini.md          ← gemini-specific notes
 ├── apps/
 │   ├── electron/          ← desktop overlay app
-│   ├── backend/           ← nestjs server (Render)
+│   ├── backend/           ← nestjs server (Railway)
 │   ├── admin/             ← admin dashboard (React + Vite)
 │   └── landing/           ← marketing + download page
-└── package.json
+└── render.yaml            ← LEGACY, Render is decommissioned
 ```
+
+Note: there is **no root `package.json`**. This is a folder layout, not an
+npm-workspaces monorepo. Each app installs and builds independently — which
+is why Railway needs `rootDirectory: apps/backend`.
 
 ---
 
@@ -91,14 +142,16 @@ Electron App
     ├── TypeScript strict
     └── No external UI library — plain inline styles
 
-Backend (NestJS on Render — port 3000 locally)
-    ├── NestJS + Fastify adapter
-    ├── @neondatabase/serverless (Neon PostgreSQL)
-    ├── ioredis (Redis — rate limiting)
+Backend (NestJS on Railway — port 3000 locally)
+    ├── NestJS + Fastify adapter (trustProxy: true)
+    ├── pg (node-postgres Pool) — the ONLY database driver in use
+    │     @neondatabase/serverless is in package.json but never
+    │     imported. Dead dependency, safe to remove.
+    ├── ioredis (Redis — rate limiting, session log queue)
     ├── @nestjs/jwt (30-day JWT, no refresh tokens)
     ├── bcryptjs (password hashing)
-    ├── Resend (transactional email)
-    └── @nestjs/schedule (cron — expiry reminders)
+    ├── Resend (transactional email + broadcasts)
+    └── @nestjs/schedule (cron — see warning below)
 
 AI
     ├── Gemini 2.0 Flash — PRIMARY for all text answers
@@ -106,11 +159,35 @@ AI
     ├── DeepSeek (deepseek-chat) — FALLBACK for text answers
     │     Key rotation: DEEPSEEK_API_KEY through DEEPSEEK_API_KEY_5
     ├── Groq Whisper — audio transcription (/ai/transcribe)
-    └── Groq Llama-4-Scout — vision/screenshot (/ai/screenshot)
+    ├── Groq Llama-4-Scout — vision/screenshot (/ai/screenshot)
+    └── LemonFox — text-to-speech for AI Interviewer (optional;
+          without LEMONFOX_API_KEY the interviewer runs silently)
 
 Database
-    └── Neon PostgreSQL — direct SQL, @neondatabase/serverless
+    └── Supabase PostgreSQL 17 — direct SQL, via the Supavisor pooler
 ```
+
+---
+
+## Cron Jobs — DO NOT SCALE PAST 1 REPLICA
+
+`apps/backend/src/cron/cron.service.ts` defines five `@Cron` jobs:
+
+```
+sendNoPaymentFollowUps   0 11 * * *   (UTC)
+sendExpiryReminders      0 9  * * *   (UTC)
+resetWeeklyUsage         0 1  * * *   (UTC)
+resetMonthlyUsage        0 2  * * *   (UTC)
+flushSessionLogQueue     */30 * * * * *  (every 30s)
+```
+
+**None of them take a distributed lock or do leader election.** If the
+service runs more than one replica, every replica fires every job:
+duplicate expiry and follow-up emails to real customers, plus an
+`lrange`/`ltrim` race in `flushSessionLogQueue`.
+
+Keep Railway at 1 replica. To scale horizontally, add a Postgres advisory
+lock around each job first.
 
 ---
 
@@ -125,8 +202,9 @@ App opens
 
 Dashboard
     Shows subscription status (inactive / active / past_due / cancelled)
-    Pay via Paystack inline.js → POST /subscription/verify
-    → Continue → CvSetup
+    Free trial available (POST /subscription/trial, device-bound)
+    Pay via hosted checkout (POST /payments/session) or Paystack inline
+    → POST /subscription/verify → Continue → CvSetup
 
 CvSetup
     Upload CV (PDF/TXT/MD) → parsed via pdf-parse → stored in electron-store
@@ -135,7 +213,7 @@ CvSetup
 
 Overlay
     Global hotkeys active (see below)
-    Session cap: 50 questions per session for monthly plan
+    Session cap enforced per plan
     CV text + JD text attached to every AI request
 ```
 
@@ -163,23 +241,57 @@ Auth
     GET  /auth/reset-password-page?token=...
     POST /auth/reset-password    { token, newPassword }
 
-AI  (all require Authorization: Bearer <token> + X-Device-ID header)
-    POST /ai/stream        { transcript, cvText?, jdText? }  → SSE
-    POST /ai/screenshot    { image (base64), cvText?, jdText? }  → SSE
-    POST /ai/transcribe    { audio (base64) }  → { transcript }
+Device
+    POST /device/register        { keyId, publicKey }  (Bearer token)
+
+AI  (all require Authorization: Bearer <token> + device signature headers)
+    POST /ai/stream                { transcript, cvText?, jdText? }  → SSE
+    POST /ai/screenshot            { image (base64), cvText?, jdText? } → SSE
+    POST /ai/transcribe            { audio (base64) }  → { transcript }
+    POST /ai/meeting-stream        → SSE   (meeting copilot)
+    POST /ai/doc-copilot           → SSE   (document copilot)
+    POST /ai/interviewer-start     (AI Interviewer session)
+    POST /ai/interviewer-question  (next question)
+    POST /ai/score-session         (interview scoring report)
+    POST /ai/tts                   (LemonFox text-to-speech)
 
 Subscription  (requires Authorization: Bearer <token>)
     GET  /subscription/status
-    POST /subscription/verify    { reference }  + X-Device-ID header
-    POST /subscription/webhook   (Paystack HMAC-verified)
+    GET  /subscription/usage
+    POST /subscription/trial     + X-Key-ID header (device-bound trial)
+    POST /subscription/verify    { reference } + X-Key-ID header
+    POST /subscription/webhook   (Paystack HMAC-verified, raw body)
+
+Payments  (hosted checkout)
+    POST /payments/create
+    POST /payments/session
+    POST /payments/confirm
+
+Referral
+    GET  /referral/dashboard
+    GET  /referral/banks
+    POST /referral/bank/save
+    POST /referral/bank/verify
+    POST /referral/payout/request
 
 Admin  (requires X-Admin-Key header)
-    GET /admin/stats
-    GET /admin/signups?days=30
-    GET /admin/payments?days=30
-    GET /admin/usage?days=30
-    GET /admin/downloads?days=30
-    GET /admin/users
+    GET    /admin/stats
+    GET    /admin/signups?days=30
+    GET    /admin/payments?days=30
+    GET    /admin/usage?days=30
+    GET    /admin/downloads?days=30
+    GET    /admin/users
+    GET    /admin/referrals
+    GET    /admin/email-test
+    GET    /admin/broadcast
+    POST   /admin/broadcast
+    POST   /admin/broadcast/preview
+    POST   /admin/broadcast/recipients
+    POST   /admin/broadcast/:id/retry
+    DELETE /admin/broadcast/:id
+
+Webhooks
+    POST /broadcast/webhook      (Resend delivery/open events)
 
 Analytics  (public)
     GET /analytics/download?platform=windows|mac
@@ -188,23 +300,39 @@ Health
     GET /health
 ```
 
+> `/health` is a **liveness** check only — it returns `{"status":"ok"}` even
+> when Postgres and Redis are unreachable, because `initDB()` is
+> fire-and-forget (`main.ts`). A green health check does not mean the app
+> works. To verify the data layer, make an authenticated call, or POST bogus
+> credentials to `/auth/login` and confirm a **401** (a 500 means the DB is
+> down).
+
 ---
 
-## Paystack Integration (Inline.js)
+## Paystack Integration
 
 ```
-Monthly plan  → pop.setup({ plan: VITE_PAYSTACK_PLAN_MONTHLY })
-                Recurring ₦50,000/month
-                Plan code (PLN_xxx) must exist in Paystack dashboard
+Plans are weekly / monthly / yearly, driven by Paystack plan codes.
+The backend maps Paystack's plan.interval → our plan column:
+    weekly → weekly, monthly → monthly, annually|yearly → yearly
 
-Lifetime plan → pop.setup({ amount: 100_000_000 })
-                One-time ₦1,000,000 (amount in kobo)
+Two payment paths:
+    1. Hosted checkout  → POST /payments/session → /payments/confirm
+       (used by the landing page at zoomguru.xyz)
+    2. Paystack inline.js in the Electron dashboard
+       → POST /subscription/verify { reference }
 
-After payment → POST /subscription/verify { reference }
-                Backend calls Paystack API to confirm
-                Monthly: provisional 30-day period_end (webhook corrects it)
-                Lifetime: current_period_end = 2099-12-31
-                Device is locked on first AI use after subscription is active
+Webhook: POST /subscription/webhook
+    HMAC-SHA512 over the raw body using PAYSTACK_SECRET_KEY.
+    No IP allowlist — purely signature based.
+    Idempotent on paystack_reference (a replayed event is a no-op).
+
+    ⚠ The webhook URL is configured in the Paystack dashboard and must
+      point at the Railway host. If it still points at the old Render URL,
+      payments will not confirm.
+
+Prices live in the Paystack dashboard, not in this repo — check there
+rather than trusting any figure written here.
 ```
 
 ---
@@ -224,6 +352,9 @@ How it works:
         Verifies signature against the registered public key in device_keys table
         On first active subscription use: binds the key ID to the subscription (locked_key_id)
         Subsequent requests: key ID must match locked_key_id or locked_key_id_2
+
+Free trials are also device-bound, via users.trial_key_id, so the same
+machine cannot claim repeated trials.
 ```
 
 ---
@@ -253,18 +384,36 @@ data: {"done":true}\n\n
 
 ## Database Schema
 
+Live schema, verified against Supabase. 12 tables in `public`.
+
 ```sql
 users (
-    id UUID PK, email UNIQUE, password_hash,
-    name, username UNIQUE, is_pro BOOLEAN, created_at
+    id UUID PK, email, password_hash, name, username,
+    is_pro BOOLEAN, created_at,
+    referral_code TEXT, referred_by_user_id UUID,
+    trial_started_at TIMESTAMPTZ, trial_key_id TEXT
 )
 
 subscriptions (
-    id UUID PK, user_id UUID UNIQUE FK → users,
-    status CHECK IN ('inactive','active','past_due','cancelled'),
+    id UUID PK, user_id UUID FK → users,
+    status ('inactive'|'active'|'past_due'|'cancelled'),
     plan TEXT, current_period_start, current_period_end,
     paystack_customer_code, paystack_subscription_code,
-    locked_device_id TEXT, created_at, updated_at
+    paystack_reference TEXT,
+    locked_device_id, locked_device_id_2,   -- legacy device locking
+    locked_key_id, locked_key_id_2,         -- current keypair locking
+    created_at, updated_at
+)
+
+device_keys (
+    id UUID PK, user_id UUID FK → users,
+    key_id TEXT, public_key TEXT, created_at
+)
+
+usage (
+    user_id UUID, plan_type TEXT, period_start TIMESTAMPTZ,
+    copilot_requests INT, interviewer_sessions INT,
+    scorer_reports INT, doc_copilot_requests INT, updated_at
 )
 
 password_reset_tokens (
@@ -272,12 +421,38 @@ password_reset_tokens (
     token_hash TEXT, expires_at (1 hour TTL), created_at
 )
 
-downloads (id UUID PK, platform, version, ip, created_at)
+referral_commissions (
+    id UUID PK, referrer_user_id UUID, referred_user_id UUID,
+    amount_kobo INT, payment_reference TEXT,
+    status TEXT, created_at, paid_at
+)
+
+referral_bank_accounts (
+    id UUID PK, user_id UUID,
+    account_number, bank_code, bank_name, account_name,
+    recipient_code TEXT, created_at, updated_at
+)
+
+broadcasts (
+    id UUID PK, subject, body, target_filter JSONB,
+    status TEXT, scheduled_at, sent_at,
+    recipient_count INT, open_count INT, created_at
+)
+
+broadcast_batches (
+    id UUID PK, broadcast_id UUID FK → broadcasts,
+    batch_index INT, status TEXT, recipients TEXT[],
+    scheduled_at, sent_at, error TEXT, retry_count INT, created_at
+)
 
 ai_sessions (
     id UUID PK, user_id FK → users (nullable),
-    type CHECK IN ('stream','screenshot','transcribe'), created_at
+    type ('stream'|'screenshot'|'transcribe'), created_at
 )
+
+downloads (id UUID PK, platform, version, ip, created_at)
+
+schema_version (version INT)
 ```
 
 ---
@@ -285,33 +460,68 @@ ai_sessions (
 ## Environment Variables
 
 ```env
-# Backend (apps/backend/.env)
-DATABASE_URL=          # Neon PostgreSQL connection string
-DATABASE_POOL_URL=     # Optional — pooled URL for multi-instance
+# Backend (apps/backend/.env) — set in the Railway dashboard in production
+DATABASE_URL=          # Supabase pooler connection string
+DATABASE_POOL_URL=     # REQUIRED when NODE_ENV=production — app exits without it
 JWT_SECRET=            # Any long random string
-REDIS_URL=             # Redis connection string
+REDIS_URL=             # Railway reference: ${{Redis.REDIS_URL}}
 GEMINI_API_KEY=        # Required
-GEMINI_API_KEY_2=      # Optional key rotation
-GEMINI_API_KEY_3=      # Optional
-GEMINI_API_KEY_4=      # Optional
-GEMINI_API_KEY_5=      # Optional
+GEMINI_API_KEY_2..5=   # Optional key rotation
 DEEPSEEK_API_KEY=      # Required (fallback)
-DEEPSEEK_API_KEY_2=    # Optional
-GROQ_API_KEY=          # For transcription + vision
+DEEPSEEK_API_KEY_2..5= # Optional key rotation
+GROQ_API_KEY=          # Transcription + vision
+OPENAI_API_KEY=        # Optional
+LEMONFOX_API_KEY=      # AI Interviewer TTS (optional — silent without it)
 PAYSTACK_SECRET_KEY=   # Paystack secret
-RESEND_API_KEY=        # For transactional email
-FROM_EMAIL=            # Sender address
+PAYSTACK_PUBLIC_KEY=   # Paystack public
+RESEND_API_KEY=        # Transactional email
+RESEND_WEBHOOK_SECRET= # Verifies /broadcast/webhook events
+FROM_EMAIL=            # Verified sender address
 ADMIN_KEY=             # For /admin/* endpoints
-APP_URL=               # Base URL for password reset links
+ADMIN_EMAIL=           # Admin notification recipient
+APP_URL=               # PUBLIC BACKEND URL — used in password reset links.
+                       # Must be the Railway URL, or reset emails 404.
+CHECKOUT_URL=          # Hosted checkout origin (defaults to https://zoomguru.xyz)
 ADMIN_CORS_ORIGIN=     # Admin dashboard origin
-R2_DOWNLOAD_URL_WINDOWS= # Cloudflare R2 download URL
-R2_DOWNLOAD_URL_MAC=      # Cloudflare R2 download URL
+ELECTRON_ORIGIN=       # app://zoomguru in production
+R2_DOWNLOAD_URL_WINDOWS=
+R2_DOWNLOAD_URL_MAC=
+PORT=                  # Defaults to 3000
+NODE_ENV=
 
 # Electron (apps/electron/.env)
-VITE_API_URL=          # Defaults to https://zoomguru.onrender.com
+VITE_API_URL=          # Defaults to https://zoomguru-backend-production.up.railway.app
 VITE_PAYSTACK_PUBLIC_KEY=
 VITE_PAYSTACK_PLAN_MONTHLY=  # PLN_xxx from Paystack dashboard
 ```
+
+The backend hard-exits on boot if any of these are missing (`main.ts`):
+`DATABASE_URL, JWT_SECRET, REDIS_URL, GEMINI_API_KEY, DEEPSEEK_API_KEY,
+GROQ_API_KEY, PAYSTACK_SECRET_KEY, RESEND_API_KEY, FROM_EMAIL, ADMIN_KEY`
+— plus `DATABASE_POOL_URL` whenever `NODE_ENV=production`.
+
+---
+
+## Client API URL
+
+The Electron renderer reads the API base from **one** place:
+
+```
+apps/electron/src/utils.ts  →  export const API_URL
+```
+
+All renderer files import it from there. Do not re-declare it per file.
+
+Changing hosts requires **two** edits, not one:
+1. `apps/electron/src/utils.ts` — the API base
+2. `apps/electron/electron/main.ts` — the CSP `connect-src` entry
+
+The main process cannot import from `src/`, so the CSP entry is a separate
+literal. If it is not updated, the packaged app blocks every API request at
+the CSP layer no matter what `API_URL` says.
+
+`VITE_*` values are inlined at build time — changing an env var does nothing
+for already-packaged binaries. The app must be rebuilt and redistributed.
 
 ---
 
@@ -320,7 +530,7 @@ VITE_PAYSTACK_PLAN_MONTHLY=  # PLN_xxx from Paystack dashboard
 ```
 Backend URL:     http://localhost:3000
 Electron dev:    http://localhost:5173 (Vite)
-Database:        Neon PostgreSQL (cloud, always accessible)
+Database:        Supabase (cloud, always accessible unless paused)
 AI APIs:         Gemini + DeepSeek + Groq (cloud, need internet)
 
 Start backend:   cd apps/backend && npm run start:dev
@@ -343,6 +553,7 @@ OPEN — implement before scaling:
        (should move to electron-store via IPC)
     3. Device fingerprint is client-generated and forgeable
        (architectural — needs server-side challenge post-launch)
+    4. Cron jobs have no distributed lock (see "Cron Jobs" above)
 ```
 
 ---
@@ -352,14 +563,17 @@ OPEN — implement before scaling:
 ```
     ├── Google OAuth — email/password only for now
     ├── Wake word (Porcupine) — hotkeys only
-    ├── Auto-updater
+    ├── Auto-updater  ← note: this is why host changes are expensive
     ├── Brute-force protection on auth endpoints
     ├── JWT in electron-store (currently localStorage)
     ├── Server-side device fingerprint verification
-    ├── Referral system
     ├── Cloudflare protection
-    └── Free tier / usage limits (monthly cap is session-only, not DB-enforced)
+    └── DB-enforced usage caps (the `usage` table tracks, but the
+        per-session cap is still enforced client-side)
 ```
+
+Shipped since earlier revisions of this file: referral system, AI
+Interviewer, meeting/doc copilot, email broadcasts, free trials.
 
 ---
 
