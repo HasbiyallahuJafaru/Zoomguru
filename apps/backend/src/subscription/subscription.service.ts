@@ -112,7 +112,26 @@ interface SubCacheEntry {
   lockedKeyId: string | null;
   lockedKeyId2: string | null;
   periodStart: string | null;
+  periodEnd: string | null;
   trialStartedAt: string | null;
+}
+
+// A subscription only counts as active if its paid period has not elapsed.
+//
+// Status alone is not enough: nothing in this codebase expires a subscription
+// on a timer — status only moves off 'active' when Paystack delivers a
+// subscription.disable or invoice.payment_failed webhook. A missed webhook
+// therefore leaves a row 'active' indefinitely, granting free access and
+// (because the dashboard hides the plan selector while active) blocking the
+// user from resubscribing. Checking the date at read time makes both paths
+// self-correct regardless of webhook delivery.
+//
+// A null periodEnd is treated as NOT expired: lifetime plans and any
+// legacy row without a period must not be locked out by this check.
+function isSubActive(status: string | null, periodEnd: string | null | undefined): boolean {
+  if (status !== 'active') return false;
+  if (!periodEnd) return true;
+  return new Date(periodEnd).getTime() > Date.now();
 }
 
 // Fetches sub cache and (optionally) device cache in one pipeline round trip.
@@ -230,8 +249,18 @@ export class SubscriptionService {
       );
     }
 
+    // Report an elapsed period as 'inactive' rather than the stored 'active'.
+    // The dashboard hides the plan selector whenever status is 'active', so
+    // returning a stale 'active' here is what prevented expired users from
+    // resubscribing to the plan they were already on.
+    const effectiveStatus: SubscriptionStatus = isSubActive(row.status, row.current_period_end)
+      ? (row.status as SubscriptionStatus)
+      : row.status === 'active'
+        ? 'inactive'
+        : (row.status as SubscriptionStatus);
+
     return {
-      status: row.status as SubscriptionStatus,
+      status: effectiveStatus,
       plan: row.plan as 'weekly' | 'monthly' | 'yearly' | null,
       daysRemaining,
       currentPeriodEnd: row.current_period_end
@@ -397,11 +426,13 @@ export class SubscriptionService {
         locked_key_id: string | null;
         locked_key_id_2: string | null;
         current_period_start: string | null;
+        current_period_end: string | null;
         sub_created_at: string | null;
         trial_started_at: string | null;
       }>(
         `SELECT s.status, s.plan, s.locked_key_id, s.locked_key_id_2,
-                s.current_period_start, s.created_at AS sub_created_at,
+                s.current_period_start, s.current_period_end,
+                s.created_at AS sub_created_at,
                 u.trial_started_at
          FROM users u
          LEFT JOIN subscriptions s ON s.user_id = u.id
@@ -418,16 +449,23 @@ export class SubscriptionService {
         lockedKeyId: row?.locked_key_id ?? null,
         lockedKeyId2: row?.locked_key_id_2 ?? null,
         periodStart: periodStartRaw,
+        periodEnd: row?.current_period_end ?? null,
         trialStartedAt: row?.trial_started_at ?? null,
       };
       void setSubCache(userId, cached);
     }
 
-    const { status, plan, lockedKeyId, lockedKeyId2, trialStartedAt, periodStart: periodStartStr } = cached;
+    const { status, plan, lockedKeyId, lockedKeyId2, trialStartedAt, periodStart: periodStartStr, periodEnd } = cached;
+
+    // Expiry-aware: a row left 'active' by a missed webhook must not grant
+    // access, bind a device, or earn the paid rate limit. Entries written by
+    // an older build have no periodEnd — those read as active until the 30s
+    // cache turns over, then self-correct.
+    const subActive = isSubActive(status, periodEnd);
 
     // Determine canUse
     let canUse = false;
-    if (status === 'active') {
+    if (subActive) {
       canUse = true;
     } else if (trialStartedAt !== null) {
       canUse = Date.now() < new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS;
@@ -435,9 +473,9 @@ export class SubscriptionService {
 
     // Determine deviceAllowed
     let deviceAllowed = true;
-    if (status === 'active' && (lockedKeyId || lockedKeyId2) && !validKeyId) {
+    if (subActive && (lockedKeyId || lockedKeyId2) && !validKeyId) {
       deviceAllowed = false;
-    } else if (validKeyId && status === 'active') {
+    } else if (validKeyId && subActive) {
       const cacheKey = `${userId}:${validKeyId}`;
       const dcCached = prefetchedDc;
       if (dcCached !== null) {
@@ -485,7 +523,7 @@ export class SubscriptionService {
     const periodStart = periodStartStr ? new Date(periodStartStr) : null;
     // subActive distinguishes a paid, active subscription from a trial/inactive
     // user — used to grant a higher AI rate limit to paying customers.
-    return { canUse, deviceAllowed, plan, periodStart, subActive: status === 'active' };
+    return { canUse, deviceAllowed, plan, periodStart, subActive };
   }
 
   async invalidateDeviceCache(userId: string, keyId?: string): Promise<void> {
