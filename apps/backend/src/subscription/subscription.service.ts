@@ -185,10 +185,45 @@ const PAYSTACK_PLAN_AMOUNTS: Array<{
   { kobo:  1_500_000, plan: 'weekly',  addDays:  7 },
 ];
 
+// The Paystack account passes its transaction fee on to the customer, so the
+// amount actually charged is HIGHER than the plan price:
+//
+//   gross - (gross * 1.5% + ₦100) = base   =>   gross = (base + ₦100) / 0.985
+//
+// capped, because Paystack caps the fee at ₦2,000 (which is why the yearly
+// plan bills at exactly ₦452,000 rather than the uncapped ₦456,954).
+//
+// Matching only the base amount rejected every hosted-checkout payment:
+// confirmCheckout threw "Invalid payment amount" and the charge.success
+// webhook hit `if (!resolved) return` and gave up SILENTLY — no log, no error,
+// customer charged with nothing to show for it. Accept both the base (fee
+// absorbed by us) and the gross (fee passed to the customer).
+const PAYSTACK_FEE_FLAT_KOBO = 10_000; // ₦100
+const PAYSTACK_FEE_RATE = 0.015; // 1.5%
+const PAYSTACK_FEE_CAP_KOBO = 200_000; // ₦2,000
+// Absorbs rounding drift between our ceil() and Paystack's own rounding.
+// Far tighter than the gap between plans (≥ ₦30,000), so it cannot
+// mis-assign one plan to another.
+const AMOUNT_TOLERANCE_KOBO = 100; // ₦1
+
+export function grossWithPaystackFee(baseKobo: number): number {
+  const uncapped = Math.ceil(
+    (baseKobo + PAYSTACK_FEE_FLAT_KOBO) / (1 - PAYSTACK_FEE_RATE),
+  );
+  return Math.min(uncapped, baseKobo + PAYSTACK_FEE_CAP_KOBO);
+}
+
+// True when `amount` is what we expect to be charged for `baseKobo`, whether
+// or not the Paystack fee was added on top.
+export function amountMatchesPlan(amount: number, baseKobo: number): boolean {
+  if (amount === baseKobo) return true;
+  return Math.abs(amount - grossWithPaystackFee(baseKobo)) <= AMOUNT_TOLERANCE_KOBO;
+}
+
 function resolvePlan(
   amount: number,
 ): { plan: 'weekly' | 'monthly' | 'yearly'; periodEnd: string } | null {
-  const match = PAYSTACK_PLAN_AMOUNTS.find((p) => p.kobo === amount);
+  const match = PAYSTACK_PLAN_AMOUNTS.find((p) => amountMatchesPlan(amount, p.kobo));
   if (!match) return null;
   const end = new Date();
   if (match.addYears) end.setFullYear(end.getFullYear() + match.addYears);
@@ -792,8 +827,10 @@ export class SubscriptionService {
     if (txData.customer.email.toLowerCase() !== session.email.toLowerCase()) {
       throw new BadRequestException('Payment does not match this checkout');
     }
+    // The session stores the plan's base price; the customer may have been
+    // charged that plus the Paystack fee. Both fulfil this checkout.
     const resolved = resolvePlan(txData.amount);
-    if (!resolved || txData.amount !== session.amount) {
+    if (!resolved || !amountMatchesPlan(txData.amount, session.amount)) {
       throw new BadRequestException('Invalid payment amount');
     }
     const { plan, periodEnd } = resolved;
@@ -854,11 +891,24 @@ export class SubscriptionService {
         `SELECT id FROM users WHERE email = $1 LIMIT 1`,
         [data.customer.email.toLowerCase()],
       );
-      if (!userRow.rows[0]) return;
+      // These two bail-outs mean money was taken and the customer got nothing.
+      // They used to return silently, which is how fee-inclusive amounts went
+      // unnoticed. Never fail a successful charge quietly.
+      if (!userRow.rows[0]) {
+        console.error(
+          `[Paystack] charge.success ${ref} for ${data.customer.email} — no matching user; subscription NOT granted`,
+        );
+        return;
+      }
       const uid = userRow.rows[0].id;
 
       const resolved = resolvePlan(data.amount);
-      if (!resolved) return;
+      if (!resolved) {
+        console.error(
+          `[Paystack] charge.success ${ref} — amount ${data.amount} kobo matches no plan; subscription NOT granted`,
+        );
+        return;
+      }
       const { plan, periodEnd } = resolved;
 
       await pool.query(
