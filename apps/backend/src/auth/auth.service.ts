@@ -157,7 +157,7 @@ export class AuthService {
       throw new HttpException(
         {
           error: 'session_limit',
-          message: `This account is already in use on ${MAX_SESSIONS} devices. Log out on one of them, or pick one below to sign out.`,
+          message: `This account is already signed in on ${MAX_SESSIONS} devices. Sign out on one of them and try again.`,
           sessions: await listSessions(user.id),
         },
         409,

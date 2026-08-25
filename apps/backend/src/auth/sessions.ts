@@ -100,10 +100,27 @@ export async function addSession(userId: string, ip: string, ua: string | undefi
   try {
     const redis = getRedis();
     const live = await loadLive(userId);
+    const device = deviceLabel(ua);
+
+    // A device signing in again reclaims its own slot instead of taking a
+    // second one. Clients older than POST /auth/logout never release a slot,
+    // so without this one machine locks itself out by signing out and back in
+    // twice inside the token lifetime.
+    // ponytail: ip+device is a weak fingerprint — two people behind one NAT on
+    // the same OS evict each other. Swap for the device key ID if login ever
+    // starts sending X-Key-ID.
+    for (const [oldSid, v] of live) {
+      if (v.ip === ip && v.device === device) {
+        live.delete(oldSid);
+        await redis.hdel(key(userId), oldSid);
+        break;
+      }
+    }
+
     if (live.size >= MAX_SESSIONS) return null;
 
     const now = Date.now();
-    const entry: Stored = { ip, device: deviceLabel(ua), at: now, seen: now };
+    const entry: Stored = { ip, device, at: now, seen: now };
     await redis.hset(key(userId), sid, JSON.stringify(entry));
     await redis.pexpire(key(userId), TOKEN_TTL_MS);
 

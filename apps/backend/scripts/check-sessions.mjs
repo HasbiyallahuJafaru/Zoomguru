@@ -64,6 +64,17 @@ const reclaimed = await addSession(uid, '10.0.0.50', UA);
 assert.ok(reclaimed, 'a freed slot must be reusable');
 assert.equal(await addSession(uid, '10.0.0.51', UA), null, 'cap still holds after reclaim');
 
+// The same device signing in again reclaims its own slot rather than taking a
+// second one — otherwise a client with no logout call locks itself out.
+const beforeRetake = (await listSessions(uid)).length;
+const retaken = await addSession(uid, '10.0.0.50', UA);
+assert.ok(retaken, 'same device must be able to sign in again at capacity');
+assert.equal((await listSessions(uid)).length, beforeRetake, 'retake must not consume a slot');
+assert.ok(!(await listSessions(uid)).some((s) => s.sid === reclaimed), 'old slot must be released');
+
+// ...but a genuinely different device is still refused at capacity.
+assert.equal(await addSession(uid, '10.0.0.77', UA), null, 'third device still refused');
+
 // A slot dies with the token that owns it, measured from login time. Being
 // seen recently must NOT keep an expired token's slot alive: that would leave
 // an unreclaimable seat and lock the account out after a couple of cycles.
