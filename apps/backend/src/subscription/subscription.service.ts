@@ -83,7 +83,6 @@ interface PaystackVerifyResponse {
 
 const KEY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SESSION_TOKEN_RE = /^[0-9a-f]{64}$/i;
-const DEVICE_CACHE_TTL_SEC = 10;
 const SUB_CACHE_TTL_SEC = 30;
 const TRIAL_DURATION_MS = 30 * 60_000;
 // Checkout session tokens are single-use and expire so an abandoned link can't
@@ -98,19 +97,9 @@ interface CheckoutSession {
   createdAt: number;
 }
 
-async function setDeviceCache(cacheKey: string, allowed: boolean): Promise<void> {
-  try {
-    await getRedis().set(`dc:${cacheKey}`, allowed ? '1' : '0', 'EX', DEVICE_CACHE_TTL_SEC);
-  } catch {
-    // Redis unavailable — skip cache write, device check falls back to DB every request
-  }
-}
-
 interface SubCacheEntry {
   status: string | null;
   plan: string | null;
-  lockedKeyId: string | null;
-  lockedKeyId2: string | null;
   periodStart: string | null;
   periodEnd: string | null;
   trialStartedAt: string | null;
@@ -134,25 +123,12 @@ function isSubActive(status: string | null, periodEnd: string | null | undefined
   return new Date(periodEnd).getTime() > Date.now();
 }
 
-// Fetches sub cache and (optionally) device cache in one pipeline round trip.
-async function fetchAccessCaches(
-  userId: string,
-  keyId: string | null,
-): Promise<{ cached: SubCacheEntry | null; dcCached: boolean | null }> {
+async function getSubCache(userId: string): Promise<SubCacheEntry | null> {
   try {
-    const redis = getRedis();
-    const pl = redis.pipeline().get(`sc:${userId}`);
-    if (keyId) pl.get(`dc:${userId}:${keyId}`);
-    const results = (await pl.exec()) as Array<[Error | null, string | null]>;
-
-    const scVal = results[0]?.[1] ?? null;
-    const dcVal = keyId ? (results[1]?.[1] ?? null) : null;
-
-    const cached: SubCacheEntry | null = scVal ? (JSON.parse(scVal) as SubCacheEntry) : null;
-    const dcCached: boolean | null = dcVal !== null ? dcVal === '1' : null;
-    return { cached, dcCached };
+    const val = await getRedis().get(`sc:${userId}`);
+    return val ? (JSON.parse(val) as SubCacheEntry) : null;
   } catch {
-    return { cached: null, dcCached: null };
+    return null;
   }
 }
 
@@ -438,34 +414,29 @@ export class SubscriptionService {
     return false;
   }
 
-  // Combines canUseAI + checkDevice into a single DB round trip (JOIN query).
-  // Returns { canUse, deviceAllowed, plan, periodStart } so the controller can
-  // gate on all checks and skip a separate getPlanType() call.
+  // Combines canUseAI + getPlanType into a single DB round trip (JOIN query).
+  // Returns { canUse, plan, periodStart } so the controller can gate on all
+  // checks and skip a separate getPlanType() call.
   // Subscription status is cached in Redis for 30s to eliminate DB queries on
-  // warm requests; device locking uses a separate 10s dc: cache.
+  // warm requests.
   async checkAccess(
     userId: string,
-    keyId: string | undefined,
-  ): Promise<{ canUse: boolean; deviceAllowed: boolean; plan: string | null; periodStart: Date | null; subActive: boolean }> {
+  ): Promise<{ canUse: boolean; plan: string | null; periodStart: Date | null; subActive: boolean }> {
     const pool = getDB();
-    const validKeyId = keyId && KEY_ID_RE.test(keyId) ? keyId : null;
 
-    // Fetch sub cache + device cache in a single pipeline round trip
-    let { cached, dcCached: prefetchedDc } = await fetchAccessCaches(userId, validKeyId);
+    let cached = await getSubCache(userId);
 
     if (!cached) {
       // Single JOIN — replaces 2 parallel queries
       const result = await pool.query<{
         status: string | null;
         plan: string | null;
-        locked_key_id: string | null;
-        locked_key_id_2: string | null;
         current_period_start: string | null;
         current_period_end: string | null;
         sub_created_at: string | null;
         trial_started_at: string | null;
       }>(
-        `SELECT s.status, s.plan, s.locked_key_id, s.locked_key_id_2,
+        `SELECT s.status, s.plan,
                 s.current_period_start, s.current_period_end,
                 s.created_at AS sub_created_at,
                 u.trial_started_at
@@ -481,8 +452,6 @@ export class SubscriptionService {
       cached = {
         status: row?.status ?? null,
         plan: row?.plan ?? null,
-        lockedKeyId: row?.locked_key_id ?? null,
-        lockedKeyId2: row?.locked_key_id_2 ?? null,
         periodStart: periodStartRaw,
         periodEnd: row?.current_period_end ?? null,
         trialStartedAt: row?.trial_started_at ?? null,
@@ -490,12 +459,12 @@ export class SubscriptionService {
       void setSubCache(userId, cached);
     }
 
-    const { status, plan, lockedKeyId, lockedKeyId2, trialStartedAt, periodStart: periodStartStr, periodEnd } = cached;
+    const { status, plan, trialStartedAt, periodStart: periodStartStr, periodEnd } = cached;
 
     // Expiry-aware: a row left 'active' by a missed webhook must not grant
-    // access, bind a device, or earn the paid rate limit. Entries written by
-    // an older build have no periodEnd — those read as active until the 30s
-    // cache turns over, then self-correct.
+    // access or earn the paid rate limit. Entries written by an older build
+    // have no periodEnd — those read as active until the 30s cache turns
+    // over, then self-correct.
     const subActive = isSubActive(status, periodEnd);
 
     // Determine canUse
@@ -506,72 +475,10 @@ export class SubscriptionService {
       canUse = Date.now() < new Date(trialStartedAt).getTime() + TRIAL_DURATION_MS;
     }
 
-    // Determine deviceAllowed
-    let deviceAllowed = true;
-    if (subActive && (lockedKeyId || lockedKeyId2) && !validKeyId) {
-      deviceAllowed = false;
-    } else if (validKeyId && subActive) {
-      const cacheKey = `${userId}:${validKeyId}`;
-      const dcCached = prefetchedDc;
-      if (dcCached !== null) {
-        deviceAllowed = dcCached;
-      } else if (lockedKeyId === validKeyId || lockedKeyId2 === validKeyId) {
-        deviceAllowed = true;
-        await setDeviceCache(cacheKey, true);
-      } else if (!lockedKeyId) {
-        const lockResult = await pool.query(
-          `UPDATE subscriptions SET locked_key_id = $1, updated_at = NOW()
-           WHERE user_id = $2 AND locked_key_id IS NULL`,
-          [validKeyId, userId],
-        );
-        if ((lockResult.rowCount ?? 0) === 0) {
-          const recheck = await pool.query<{ locked_key_id: string | null }>(
-            `SELECT locked_key_id FROM subscriptions WHERE user_id = $1 LIMIT 1`,
-            [userId],
-          );
-          const winner = recheck.rows[0]?.locked_key_id ?? null;
-          deviceAllowed = winner === validKeyId;
-          await setDeviceCache(cacheKey, deviceAllowed);
-        } else {
-          await Promise.all([this.invalidateDeviceCache(userId, validKeyId), delSubCache(userId)]);
-          deviceAllowed = true;
-        }
-      } else if (!lockedKeyId2) {
-        const lockResult = await pool.query(
-          `UPDATE subscriptions SET locked_key_id_2 = $1, updated_at = NOW()
-           WHERE user_id = $2 AND locked_key_id_2 IS NULL`,
-          [validKeyId, userId],
-        );
-        if ((lockResult.rowCount ?? 0) === 0) {
-          deviceAllowed = false;
-          await setDeviceCache(cacheKey, false);
-        } else {
-          await Promise.all([this.invalidateDeviceCache(userId, validKeyId), delSubCache(userId)]);
-          deviceAllowed = true;
-        }
-      } else {
-        deviceAllowed = false;
-        await setDeviceCache(cacheKey, false);
-      }
-    }
-
     const periodStart = periodStartStr ? new Date(periodStartStr) : null;
     // subActive distinguishes a paid, active subscription from a trial/inactive
     // user — used to grant a higher AI rate limit to paying customers.
-    return { canUse, deviceAllowed, plan, periodStart, subActive };
-  }
-
-  async invalidateDeviceCache(userId: string, keyId?: string): Promise<void> {
-    try {
-      const redis = getRedis();
-      if (keyId) {
-        await redis.del(`dc:${userId}:${keyId}`);
-        return;
-      }
-      // No keyId on payment verify — let the 10 s TTL expire naturally.
-    } catch (err) {
-      console.warn('invalidateDeviceCache failed (Redis down?):', err);
-    }
+    return { canUse, plan, periodStart, subActive };
   }
 
   // Verifies a reference with Paystack, retrying transient failures (network
@@ -609,7 +516,7 @@ export class SubscriptionService {
     throw new BadRequestException('Could not reach Paystack');
   }
 
-  async verify(userId: string, userEmail: string, reference: string, keyId?: string): Promise<{ success: boolean }> {
+  async verify(userId: string, userEmail: string, reference: string): Promise<{ success: boolean }> {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
@@ -641,8 +548,6 @@ export class SubscriptionService {
       throw new BadRequestException('Payment reference already used');
     }
 
-    const lockedKeyId = (keyId && KEY_ID_RE.test(keyId)) ? keyId : null;
-
     await this.activatePaidSubscription({
       userId,
       customerCode: txData.customer.customer_code,
@@ -650,7 +555,6 @@ export class SubscriptionService {
       amount: txData.amount,
       plan,
       periodEnd,
-      lockedKeyId,
     });
 
     return { success: true };
@@ -659,9 +563,7 @@ export class SubscriptionService {
   // Shared activation path for a confirmed Paystack payment. Used both by the
   // legacy in-app verify() and the hosted-checkout confirmCheckout(). Writes the
   // subscription, busts caches, resets quota, emails the receipt, and records a
-  // first-payment referral commission. Device binding is optional: in-app verify
-  // passes the device key; hosted checkout passes null and the device locks on
-  // first AI use (checkAccess) exactly as the webhook path already does.
+  // first-payment referral commission.
   private async activatePaidSubscription(params: {
     userId: string;
     customerCode: string;
@@ -669,27 +571,25 @@ export class SubscriptionService {
     amount: number;
     plan: 'weekly' | 'monthly' | 'yearly';
     periodEnd: string;
-    lockedKeyId: string | null;
   }): Promise<void> {
-    const { userId, customerCode, reference, amount, plan, periodEnd, lockedKeyId } = params;
+    const { userId, customerCode, reference, amount, plan, periodEnd } = params;
     const pool = getDB();
 
     await pool.query(
       `INSERT INTO subscriptions
-         (user_id, paystack_customer_code, paystack_reference, status, plan, current_period_end, locked_key_id, updated_at)
-       VALUES ($1, $2, $3, 'active', $4, $5, $6, NOW())
+         (user_id, paystack_customer_code, paystack_reference, status, plan, current_period_end, updated_at)
+       VALUES ($1, $2, $3, 'active', $4, $5, NOW())
        ON CONFLICT (user_id) DO UPDATE SET
          paystack_customer_code = $2,
          paystack_reference      = $3,
          status                  = 'active',
          plan                    = $4,
          current_period_end      = $5,
-         locked_key_id           = COALESCE(subscriptions.locked_key_id, $6),
          updated_at              = NOW()`,
-      [userId, customerCode, reference, plan, periodEnd, lockedKeyId],
+      [userId, customerCode, reference, plan, periodEnd],
     );
 
-    await Promise.all([this.invalidateDeviceCache(userId), delSubCache(userId)]);
+    await delSubCache(userId);
     await this.quotaService.resetUserUsage(userId, plan as PlanType, new Date());
 
     const userResult = await pool.query<{ email: string; name: string | null; referred_by_user_id: string | null }>(
@@ -852,7 +752,6 @@ export class SubscriptionService {
       amount: txData.amount,
       plan,
       periodEnd,
-      lockedKeyId: null,
     });
 
     try { await redis.del(`ps:${token}`); } catch { /* TTL will expire it */ }
@@ -924,7 +823,7 @@ export class SubscriptionService {
            updated_at              = NOW()`,
         [uid, data.customer.customer_code, ref, plan, periodEnd],
       );
-      await Promise.all([this.invalidateDeviceCache(uid), delSubCache(uid)]);
+      await delSubCache(uid);
     } else if (event.event === 'subscription.create') {
       const data = event.data as SubscriptionCreateData;
       const intervalMap: Record<string, 'weekly' | 'monthly' | 'yearly'> = {

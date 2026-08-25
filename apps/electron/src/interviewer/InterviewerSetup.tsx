@@ -78,7 +78,6 @@ export default function InterviewerSetup({ onStart, onBack }: Props) {
       if (res.status === 403) {
         const body = await res.json() as { error?: string };
         if (body.error === 'subscription_required') { setError('Active subscription required.'); return; }
-        if (body.error === 'device_locked') { setError('Device locked. Use your registered device.'); return; }
         setError('Access denied.'); return;
       }
       if (res.status === 429) {

@@ -119,17 +119,16 @@ export class AiController {
     }
 
     // Run rate limit + auth checks in parallel (saves one serial Redis round trip)
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, plan, periodStart, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
 
     if (!sigResult.valid) { await reply.code(403).send({ error: sigResult.reason }); return; }
     if (!canUse)          { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed)   { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (rateLimitExceeded(rateLimitResult.count, subActive)) {
       await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter });
       return;
@@ -185,17 +184,16 @@ export class AiController {
       throw new BadRequestException('Invalid image encoding');
     }
 
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, plan, periodStart, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
 
     if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
     if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (rateLimitExceeded(rateLimitResult.count, subActive)) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
@@ -243,13 +241,12 @@ export class AiController {
     @Headers('x-timestamp') timestamp: string | undefined,
     @Headers('x-signature') signature: string | undefined,
   ): Promise<{ quotaUsed: number; quotaLimit: number; resetAt: string }> {
-    const [sigResult, { canUse, deviceAllowed, plan, periodStart }] = await Promise.all([
+    const [sigResult, { canUse, plan, periodStart }] = await Promise.all([
       this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-      this.subscriptionService.checkAccess(req.user.userId, keyId),
+      this.subscriptionService.checkAccess(req.user.userId),
     ]);
     if (!sigResult.valid) throw new HttpException({ error: sigResult.reason }, HttpStatus.FORBIDDEN);
     if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
-    if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
 
     const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
     if (!validPlan || !periodStart) {
@@ -298,16 +295,15 @@ export class AiController {
       ? body.priorQuestions.slice(0, 30).map((q) => sanitize(String(q).slice(0, 500)))
       : [];
 
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
     if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
     if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (rateLimitExceeded(rateLimitResult.count, subActive)) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'interviewer');
@@ -344,17 +340,16 @@ export class AiController {
       throw new BadRequestException('Invalid entries');
     }
 
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, plan, periodStart, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
     if (rateLimitExceeded(rateLimitResult.count, subActive)) throw new HttpException({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }, 429);
     if (!sigResult.valid) throw new HttpException({ error: sigResult.reason }, HttpStatus.FORBIDDEN);
     if (!canUse) throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
-    if (!deviceAllowed) throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
 
     const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
     if (validPlan && periodStart) {
@@ -390,16 +385,15 @@ export class AiController {
       throw new BadRequestException('Invalid text');
     }
 
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
     if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
     if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (rateLimitExceeded(rateLimitResult.count, subActive)) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'tts');
@@ -425,16 +419,15 @@ export class AiController {
       throw new BadRequestException('Invalid docText');
     }
 
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
     if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
     if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (rateLimitExceeded(rateLimitResult.count, subActive)) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     logSession(req.user.userId, 'meeting');
@@ -470,16 +463,15 @@ export class AiController {
       throw new BadRequestException('documents must be an array of 1–3 items');
     }
 
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, plan, periodStart, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, plan, periodStart, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
     if (!sigResult.valid)         { await reply.code(403).send({ error: sigResult.reason }); return; }
     if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
-    if (!deviceAllowed)           { await reply.code(403).send({ error: 'device_locked' }); return; }
     if (rateLimitExceeded(rateLimitResult.count, subActive)) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
     const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
@@ -527,16 +519,15 @@ export class AiController {
       throw new BadRequestException('Invalid audio');
     }
 
-    const [rateLimitResult, [sigResult, { canUse, deviceAllowed, subActive }]] = await Promise.all([
+    const [rateLimitResult, [sigResult, { canUse, subActive }]] = await Promise.all([
       checkRateLimit(req.user.userId).catch(() => ({ count: 0, retryAfter: 0 })),
       Promise.all([
         this.deviceService.verifySignature(req.user.userId, keyId, timestamp, signature),
-        this.subscriptionService.checkAccess(req.user.userId, keyId),
+        this.subscriptionService.checkAccess(req.user.userId),
       ]),
     ]);
     if (!sigResult.valid)         throw new HttpException({ error: sigResult.reason }, HttpStatus.FORBIDDEN);
     if (!canUse)                  throw new HttpException({ error: 'subscription_required' }, HttpStatus.FORBIDDEN);
-    if (!deviceAllowed)           throw new HttpException({ error: 'device_locked' }, HttpStatus.FORBIDDEN);
     if (rateLimitExceeded(rateLimitResult.count, subActive)) throw new HttpException({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }, 429);
     logSession(req.user.userId, 'transcribe');
     const cleanAudio = sanitize(body.audio);
