@@ -91,6 +91,21 @@ export interface ReferralCommissionRow {
   bank_code: string | null;
 }
 
+// SQL mirror of isSubActive() in subscription.service.ts.
+//
+// A subscription can sit at status 'active' with an elapsed period, because
+// nothing expires it on a timer — status only moves when Paystack delivers a
+// webhook. The API paths already re-check the date at read time; these admin
+// queries are raw SQL and would otherwise keep reporting those rows as active,
+// which is exactly what made expired users appear active in the users table
+// and inflated the subscription tiles.
+//
+// A null period_end counts as active so lifetime plans are not excluded.
+const subActiveSql = (alias = ''): string => {
+  const p = alias ? `${alias}.` : '';
+  return `(${p}status = 'active' AND (${p}current_period_end IS NULL OR ${p}current_period_end > NOW()))`;
+};
+
 @Injectable()
 export class AdminService {
   async getStats(): Promise<StatsResult> {
@@ -98,11 +113,14 @@ export class AdminService {
     const [users, downloads, monthlySubs, lifetimeSubs, sessions] = await Promise.all([
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM users'),
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM downloads'),
+      // Every active plan, not just monthly. This counted `plan = 'monthly'`
+      // only, so weekly subscribers — the most common plan — were missing from
+      // the "Active Subs" tile entirely.
       pool.query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM subscriptions WHERE status = 'active' AND plan = 'monthly'`,
+        `SELECT COUNT(*)::int AS count FROM subscriptions WHERE ${subActiveSql()}`,
       ),
       pool.query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count FROM subscriptions WHERE status = 'active' AND plan = 'yearly'`,
+        `SELECT COUNT(*)::int AS count FROM subscriptions WHERE ${subActiveSql()} AND plan = 'yearly'`,
       ),
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM ai_sessions'),
     ]);
@@ -327,7 +345,12 @@ export class AdminService {
   async getUsers(offset = 0): Promise<UserRow[]> {
     const pool = getDB();
     const result = await pool.query<UserRow>(
-      `SELECT u.id, u.email, u.name, u.created_at::text AS created_at, s.plan, s.status
+      `SELECT u.id, u.email, u.name, u.created_at::text AS created_at, s.plan,
+              CASE
+                WHEN ${subActiveSql('s')}    THEN s.status
+                WHEN s.status = 'active'     THEN 'inactive'
+                ELSE s.status
+              END AS status
        FROM users u
        LEFT JOIN subscriptions s ON s.user_id = u.id
        ORDER BY u.created_at DESC

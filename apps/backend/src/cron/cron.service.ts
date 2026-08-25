@@ -31,6 +31,40 @@ export class CronService {
     private readonly quotaService: QuotaService,
   ) {}
 
+  // Settle lapsed subscriptions once a day, shortly after midnight UTC.
+  //
+  // Nothing else moves a subscription off 'active' — that only happens when
+  // Paystack delivers a webhook, so a missed delivery leaves a row 'active'
+  // forever. Every read path then has to re-derive expiry from the date, and
+  // any path that forgets reports a lapsed customer as active. That is what
+  // made expired users show as active in the admin table.
+  //
+  // Expiring the row makes the stored state true, so no future query needs to
+  // know the rule. The read-time checks in subscription.service.ts stay as
+  // defence in depth: this job can fail, and access must not depend on it.
+  //
+  // Safe to run concurrently despite the crons having no distributed lock —
+  // the WHERE clause excludes rows it has already updated, so a second run is
+  // a no-op rather than a double-charge or a duplicate email.
+  @Cron('15 0 * * *', { timeZone: 'UTC' })
+  async expireLapsedSubscriptions(): Promise<void> {
+    try {
+      const pool = getDB();
+      const result = await pool.query(
+        `UPDATE subscriptions
+            SET status = 'inactive', updated_at = NOW()
+          WHERE status = 'active'
+            AND current_period_end IS NOT NULL
+            AND current_period_end <= NOW()`,
+      );
+      if (result.rowCount) {
+        console.log(`[CronService] expired ${result.rowCount} lapsed subscription(s)`);
+      }
+    } catch (err) {
+      console.error('[CronService] expireLapsedSubscriptions failed:', err);
+    }
+  }
+
   @Cron('0 11 * * *', { timeZone: 'UTC' })
   async sendNoPaymentFollowUps(): Promise<void> {
     const pool = getDB();
