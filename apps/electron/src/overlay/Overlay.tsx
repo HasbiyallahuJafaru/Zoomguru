@@ -40,6 +40,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
   const [noiseEnabled, setNoiseEnabled] = useState(true);
   const noiseEnabledRef = useRef(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [signedIn, setSignedIn] = useState<{ count: number; max: number } | null>(null);
 
   // --- refs (manual listen) ---
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -50,6 +51,29 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
   const handleAutoRef = useRef<() => void>(() => {});
   const streamAbortRef = useRef<AbortController | null>(null);
   const isResizingRef = useRef(false);
+
+  // --- how many people are on this account right now ---
+  useEffect(() => {
+    let cancelled = false;
+    async function load(): Promise<void> {
+      try {
+        const token = await window.zoomguru.getToken();
+        if (!token) return;
+        const res = await fetch(`${API_URL}/auth/sessions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.status === 401) { onLogout(); return; }
+        if (!res.ok) return;
+        const data = await res.json() as { max: number; sessions: unknown[] };
+        if (!cancelled) setSignedIn({ count: data.sessions.length, max: data.max });
+      } catch {
+        // offline or backend down — leave the last known count on screen
+      }
+    }
+    void load();
+    const id = setInterval(() => { void load(); }, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [onLogout]);
 
   // --- streaming ---
 
@@ -83,7 +107,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
         const body = await response.json().catch(() => ({})) as { error?: string };
         if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
         if (body.error === 'invalid_signature') { setAnswer('Device verification failed. Restart the app and try again.'); return; }
-        setAnswer('Subscription is locked to another device.');
+        setAnswer('Access denied. Restart the app and try again.');
         return;
       }
       if (response.status === 429) {
@@ -155,7 +179,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
         const body = await response.json().catch(() => ({})) as { error?: string };
         if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
         if (body.error === 'invalid_signature') { setAnswer('Device verification failed. Restart the app and try again.'); return; }
-        setAnswer('Subscription is locked to another device.');
+        setAnswer('Access denied. Restart the app and try again.');
         return;
       }
       if (response.status === 429) {
@@ -306,7 +330,7 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
           if (res.status === 403) {
             const body = await res.json().catch(() => ({})) as { error?: string };
             if (body.error === 'subscription_required') { onTrialExpired?.(); return; }
-            setAnswer('Subscription is locked to another device.');
+            setAnswer('Access denied. Restart the app and try again.');
             return;
           }
           if (!res.ok) {
@@ -654,6 +678,26 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
           <AnswerStream answer={answer} isStreaming={isStreaming} />
         )}
 
+        {/* ── Who else is on this account (sits above the Listen button) ── */}
+        {signedIn && (
+          <div style={s.signedInBar}>
+            <span
+              style={{
+                ...s.signedInDot,
+                background: signedIn.count >= signedIn.max ? 'rgba(251,191,36,0.75)' : 'rgba(16,185,129,0.65)',
+              }}
+            />
+            <span
+              style={{
+                ...s.signedInText,
+                color: signedIn.count >= signedIn.max ? 'rgba(251,191,36,0.60)' : 'rgba(255,255,255,0.28)',
+              }}
+            >
+              {signedIn.count} of {signedIn.max} signed in
+            </span>
+          </div>
+        )}
+
         {/* ── Footer (controls — interactive) ── */}
         <div style={s.footer} data-zg-interactive="1">
           <button
@@ -673,7 +717,6 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
             aria-label={isListening ? 'Stop recording' : 'Start listening'}
           >
             <span style={s.btnLabel}>{isListening ? 'Stop' : 'Listen'}</span>
-            <span style={s.btnHint}>⌘⇧L</span>
           </button>
 
           <button
@@ -689,13 +732,12 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
             disabled={isStreaming || sessionCapped}
             aria-label="Screenshot"
           >
-            <span style={s.btnLabel}>Screen</span>
+            <span style={s.btnLabel}>Screenshot</span>
             {screenshotContext.length > 0 && (
               <span style={{ fontSize: '8px', color: 'rgba(99,102,241,0.7)', fontFamily: FONT, lineHeight: '1', letterSpacing: '0.2px' }}>
                 ctx {screenshotContext.length}
               </span>
             )}
-            <span style={s.btnHint}>⌘⇧S</span>
           </button>
 
           <button
@@ -717,7 +759,6 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
             aria-label={isAutoMode ? 'Stop auto mode' : 'Start auto mode'}
           >
             <span style={s.btnLabel}>{isAutoMode ? 'Auto On' : 'Auto'}</span>
-            <span style={s.btnHint}>⌘⇧D</span>
           </button>
 
           <button
@@ -729,7 +770,6 @@ export default function Overlay({ onLogout, onBack, onTrialExpired, onOpenReferr
             aria-label="Clear"
           >
             <span style={s.btnLabel}>{sessionCapped ? 'Reset' : 'Clear'}</span>
-            <span style={s.btnHint}>⌘⇧C</span>
           </button>
         </div>
 
@@ -979,6 +1019,26 @@ const s: Record<string, ElectronStyle> = {
   },
 
   // Footer
+  signedInBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '0 0 5px 14px',
+    flexShrink: 0,
+    WebkitAppRegion: 'no-drag',
+  },
+  signedInDot: {
+    width: '5px',
+    height: '5px',
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  signedInText: {
+    fontSize: '9px',
+    fontFamily: FONT,
+    letterSpacing: '0.3px',
+    lineHeight: '1',
+  },
   footer: {
     height: '52px',
     minHeight: '52px',
@@ -1010,13 +1070,6 @@ const s: Record<string, ElectronStyle> = {
     fontFamily: FONT,
     letterSpacing: '0.1px',
   },
-  btnHint: {
-    fontSize: '9px',
-    color: 'rgba(255,255,255,0.18)',
-    lineHeight: '1',
-    fontFamily: FONT,
-  },
-
   // Resize handles — invisible strips at the window edges/corners. no-drag so
   // they don't trigger the header's window-move region; corners sit above edges.
   resizeN:  { position: 'absolute', top: 0, left: 0, right: 0, height: '6px', cursor: 'ns-resize', WebkitAppRegion: 'no-drag', zIndex: 20 },
