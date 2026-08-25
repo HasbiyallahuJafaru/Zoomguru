@@ -29,6 +29,25 @@ export class DeviceService {
     );
   }
 
+  // True when this account already holds this key. Lets the controller treat a
+  // re-registration as free: the client re-POSTs the same stored key on every
+  // Dashboard mount, and that must not spend the new-key budget.
+  async isRegistered(userId: string, keyId: string): Promise<boolean> {
+    if (!UUID_RE.test(keyId)) return false;
+    try {
+      // Written by verifySignature on every AI request, so this is usually a
+      // hit and costs no DB round trip.
+      if (await getRedis().get(`dpk:${userId}:${keyId}`)) return true;
+    } catch {
+      // Redis unavailable — fall through to the authoritative check
+    }
+    const result = await getDB().query(
+      `SELECT 1 FROM device_keys WHERE user_id = $1 AND key_id = $2 LIMIT 1`,
+      [userId, keyId],
+    );
+    return result.rows.length > 0;
+  }
+
   async verifySignature(
     userId: string,
     keyId: string | undefined,

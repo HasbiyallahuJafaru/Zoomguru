@@ -4,6 +4,8 @@ import { DeviceService } from './device.service';
 import { getRedis } from '../redis/redis';
 
 const DEV_REG_WINDOW_SEC = 3600;
+// Applies only to keys this account does not already hold — re-registrations
+// return before reaching it — so this is a budget for genuinely new devices.
 const DEV_REG_MAX = 5;
 
 async function checkDeviceRegLimit(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
@@ -39,6 +41,15 @@ export class DeviceController {
     if (!body.keyId || !body.publicKey) {
       throw new BadRequestException('keyId and publicKey are required');
     }
+
+    // Re-registering a key this account already holds is a no-op, so it must
+    // not spend the new-key budget. The client re-POSTs the same stored key on
+    // every Dashboard mount — each login and each navigation back to it — so
+    // charging for it locked people out of their own machine.
+    if (await this.deviceService.isRegistered(req.user.userId, body.keyId)) {
+      return { success: true };
+    }
+
     const rl = await checkDeviceRegLimit(req.user.userId).catch(() => ({ allowed: true, retryAfter: 0 }));
     if (!rl.allowed) {
       throw new HttpException({ error: 'rate_limit', retryAfter: rl.retryAfter }, 429);
