@@ -51,7 +51,7 @@ export default function App() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(145deg, #F7F6F3 0%, #EDEAE5 55%, #E8E4DE 100%)',
+      background: 'radial-gradient(70rem 48rem at 12% -8%, rgba(226,137,74,0.12), transparent 60%), linear-gradient(145deg, #F9F6F2 0%, #F3EFE9 55%, #EDE8E1 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -95,7 +95,7 @@ export default function App() {
             fontStyle: 'italic',
             fontWeight: 700,
             fontSize: 42,
-            color: '#0D0D0D',
+            color: '#26221F',
             letterSpacing: '-0.025em',
             lineHeight: 1,
           }}>
@@ -105,7 +105,7 @@ export default function App() {
             fontFamily: F.body,
             fontSize: 11,
             fontWeight: 500,
-            color: '#AAAAAA',
+            color: '#A69E97',
             marginTop: 7,
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
@@ -127,7 +127,7 @@ export default function App() {
             fontFamily: F.body,
             fontSize: 11,
             fontWeight: 600,
-            color: '#888888',
+            color: '#6E6660',
             marginBottom: 9,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -152,7 +152,7 @@ export default function App() {
               borderRadius: 14,
               fontFamily: F.body,
               fontSize: 14,
-              color: '#0D0D0D',
+              color: '#26221F',
               marginBottom: 14,
             }}
           />
@@ -167,7 +167,7 @@ export default function App() {
               marginBottom: 16,
               fontFamily: F.body,
               fontSize: 13,
-              color: '#DC2626',
+              color: '#BE5540',
               animation: 'fadeIn 0.2s ease',
             }}>
               {error}
@@ -183,7 +183,7 @@ export default function App() {
               display: 'block',
               width: '100%',
               padding: '15px',
-              background: loading ? '#888' : '#0D0D0D',
+              background: loading ? '#A69E97' : '#26221F',
               border: 'none',
               borderRadius: 14,
               fontFamily: F.body,

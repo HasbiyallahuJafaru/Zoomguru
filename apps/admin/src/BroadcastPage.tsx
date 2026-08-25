@@ -10,14 +10,16 @@ import {
 } from './api';
 
 // ── Design tokens (matching Dashboard) ─────────────────────────
+// Mirrors the token block in Dashboard.tsx — the two pages share one surface,
+// so they must share one palette. Change both together.
 const C = {
-  bg:      '#F5F3F0',
+  bg:      '#F7F4F0',
   card:    '#FFFFFF',
-  border:  'rgba(0,0,0,0.06)',
-  primary: '#0D0D0D',
-  secondary:'#6B6B6B',
-  muted:   '#AAAAAA',
-  shadow:  '0 2px 6px rgba(0,0,0,0.04), 0 8px 28px rgba(0,0,0,0.06)',
+  border:  'rgba(23,20,17,0.07)',
+  primary: '#26221F',
+  secondary:'#6E6660',
+  muted:   '#A69E97',
+  shadow:  '0 1px 2px rgba(23,20,17,0.04), 0 10px 24px -12px rgba(23,20,17,0.12)',
 };
 const F = {
   heading: "'Cormorant Garamond', Georgia, serif",
@@ -46,11 +48,11 @@ function watNowDefault(): string {
 
 function statusColor(status: BroadcastRow['status']): string {
   switch (status) {
-    case 'sent': return '#10b981';
-    case 'sending': return '#3b82f6';
-    case 'scheduled': return '#f59e0b';
-    case 'failed': return '#ef4444';
-    case 'cancelled': return '#6b7280';
+    case 'sent': return '#5C7F6B';
+    case 'sending': return '#E2894A';
+    case 'scheduled': return '#8C847D';
+    case 'failed': return '#BE5540';
+    case 'cancelled': return '#CFC8C1';
   }
 }
 
@@ -225,13 +227,13 @@ function ComposeTab({ adminKey }: { adminKey: string }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {successMsg && (
-          <Notice color="#10b981" bg="rgba(16,185,129,0.06)" border="rgba(16,185,129,0.2)">
+          <Notice color="#5C7F6B" bg="rgba(92,127,107,0.07)" border="rgba(92,127,107,0.22)">
             {successMsg}
             <button onClick={() => setSuccessMsg('')} style={styles.noticeClose}>×</button>
           </Notice>
         )}
         {error && (
-          <Notice color="#DC2626" bg="rgba(239,68,68,0.06)" border="rgba(239,68,68,0.18)">
+          <Notice color="#BE5540" bg="rgba(190,85,64,0.07)" border="rgba(190,85,64,0.20)">
             {error}
             <button onClick={() => setError('')} style={styles.noticeClose}>×</button>
           </Notice>
@@ -454,7 +456,7 @@ function HistoryTab({ adminKey }: { adminKey: string }) {
       </div>
 
       {error && (
-        <Notice color="#DC2626" bg="rgba(239,68,68,0.06)" border="rgba(239,68,68,0.18)">
+        <Notice color="#BE5540" bg="rgba(190,85,64,0.07)" border="rgba(190,85,64,0.20)">
           {error}
         </Notice>
       )}
@@ -535,7 +537,7 @@ function HistoryTab({ adminKey }: { adminKey: string }) {
                   <button
                     onClick={() => void handleCancel(b.id)}
                     disabled={actionId === b.id}
-                    style={{ ...styles.actionBtn, color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                    style={{ ...styles.actionBtn, color: '#BE5540', borderColor: 'rgba(190,85,64,0.30)' }}
                   >
                     {actionId === b.id ? '…' : 'Cancel'}
                   </button>
@@ -544,7 +546,7 @@ function HistoryTab({ adminKey }: { adminKey: string }) {
                   <button
                     onClick={() => void handleRetry(b.id)}
                     disabled={actionId === b.id}
-                    style={{ ...styles.actionBtn, color: '#3b82f6', borderColor: 'rgba(59,130,246,0.3)' }}
+                    style={{ ...styles.actionBtn, color: '#E2894A', borderColor: 'rgba(226,137,74,0.32)' }}
                   >
                     {actionId === b.id ? '…' : 'Retry'}
                   </button>

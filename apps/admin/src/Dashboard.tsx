@@ -13,40 +13,73 @@ import BroadcastPage from './BroadcastPage';
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
-  bg:       '#F5F3F0',
+  bg:       '#F7F4F0',
   card:     '#FFFFFF',
-  border:   'rgba(0,0,0,0.05)',
-  primary:  '#0D0D0D',
-  secondary:'#6B6B6B',
-  muted:    '#AAAAAA',
-  shadow:   '0 2px 6px rgba(0,0,0,0.04), 0 8px 28px rgba(0,0,0,0.06)',
+  border:   'rgba(23,20,17,0.07)',
+  primary:  '#26221F',
+  secondary:'#6E6660',
+  muted:    '#A69E97',
+  // Sharper than a soft drop shadow: a crisp hairline carries the edge and
+  // the shadow only lifts the card off the ground.
+  shadow:   '0 1px 2px rgba(23,20,17,0.04), 0 10px 24px -12px rgba(23,20,17,0.12)',
 };
 const F = {
   heading: "'Cormorant Garamond', Georgia, serif",
   body:    "'Inter', system-ui, sans-serif",
 };
+
+// ── 60 / 30 / 10 ────────────────────────────────────────────────
+//
+//   60%  C.bg      warm cream ground — the page itself, and the space
+//                  between cards. Dominant by area, never competes.
+//   30%  C.card    white card surfaces carrying ink type (C.primary,
+//                  C.secondary) and hairline rules. The content layer.
+//   10%  ACCENT.purple  warm orange. Scarce on purpose: it marks the one
+//                  series or state that deserves attention, nothing else.
+//
+// The rule only holds if the accent stays rare, so charts lead with ink and
+// promote a single series to orange — the same move the reference makes,
+// where dark bars are the baseline and orange marks the figure you act on.
+// Grade the remaining series through ink tints rather than new hues, so six
+// stacked series stay separable without becoming a rainbow.
+//
+// `green` and `red` are semantic only — active / failing status — and are
+// muted so they read as state, not as data.
+// Keys keep their original names so every existing call site still resolves.
 const ACCENT = {
-  blue:   '#3b82f6',
-  purple: '#8b5cf6',
-  green:  '#10b981',
-  orange: '#f59e0b',
-  red:    '#ef4444',
-  gray:   '#6b7280',
+  blue:   '#26221F', // ink            — baseline series (the 30%)
+  gray:   '#8C847D', // ink, mid       — secondary series
+  orange: '#CFC8C1', // ink, soft      — tertiary series
+  purple: '#E2894A', // warm accent    — the 10%, use sparingly
+  green:  '#5C7F6B', // semantic positive
+  red:    '#BE5540', // semantic negative
 };
 
 // ── Chart shared config ─────────────────────────────────────────
 const CHART = {
-  axis:    { fill: '#BBBBBB', fontSize: 10 },
-  grid:    'rgba(0,0,0,0.04)',
+  axis:    { fill: '#A69E97', fontSize: 10 },
+  grid:    'rgba(23,20,17,0.05)',
   tooltip: {
     background: '#FFFFFF',
-    border: '1px solid rgba(0,0,0,0.08)',
-    borderRadius: 14,
-    boxShadow: '0 8px 28px rgba(0,0,0,0.1)',
+    border: '1px solid rgba(23,20,17,0.08)',
+    borderRadius: 12,
+    boxShadow: '0 10px 30px -12px rgba(23,20,17,0.22)',
     fontSize: 12,
     fontFamily: "'Inter', sans-serif",
   },
-  tooltipLabel: { color: '#0D0D0D', fontWeight: 600 },
+  tooltipLabel: { color: '#26221F', fontWeight: 600 },
+};
+
+// Wide-tracked uppercase micro-label — the reference's recurring device.
+// Every section title and stat caption uses it, which is where the
+// uniformity comes from.
+const MICRO: CSSProperties = {
+  fontFamily: F.body,
+  fontSize: 10,
+  fontWeight: 500,
+  color: '#A69E97',
+  textTransform: 'uppercase',
+  letterSpacing: '0.16em',
 };
 
 const DAYS = [7, 30, 90] as const;
@@ -105,7 +138,7 @@ function Card({ children, style, className = '' }: {
       className={`card-lift ${className}`}
       style={{
         background: C.card,
-        borderRadius: 22,
+        borderRadius: 14,
         border: `1px solid ${C.border}`,
         boxShadow: C.shadow,
         overflow: 'hidden',
@@ -125,25 +158,26 @@ function StatCard({
 }) {
   return (
     <Card style={{
-      padding: '22px 20px 20px',
+      padding: '18px 18px 20px',
       animation: `fadeSlideUp 0.55s cubic-bezier(0.16,1,0.3,1) ${delay}ms both`,
     }}>
+      {/* Short rule in the metric's own colour — the only place a stat card
+          carries hue. Ink for baseline metrics, orange for the one that
+          matters, which keeps the accent at roughly a tenth of the surface. */}
+      <div style={{
+        width: 22, height: 2, borderRadius: 2,
+        background: color, marginBottom: 14,
+      }} />
+      <p style={{ ...MICRO, marginBottom: 10 }}>{label}</p>
       <p style={{
-        fontFamily: F.body, fontSize: 10, fontWeight: 600,
-        color: C.muted, textTransform: 'uppercase', letterSpacing: '0.09em',
-        marginBottom: 14,
-      }}>
-        {label}
-      </p>
-      <p style={{
-        fontFamily: F.body, fontSize: 30, fontWeight: 700,
-        color: C.primary, lineHeight: 1, letterSpacing: '-0.025em',
+        fontFamily: F.body, fontSize: 28, fontWeight: 600,
+        color: C.primary, lineHeight: 1, letterSpacing: '-0.02em',
         fontVariantNumeric: 'tabular-nums',
       }}>
         {value.toLocaleString()}
       </p>
       {sub && (
-        <p style={{ fontFamily: F.body, fontSize: 11, color: C.muted, marginTop: 9 }}>
+        <p style={{ fontFamily: F.body, fontSize: 11, color: C.muted, marginTop: 8 }}>
           {sub}
         </p>
       )}
@@ -159,15 +193,13 @@ function ChartCard({ title, children, delay = 0 }: {
     <Card style={{
       animation: `fadeSlideUp 0.55s cubic-bezier(0.16,1,0.3,1) ${delay}ms both`,
     }}>
-      <div style={{ padding: '22px 24px 0' }}>
-        <p style={{
-          fontFamily: F.body, fontSize: 12, fontWeight: 600,
-          color: C.secondary, letterSpacing: '-0.01em', marginBottom: 20,
-        }}>
-          {title}
-        </p>
+      <div style={{
+        padding: '18px 20px 14px',
+        borderBottom: `1px solid ${C.border}`,
+      }}>
+        <p style={MICRO}>{title}</p>
       </div>
-      <div style={{ padding: '0 16px 20px', overflow: 'hidden' }}>
+      <div style={{ padding: '18px 12px 14px', overflow: 'hidden' }}>
         {children}
       </div>
     </Card>
@@ -240,7 +272,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
           <div className="header-controls">
             {/* Page nav */}
             <div style={{
-              display: 'flex', background: '#EDEBE7',
+              display: 'flex', background: '#EFEAE4',
               borderRadius: 11, padding: 3, gap: 1,
             }}>
               {(['analytics', 'broadcast'] as Page[]).map((p) => (
@@ -264,7 +296,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
             {/* Day tabs — only on analytics page */}
             {page === 'analytics' && (
             <div style={{
-              display: 'flex', background: '#EDEBE7',
+              display: 'flex', background: '#EFEAE4',
               borderRadius: 11, padding: 3, gap: 1,
             }}>
               {DAYS.map((d) => (
@@ -361,7 +393,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
             background: 'rgba(239,68,68,0.06)',
             border: '1px solid rgba(239,68,68,0.15)',
             borderRadius: 14, padding: '13px 18px', marginBottom: 24,
-            fontFamily: F.body, fontSize: 13, color: '#DC2626',
+            fontFamily: F.body, fontSize: 13, color: ACCENT.red,
             animation: 'fadeIn 0.2s ease',
           }}>
             {error}
@@ -383,10 +415,10 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
           ) : (
             <>
               <StatCard label="Total Users"    value={data.stats.total_users}           color={ACCENT.blue}   delay={0}   />
-              <StatCard label="Downloads"       value={data.stats.total_downloads}       color={ACCENT.green}  delay={55}  />
+              <StatCard label="Downloads"       value={data.stats.total_downloads}       color={ACCENT.gray}   delay={55}  />
               <StatCard label="Active Subs"     value={data.stats.active_subscriptions}  color={ACCENT.purple} sub="₦45k/mo each" delay={110} />
               <StatCard label="Yearly Subs"     value={data.stats.yearly_subscriptions}  color={ACCENT.orange} sub="₦450k/year"  delay={165} />
-              <StatCard label="AI Sessions"     value={data.stats.total_ai_sessions}     color={ACCENT.red}    delay={220} />
+              <StatCard label="AI Sessions"     value={data.stats.total_ai_sessions}     color={ACCENT.gray}   delay={220} />
             </>
           )}
         </div>
@@ -403,7 +435,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <XAxis dataKey="date" tick={CHART.axis} axisLine={false} tickLine={false} />
                     <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
-                    <Line type="monotone" dataKey="count" stroke={ACCENT.blue} strokeWidth={2.5} dot={false} name="Signups" />
+                    <Line type="monotone" dataKey="count" stroke={ACCENT.purple} strokeWidth={2} dot={false} name="Signups" />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -420,8 +452,8 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
-                    <Line type="monotone" dataKey="monthly"  stroke={ACCENT.purple} strokeWidth={2.5} dot={false} name="Monthly"  />
-                    <Line type="monotone" dataKey="yearly"   stroke={ACCENT.orange} strokeWidth={2.5} dot={false} name="Yearly"   />
+                    <Line type="monotone" dataKey="monthly"  stroke={ACCENT.blue}   strokeWidth={2}   dot={false} name="Monthly"  />
+                    <Line type="monotone" dataKey="yearly"   stroke={ACCENT.purple} strokeWidth={2}   dot={false} name="Yearly"   />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -436,7 +468,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: F.body, fontSize: 13 }}>
                   <thead>
-                    <tr style={{ background: '#FAFAF8' }}>
+                    <tr style={{ background: '#FBF9F6' }}>
                       {['Provider', 'Calls today', 'Calls 30d', 'Billing errors', 'Balance', 'How to check'].map((h) => (
                         <th key={h} style={{
                           padding: '11px 16px', textAlign: 'left', fontWeight: 500, fontSize: 10,
@@ -493,8 +525,8 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
                     <Bar dataKey="stream"     stackId="a" fill={ACCENT.blue}   name="Stream" />
-                    <Bar dataKey="screenshot" stackId="a" fill={ACCENT.green}  name="Screenshot" />
-                    <Bar dataKey="transcribe" stackId="a" fill={ACCENT.orange} name="Transcribe" radius={[6,6,0,0]} />
+                    <Bar dataKey="screenshot" stackId="a" fill={ACCENT.gray}   name="Screenshot" />
+                    <Bar dataKey="transcribe" stackId="a" fill={ACCENT.purple} name="Transcribe" radius={[4,4,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -513,10 +545,10 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
                     <Bar dataKey="gemini"   stackId="p" fill={ACCENT.blue}   name="Gemini" />
                     <Bar dataKey="deepseek" stackId="p" fill={ACCENT.purple} name="DeepSeek" />
-                    <Bar dataKey="groq"     stackId="p" fill={ACCENT.green}  name="Groq" />
+                    <Bar dataKey="groq"     stackId="p" fill={ACCENT.gray}   name="Groq" />
                     <Bar dataKey="openai"   stackId="p" fill={ACCENT.orange} name="OpenAI" />
-                    <Bar dataKey="lemonfox" stackId="p" fill={ACCENT.red}    name="LemonFox" />
-                    <Bar dataKey="other"    stackId="p" fill={ACCENT.gray}   name="Other" radius={[6,6,0,0]} />
+                    <Bar dataKey="lemonfox" stackId="p" fill="#E8E3DE"       name="LemonFox" />
+                    <Bar dataKey="other"    stackId="p" fill="#F1ECE7"       name="Other" radius={[4,4,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -533,8 +565,8 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
-                    <Bar dataKey="windows" fill={ACCENT.blue} name="Windows" radius={[6,6,0,0]} />
-                    <Bar dataKey="mac"     fill={ACCENT.gray} name="Mac"     radius={[6,6,0,0]} />
+                    <Bar dataKey="windows" fill={ACCENT.blue} name="Windows" radius={[4,4,0,0]} />
+                    <Bar dataKey="mac"     fill={ACCENT.gray} name="Mac"     radius={[4,4,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -583,7 +615,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                 fontFamily: F.body, fontSize: 13,
               }}>
                 <thead>
-                  <tr style={{ background: '#FAFAF8' }}>
+                  <tr style={{ background: '#FBF9F6' }}>
                     {['Email', 'Name', 'Plan', 'Status', 'Joined'].map((h) => (
                       <th key={h} style={{
                         padding: '11px 20px',
@@ -693,7 +725,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
               <>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: F.body, fontSize: 13 }}>
                   <thead>
-                    <tr style={{ background: '#FAFAF8' }}>
+                    <tr style={{ background: '#FBF9F6' }}>
                       {['Name', 'Referrals', 'Amount Owed (₦)', 'Account Number', 'Bank'].map((h) => (
                         <th key={h} style={{
                           padding: '11px 20px',
