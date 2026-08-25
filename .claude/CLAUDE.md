@@ -20,7 +20,7 @@ The user sees it. The interviewer does not.
 
 LIVE MVP — backend deployed on **Railway**, payments live via Paystack,
 landing page live, admin dashboard running.
-The five core flows work. Device locking is enforced.
+The five core flows work. There is no device binding — an account works on any number of machines.
 Beyond the core flows, the product now also ships: AI Interviewer
 (mock interview + scoring), Meeting/Doc Copilot, a referral system
 with Paystack payouts, email broadcasts, and free trials.
@@ -148,7 +148,7 @@ Backend (NestJS on Railway — port 3000 locally)
     │     @neondatabase/serverless is in package.json but never
     │     imported. Dead dependency, safe to remove.
     ├── ioredis (Redis — rate limiting, session log queue)
-    ├── @nestjs/jwt (30-day JWT, no refresh tokens)
+    ├── @nestjs/jwt (3-hour JWT, no refresh tokens — users re-login every 3h)
     ├── bcryptjs (password hashing)
     ├── Resend (transactional email + broadcasts)
     └── @nestjs/schedule (cron — see warning below)
@@ -240,6 +240,10 @@ Auth
     POST /auth/forgot-password   { email }
     GET  /auth/reset-password-page?token=...
     POST /auth/reset-password    { token, newPassword }
+    POST /auth/login             { email, password, revokeSid? }
+                                 409 { error:'session_limit', sessions:[...] } when full
+    GET  /auth/sessions          (Bearer) → { max, sessions[] }
+    POST /auth/logout            (Bearer) { sid? }  omit sid to end your own
 
 Device
     POST /device/register        { keyId, publicKey }  (Bearer token)
@@ -259,7 +263,7 @@ Subscription  (requires Authorization: Bearer <token>)
     GET  /subscription/status
     GET  /subscription/usage
     POST /subscription/trial     + X-Key-ID header (device-bound trial)
-    POST /subscription/verify    { reference } + X-Key-ID header
+    POST /subscription/verify    { reference }
     POST /subscription/webhook   (Paystack HMAC-verified, raw body)
 
 Payments  (hosted checkout)
@@ -337,9 +341,59 @@ rather than trusting any figure written here.
 
 ---
 
-## Device Locking
+## Concurrent Session Cap
 
-Device locking is enforced at AI endpoint time, not at login time.
+Two people may use one account at the same time. A third is refused.
+
+```
+On login:  a session slot is claimed in Redis hash sess:{userId}
+           field = sid (16 random bytes hex), also embedded as the JWT `sid` claim
+           at capacity → 409 { error:'session_limit', sessions:[...] }
+           login accepts { revokeSid } to sign a listed device out and take its slot
+
+Per request: jwt.strategy.ts calls touchSession() — the sid must still be in the
+           hash or the request 401s with 'session_revoked'. This is what makes
+           revocation actually bite; the Electron client already routes 401 →
+           logout, so a revoked app returns to the login screen on its own.
+
+Freeing a slot:  POST /auth/logout, or the token expiring. Slots are pruned on
+           the token clock (3h from login, NOT from last activity), so a slot
+           dies exactly when its token does. Pruned on read — no sweeper, no
+           per-field TTL. `lastSeen` is display-only, refreshed at most once a
+           minute.
+
+Password reset:  a COMPLETED reset (POST /auth/reset-password) calls
+           revokeAllSessions(), signing every device out. Deliberately NOT on
+           forgot-password request — that endpoint is unauthenticated, so
+           logging out on request would let anyone kick any account offline by
+           submitting their email.
+
+Redis down → fails OPEN (logins work, cap unenforced), same as every other
+           Redis check here. It is an abuse control, not a security boundary.
+
+⚠ Tokens without a `sid` (i.e. issued before this shipped) are REJECTED, so
+  deploying this signs every existing user out. That is deliberate. Combined
+  with the 3h expiry it means everyone re-authenticates on deploy and then
+  every 3 hours after — expect a support bump and a login spike at deploy.
+  Every client screen already routes 401 → login, so this degrades cleanly.
+
+Self-check:  npm run build && node scripts/check-sessions.mjs
+```
+
+`MAX_SESSIONS` and `TOKEN_TTL_SEC` both live in
+`apps/backend/src/auth/sessions.ts`. `TOKEN_TTL_SEC` is the single source of
+truth for JWT expiry — auth.module.ts and auth.service.ts both import it, so
+changing token lifetime is a one-line edit and slot pruning follows it
+automatically. Do not hardcode an expiry anywhere else.
+
+---
+
+## Device Attestation
+
+There is **no device binding**. An account may be used on any number of
+machines. The per-subscription device cap was removed; every AI request still
+has to be signed by a registered keypair, but the key ID is no longer bound
+to the subscription.
 
 ```
 How it works:
@@ -347,14 +401,16 @@ How it works:
     X-Timestamp: Unix timestamp of the request
     X-Signature: ECDSA P-256 signature over "timestamp:userId" signed by the device private key
 
-    checkAccess() in subscription.service.ts:
-        Reads X-Key-ID, X-Timestamp, X-Signature from request headers
-        Verifies signature against the registered public key in device_keys table
-        On first active subscription use: binds the key ID to the subscription (locked_key_id)
-        Subsequent requests: key ID must match locked_key_id or locked_key_id_2
+    verifySignature() in device.service.ts, called by every AI endpoint:
+        Verifies the signature against the registered public key in device_keys
+        Rejects with 403 not_registered / invalid_signature
+        Timestamp must be within 30s (replay window)
 
-Free trials are also device-bound, via users.trial_key_id, so the same
-machine cannot claim repeated trials.
+Free trials ARE still device-bound, via users.trial_key_id, so the same
+machine cannot claim repeated trials. That is anti-abuse, not licensing.
+
+The subscriptions.locked_key_id / locked_key_id_2 columns still exist but
+are never read or written. Inert.
 ```
 
 ---
@@ -400,8 +456,8 @@ subscriptions (
     plan TEXT, current_period_start, current_period_end,
     paystack_customer_code, paystack_subscription_code,
     paystack_reference TEXT,
-    locked_device_id, locked_device_id_2,   -- legacy device locking
-    locked_key_id, locked_key_id_2,         -- current keypair locking
+    locked_device_id, locked_device_id_2,   -- dead, never read
+    locked_key_id, locked_key_id_2,         -- dead, never read
     created_at, updated_at
 )
 
