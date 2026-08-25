@@ -53,6 +53,86 @@ function buildVisionPrompt(cvText?: string, jdText?: string, priorContext?: stri
   return prompt;
 }
 
+// ── Upstream API usage counters ────────────────────────────────────────────
+// Every outbound AI call goes through trackedFetch, which counts it against
+// the provider inferred from the URL. Instrumenting the single choke point
+// rather than each call site means a newly added provider is counted as soon
+// as its host is listed here — nobody has to remember to add a counter.
+//
+// Counts CALLS ATTEMPTED, not answers served. That is deliberate: when Gemini
+// fails over to DeepSeek both are counted, which is what makes the fallback
+// rate visible. It is also what each provider actually saw traffic for.
+//
+// Written to Redis, not Postgres: this is an operational gauge, and the hot
+// path must not wait on a database write. Fire-and-forget, exactly like
+// logSession — a failed count must never break an AI request.
+export type AiProvider = 'gemini' | 'deepseek' | 'groq' | 'openai' | 'lemonfox' | 'other';
+
+const API_USAGE_TTL_SEC = 90 * 24 * 60 * 60; // 90 days of history
+
+function providerFromUrl(url: string): AiProvider {
+  if (url.includes('generativelanguage.googleapis.com')) return 'gemini';
+  if (url.includes('api.deepseek.com')) return 'deepseek';
+  if (url.includes('api.groq.com')) return 'groq';
+  if (url.includes('api.openai.com')) return 'openai';
+  if (url.includes('api.lemonfox.ai')) return 'lemonfox';
+  return 'other';
+}
+
+export function apiUsageKey(day: string, provider: string): string {
+  return `apiusage:${day}:${provider}`;
+}
+
+function recordApiUsage(provider: AiProvider): void {
+  const key = apiUsageKey(new Date().toISOString().slice(0, 10), provider);
+  getRedis()
+    .pipeline()
+    .incr(key)
+    .expire(key, API_USAGE_TTL_SEC)
+    .exec()
+    .catch(() => {
+      /* usage metering is best-effort; never fail a request over it */
+    });
+}
+
+// Statuses that mean "this provider has stopped serving us for a billing or
+// quota reason" — the signal that an account needs topping up or upgrading:
+//   401 key rejected/revoked   402 payment required   429 quota or rate cap
+// Only DeepSeek exposes a balance endpoint; for Gemini, Groq, OpenAI and
+// LemonFox this counter is the only advance warning available, because the
+// fallback chains hide the failure from users entirely.
+const BILLING_FAIL_STATUSES = new Set([401, 402, 429]);
+
+export function apiBillingFailKey(day: string, provider: string): string {
+  return `apifail:${day}:${provider}`;
+}
+
+function recordBillingFailure(provider: AiProvider, status: number): void {
+  const key = apiBillingFailKey(new Date().toISOString().slice(0, 10), provider);
+  getRedis()
+    .pipeline()
+    .incr(key)
+    .expire(key, API_USAGE_TTL_SEC)
+    .exec()
+    .catch(() => {
+      /* best-effort */
+    });
+  console.error(
+    `[AI] ${provider} returned ${status} — key rejected or quota exhausted. Check billing.`,
+  );
+}
+
+async function trackedFetch(url: string, init?: RequestInit): Promise<Response> {
+  const provider = providerFromUrl(url);
+  recordApiUsage(provider);
+  const response = await globalThis.fetch(url, init);
+  // Costs nothing on the happy path: only fires on a billing-shaped failure.
+  if (BILLING_FAIL_STATUSES.has(response.status)) {
+    recordBillingFailure(provider, response.status);
+  }
+  return response;
+}
+
 function sseWrite(reply: ServerResponse, payload: object): void {
   if (!reply.destroyed) {
     reply.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -232,7 +312,7 @@ export class AiService {
     systemPrompt: string,
     signal: AbortSignal,
   ): Promise<Response> {
-    return fetch(`${GEMINI_BASE}${key}`, {
+    return trackedFetch(`${GEMINI_BASE}${key}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -403,7 +483,7 @@ export class AiService {
     };
 
     const doFetch = (key: string) =>
-      fetch(DEEPSEEK_URL, {
+      trackedFetch(DEEPSEEK_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -500,7 +580,7 @@ export class AiService {
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
     try {
-      const response = await fetch(GROQ_VISION_URL, {
+      const response = await trackedFetch(GROQ_VISION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -625,7 +705,7 @@ export class AiService {
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
     try {
-      const response = await fetch(OPENAI_VISION_URL, {
+      const response = await trackedFetch(OPENAI_VISION_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -804,7 +884,7 @@ export class AiService {
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
     const doFetch = (key: string) =>
-      fetch(DEEPSEEK_URL, {
+      trackedFetch(DEEPSEEK_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -903,7 +983,7 @@ export class AiService {
     let streamingStarted = false;
 
     try {
-      const response = await fetch(`${GEMINI_25_BASE}${this.nextGeminiKey()}`, {
+      const response = await trackedFetch(`${GEMINI_25_BASE}${this.nextGeminiKey()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -995,7 +1075,7 @@ If the answer is empty or very short, score it 0-20.`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
     try {
-      const response = await fetch(`${GEMINI_25_CONTENT_BASE}${this.nextGeminiKey()}`, {
+      const response = await trackedFetch(`${GEMINI_25_CONTENT_BASE}${this.nextGeminiKey()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1028,7 +1108,7 @@ If the answer is empty or very short, score it 0-20.`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
     try {
-      const response = await fetch(DEEPSEEK_URL, {
+      const response = await trackedFetch(DEEPSEEK_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1098,7 +1178,7 @@ If the answer is empty or very short, score it 0-20.`;
     formData.append('response_format', 'json');
     formData.append('language', 'en');
 
-    const response = await fetch(GROQ_TRANSCRIBE_URL, {
+    const response = await trackedFetch(GROQ_TRANSCRIBE_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env['GROQ_API_KEY'] ?? ''}`,
@@ -1141,7 +1221,7 @@ If the answer is empty or very short, score it 0-20.`;
 
     const apiKey = this.nextGeminiKey();
     try {
-      const res = await fetch(`${AiService.GEMINI_CACHE_URL}?key=${apiKey}`, {
+      const res = await trackedFetch(`${AiService.GEMINI_CACHE_URL}?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1179,7 +1259,7 @@ If the answer is empty or very short, score it 0-20.`;
 
     try {
       // A2-2: Wire signal to fetch so the AbortController can cancel the request
-      const res = await fetch(`${GEMINI_BASE}${key}`, {
+      const res = await trackedFetch(`${GEMINI_BASE}${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1259,7 +1339,7 @@ If the answer is empty or very short, score it 0-20.`;
     wireSignal(controller, signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
-      const response = await fetch('https://api.lemonfox.ai/v1/audio/speech', {
+      const response = await trackedFetch('https://api.lemonfox.ai/v1/audio/speech', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

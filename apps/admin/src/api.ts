@@ -3,6 +3,8 @@ import type {
   DailyCount,
   DailyPayments,
   DailyUsage,
+  DailyApiUsage,
+  ApiHealthRow,
   DailyDownloads,
   UserRow,
   ReferralCommissionRow,
@@ -42,6 +44,14 @@ export function fetchPayments(key: string, days: number): Promise<DailyPayments[
 
 export function fetchUsage(key: string, days: number): Promise<DailyUsage[]> {
   return get<DailyUsage[]>(`/admin/usage?days=${days}`, key);
+}
+
+export function fetchApiUsage(key: string, days: number): Promise<DailyApiUsage[]> {
+  return get<DailyApiUsage[]>(`/admin/api-usage?days=${days}`, key);
+}
+
+export function fetchApiHealth(key: string): Promise<ApiHealthRow[]> {
+  return get<ApiHealthRow[]>('/admin/api-health', key);
 }
 
 export function fetchDownloads(key: string, days: number): Promise<DailyDownloads[]> {

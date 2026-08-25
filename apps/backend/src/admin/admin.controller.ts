@@ -17,6 +17,8 @@ import {
   DailyCount,
   DailyPayments,
   DailyUsage,
+  DailyApiUsage,
+  ApiHealthRow,
   DailyDownloads,
   UserRow,
   ReferralCommissionRow,
@@ -73,6 +75,16 @@ export class AdminController {
   @Get('usage')
   getUsage(@Query('days') daysParam?: string): Promise<DailyUsage[]> {
     return this.adminService.getUsage(parseDays(daysParam));
+  }
+
+  @Get('api-usage')
+  getApiUsage(@Query('days') daysParam?: string): Promise<DailyApiUsage[]> {
+    return this.adminService.getApiUsage(parseDays(daysParam));
+  }
+
+  @Get('api-health')
+  getApiHealth(): Promise<ApiHealthRow[]> {
+    return this.adminService.getApiHealth();
   }
 
   @Get('downloads')

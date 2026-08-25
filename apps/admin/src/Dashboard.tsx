@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   fetchStats, fetchSignups, fetchPayments,
-  fetchUsage, fetchDownloads, fetchUsers, fetchReferrals,
+  fetchUsage, fetchApiUsage, fetchApiHealth, fetchDownloads, fetchUsers, fetchReferrals,
 } from './api';
 import type { DashboardData, ReferralCommissionRow } from './types';
 import BroadcastPage from './BroadcastPage';
@@ -195,13 +195,14 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
     setRefreshing(true);
     setError('');
     try {
-      const [stats, signups, payments, usage, downloads, users, referrals] = await Promise.all([
+      const [stats, signups, payments, usage, apiUsage, apiHealth, downloads, users, referrals] = await Promise.all([
         fetchStats(adminKey), fetchSignups(adminKey, d),
         fetchPayments(adminKey, d), fetchUsage(adminKey, d),
+        fetchApiUsage(adminKey, d), fetchApiHealth(adminKey),
         fetchDownloads(adminKey, d), fetchUsers(adminKey),
         fetchReferrals(adminKey),
       ]);
-      setData({ stats, signups, payments, usage, downloads, users, referrals });
+      setData({ stats, signups, payments, usage, apiUsage, apiHealth, downloads, users, referrals });
     } catch {
       setError('Failed to load data. Check backend connection.');
     } finally {
@@ -427,6 +428,57 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
           </ChartCard>
         </div>
 
+        {/* ── API billing health ── */}
+        <ChartCard title="AI Provider Billing — calls, failures and balance" delay={400}>
+          {!data
+            ? <div className="skeleton" style={{ height: 180, borderRadius: 12 }} />
+            : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: F.body, fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#FAFAF8' }}>
+                      {['Provider', 'Calls today', 'Calls 30d', 'Billing errors', 'Balance', 'How to check'].map((h) => (
+                        <th key={h} style={{
+                          padding: '11px 16px', textAlign: 'left', fontWeight: 500, fontSize: 10,
+                          color: C.muted, textTransform: 'uppercase', letterSpacing: '0.09em',
+                          borderBottom: '1px solid rgba(0,0,0,0.04)', whiteSpace: 'nowrap',
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.apiHealth.map((r) => {
+                      const failing = r.billingFailuresToday > 0;
+                      const low = r.balanceUsd !== null && parseFloat(r.balanceUsd) < 5;
+                      return (
+                        <tr key={r.provider} className="trow">
+                          <td style={{ padding: '12px 16px', color: C.primary, fontWeight: 600, textTransform: 'capitalize' }}>
+                            {r.provider}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: C.secondary }}>{r.callsToday.toLocaleString()}</td>
+                          <td style={{ padding: '12px 16px', color: C.secondary }}>{r.calls30d.toLocaleString()}</td>
+                          <td style={{ padding: '12px 16px', fontWeight: failing ? 700 : 400, color: failing ? ACCENT.red : C.secondary }}>
+                            {failing
+                              ? `${r.billingFailuresToday} today — CHECK BILLING`
+                              : r.billingFailures30d > 0
+                                ? `${r.billingFailures30d} in 30d`
+                                : 'none'}
+                          </td>
+                          <td style={{ padding: '12px 16px', fontWeight: low ? 700 : 500, color: low ? ACCENT.red : C.primary }}>
+                            {r.balanceUsd !== null ? `$${r.balanceUsd}${low ? ' — LOW' : ''}` : '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: C.muted, fontSize: 12 }}>{r.balanceNote}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+        </ChartCard>
+
+        <div style={{ height: 28 }} />
+
         {/* ── Charts row 2 ── */}
         <div className="charts-grid" style={{ marginBottom: 28 }}>
           <ChartCard title={`AI Usage — last ${days} days`} delay={410}>
@@ -443,6 +495,28 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <Bar dataKey="stream"     stackId="a" fill={ACCENT.blue}   name="Stream" />
                     <Bar dataKey="screenshot" stackId="a" fill={ACCENT.green}  name="Screenshot" />
                     <Bar dataKey="transcribe" stackId="a" fill={ACCENT.orange} name="Transcribe" radius={[6,6,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+          </ChartCard>
+
+          <ChartCard title={`AI Provider Calls — last ${days} days`} delay={438}>
+            {!data
+              ? <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+              : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={data.apiUsage.map((d) => ({ ...d, date: shortDate(d.date) }))} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+                    <XAxis dataKey="date" tick={CHART.axis} axisLine={false} tickLine={false} />
+                    <YAxis tick={CHART.axis} allowDecimals={false} axisLine={false} tickLine={false} width={36} />
+                    <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
+                    <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
+                    <Bar dataKey="gemini"   stackId="p" fill={ACCENT.blue}   name="Gemini" />
+                    <Bar dataKey="deepseek" stackId="p" fill={ACCENT.purple} name="DeepSeek" />
+                    <Bar dataKey="groq"     stackId="p" fill={ACCENT.green}  name="Groq" />
+                    <Bar dataKey="openai"   stackId="p" fill={ACCENT.orange} name="OpenAI" />
+                    <Bar dataKey="lemonfox" stackId="p" fill={ACCENT.red}    name="LemonFox" />
+                    <Bar dataKey="other"    stackId="p" fill={ACCENT.gray}   name="Other" radius={[6,6,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

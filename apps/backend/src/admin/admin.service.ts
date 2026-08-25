@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { getDB } from '../database/db';
+import { getRedis } from '../redis/redis';
+import { apiUsageKey, apiBillingFailKey } from '../ai/ai.service';
 
 // Keep in sync with apps/admin/src/types.ts
 export interface StatsResult {
@@ -26,6 +28,40 @@ export interface DailyUsage {
   stream: number;
   screenshot: number;
   transcribe: number;
+}
+
+// Outbound calls per upstream AI provider, per day.
+export interface DailyApiUsage {
+  date: string;
+  gemini: number;
+  deepseek: number;
+  groq: number;
+  openai: number;
+  lemonfox: number;
+  other: number;
+}
+
+export const API_PROVIDERS = [
+  'gemini',
+  'deepseek',
+  'groq',
+  'openai',
+  'lemonfox',
+  'other',
+] as const;
+
+// One row per provider: what it cost you in calls, and whether it is currently
+// refusing to serve. `balanceUsd` is null wherever the provider has no balance
+// API — only DeepSeek publishes one, so the rest rely on billingFailures as
+// their warning that payment is due.
+export interface ApiHealthRow {
+  provider: string;
+  calls30d: number;
+  callsToday: number;
+  billingFailures30d: number;
+  billingFailuresToday: number;
+  balanceUsd: string | null;
+  balanceNote: string;
 }
 
 export interface DailyDownloads {
@@ -137,6 +173,110 @@ export class AdminService {
       else if (row.type === 'transcribe') entry.transcribe = row.count;
     }
     return Array.from(map.values());
+  }
+
+  // Outbound calls per AI provider, read straight from the Redis counters that
+  // trackedFetch() writes. One MGET covers the whole window.
+  //
+  // A missing key means no calls that day, not an error — days before this was
+  // deployed simply read as zero rather than being hidden, so the chart does
+  // not imply usage stopped. History is capped at 90 days by the key TTL.
+  async getApiUsage(days: number): Promise<DailyApiUsage[]> {
+    const dates: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      dates.push(new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10));
+    }
+
+    const keys = dates.flatMap((d) => API_PROVIDERS.map((p) => apiUsageKey(d, p)));
+    if (keys.length === 0) return [];
+
+    let values: Array<string | null>;
+    try {
+      values = await getRedis().mget(...keys);
+    } catch {
+      // Redis unavailable — report an empty series rather than 500ing the
+      // whole admin dashboard over a secondary metric.
+      return [];
+    }
+
+    return dates.map((date, dayIndex) => {
+      const row = { date } as DailyApiUsage;
+      API_PROVIDERS.forEach((provider, providerIndex) => {
+        const raw = values[dayIndex * API_PROVIDERS.length + providerIndex];
+        row[provider] = raw ? parseInt(raw, 10) || 0 : 0;
+      });
+      return row;
+    });
+  }
+
+  // Answers "which APIs am I using, and which one needs paying?" in one call.
+  //
+  // DeepSeek is the only provider with a balance endpoint, so it is fetched
+  // live. For every other provider the honest answer is that no balance exists
+  // to read, and billingFailures is what tells you the account has run dry.
+  async getApiHealth(): Promise<ApiHealthRow[]> {
+    const today = new Date().toISOString().slice(0, 10);
+    const days: string[] = [];
+    for (let i = 29; i >= 0; i--) {
+      days.push(new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10));
+    }
+
+    let usage: Array<string | null> = [];
+    let fails: Array<string | null> = [];
+    try {
+      const redis = getRedis();
+      [usage, fails] = await Promise.all([
+        redis.mget(...days.flatMap((d) => API_PROVIDERS.map((p) => apiUsageKey(d, p)))),
+        redis.mget(...days.flatMap((d) => API_PROVIDERS.map((p) => apiBillingFailKey(d, p)))),
+      ]);
+    } catch {
+      /* fall through with zeroes rather than failing the dashboard */
+    }
+
+    const sum = (arr: Array<string | null>, providerIndex: number, onlyDay?: string): number => {
+      let total = 0;
+      days.forEach((d, dayIndex) => {
+        if (onlyDay && d !== onlyDay) return;
+        const raw = arr[dayIndex * API_PROVIDERS.length + providerIndex];
+        total += raw ? parseInt(raw, 10) || 0 : 0;
+      });
+      return total;
+    };
+
+    const deepseekBalance = await this.fetchDeepSeekBalance();
+
+    return API_PROVIDERS.filter((p) => p !== 'other').map((provider, index) => ({
+      provider,
+      calls30d: sum(usage, index),
+      callsToday: sum(usage, index, today),
+      billingFailures30d: sum(fails, index),
+      billingFailuresToday: sum(fails, index, today),
+      balanceUsd: provider === 'deepseek' ? deepseekBalance : null,
+      balanceNote:
+        provider === 'deepseek'
+          ? 'Live balance from DeepSeek'
+          : 'No balance API — watch billing failures',
+    }));
+  }
+
+  // DeepSeek is the only one of the five that publishes a balance.
+  private async fetchDeepSeekBalance(): Promise<string | null> {
+    const key = process.env['DEEPSEEK_API_KEY'];
+    if (!key) return null;
+    try {
+      const res = await fetch('https://api.deepseek.com/user/balance', {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as {
+        balance_infos?: Array<{ currency: string; total_balance: string }>;
+      };
+      const usd = body.balance_infos?.find((b) => b.currency === 'USD');
+      return usd?.total_balance ?? body.balance_infos?.[0]?.total_balance ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async getDownloads(days: number): Promise<DailyDownloads[]> {

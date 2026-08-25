@@ -25,6 +25,26 @@ export interface DailyUsage {
   transcribe: number;
 }
 
+export interface DailyApiUsage {
+  date: string;
+  gemini: number;
+  deepseek: number;
+  groq: number;
+  openai: number;
+  lemonfox: number;
+  other: number;
+}
+
+export interface ApiHealthRow {
+  provider: string;
+  calls30d: number;
+  callsToday: number;
+  billingFailures30d: number;
+  billingFailuresToday: number;
+  balanceUsd: string | null;
+  balanceNote: string;
+}
+
 export interface DailyDownloads {
   date: string;
   windows: number;
@@ -57,6 +77,8 @@ export interface DashboardData {
   signups: DailyCount[];
   payments: DailyPayments[];
   usage: DailyUsage[];
+  apiUsage: DailyApiUsage[];
+  apiHealth: ApiHealthRow[];
   downloads: DailyDownloads[];
   users: UserRow[];
   referrals: ReferralCommissionRow[];
