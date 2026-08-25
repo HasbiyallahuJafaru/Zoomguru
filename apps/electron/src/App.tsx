@@ -6,6 +6,7 @@ import CvSetup from './onboarding/CvSetup';
 import Overlay from './overlay/Overlay';
 import InterviewerReport, { type ScorerReport, fetchReport } from './interviewer/InterviewerReport';
 import { useTour } from './tour/useTour';
+import { API_URL } from './utils';
 import type { QAEntry } from './interviewer/InterviewerSession';
 
 const Referral = lazy(() => import('./referral/Referral'));
@@ -46,7 +47,23 @@ const App = () => {
   }, []);
 
   function handleLogout(): void {
-    void window.zoomguru.clearToken();
+    // Frees this account's session slot server-side. Best effort: if it fails,
+    // the slot ages out on its own.
+    void (async () => {
+      try {
+        const token = await window.zoomguru.getToken();
+        if (token) {
+          await fetch(`${API_URL}/auth/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: '{}',
+          });
+        }
+      } catch {
+        // offline — slot expires after its idle window
+      }
+      await window.zoomguru.clearToken();
+    })();
     setIsSessionActive(false);
     setTourAutoLaunch(false);
     setStep('login');

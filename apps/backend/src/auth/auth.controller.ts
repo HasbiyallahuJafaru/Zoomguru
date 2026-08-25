@@ -1,11 +1,13 @@
 import {
-  Controller, Post, Get, Body, Headers, Query, Req,
+  Controller, Post, Get, Body, Headers, Query, Req, UseGuards,
   BadRequestException, HttpCode, HttpException,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { getRedis } from '../redis/redis';
+import { MAX_SESSIONS } from './sessions';
 
 function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -17,6 +19,11 @@ function sanitizeLine(s: string): string {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const TOKEN_RE = /^[a-f0-9]{64}$/;
+const SID_RE = /^[a-f0-9]{32}$/;
+
+interface AuthRequest {
+  user: { userId: string; email: string; sid?: string };
+}
 
 async function checkIpRateLimit(
   ip: string,
@@ -84,12 +91,15 @@ export class AuthController {
       throw new BadRequestException('Invalid email format');
     }
 
-    return this.authService.register(cleanEmail, cleanName, cleanPassword, cleanReferral);
+    return this.authService.register(
+      cleanEmail, cleanName, cleanPassword, cleanReferral,
+      req.ip, req.headers['user-agent'],
+    );
   }
 
   @Post('login')
   async login(
-    @Body() body: { email: string; password: string },
+    @Body() body: { email: string; password: string; revokeSid?: string },
     @Req() req: FastifyRequest,
   ) {
     await checkIpRateLimit(req.ip, 'login', 10, 900);
@@ -108,7 +118,35 @@ export class AuthController {
       throw new BadRequestException('Invalid identifier');
     }
 
-    return this.authService.login(cleanIdentifier, cleanPassword);
+    if (body.revokeSid !== undefined && !SID_RE.test(body.revokeSid)) {
+      throw new BadRequestException('Invalid session id');
+    }
+
+    return this.authService.login(
+      cleanIdentifier, cleanPassword,
+      req.ip, req.headers['user-agent'], body.revokeSid,
+    );
+  }
+
+  // Who else is signed in on this account, so a user can see it before
+  // deciding whom to sign out.
+  @Get('sessions')
+  @UseGuards(AuthGuard('jwt'))
+  async sessions(@Req() req: AuthRequest) {
+    return { max: MAX_SESSIONS, sessions: await this.authService.listSessions(req.user.userId, req.user.sid) };
+  }
+
+  // Frees this session's slot. `sid` signs another device out instead.
+  @Post('logout')
+  @HttpCode(200)
+  @UseGuards(AuthGuard('jwt'))
+  async logout(@Req() req: AuthRequest, @Body() body: { sid?: string }) {
+    if (body.sid !== undefined && !SID_RE.test(body.sid)) {
+      throw new BadRequestException('Invalid session id');
+    }
+    const target = body.sid ?? req.user.sid;
+    if (target) await this.authService.logout(req.user.userId, target);
+    return { success: true };
   }
 
   @Post('forgot-password')

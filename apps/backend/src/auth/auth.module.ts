@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
+import { TOKEN_TTL_SEC } from './sessions';
 import { EmailModule } from '../email/email.module';
 
 @Module({
@@ -13,7 +14,7 @@ import { EmailModule } from '../email/email.module';
       useFactory: () => {
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET env var is not set');
-        return { secret, signOptions: { expiresIn: '30d' } };
+        return { secret, signOptions: { expiresIn: TOKEN_TTL_SEC } };
       },
     }),
     EmailModule,

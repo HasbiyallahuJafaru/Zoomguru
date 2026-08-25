@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, HttpException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, createHash } from 'node:crypto';
 import { getDB } from '../database/db';
 import { EmailService } from '../email/email.service';
 import { getRedis } from '../redis/redis';
+import { addSession, listSessions, revokeAllSessions, revokeSession, MAX_SESSIONS, TOKEN_TTL_SEC } from './sessions';
 
 interface UserRow {
   id: string;
@@ -56,7 +57,14 @@ export class AuthService {
     private emailService: EmailService,
   ) {}
 
-  async register(email: string, name: string, password: string, referralCode?: string): Promise<LoginResult> {
+  async register(
+    email: string,
+    name: string,
+    password: string,
+    referralCode?: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<LoginResult> {
     const pool = getDB();
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -94,9 +102,10 @@ export class AuthService {
     if (!user) throw new ConflictException('Email already in use');
     const registeredUser = user;
 
+    const sid = await addSession(registeredUser.id, ip ?? '', userAgent);
     const accessToken = this.jwtService.sign(
-      { sub: registeredUser.id, email: registeredUser.email, name: registeredUser.name },
-      { expiresIn: '30d' },
+      { sub: registeredUser.id, email: registeredUser.email, name: registeredUser.name, sid },
+      { expiresIn: TOKEN_TTL_SEC },
     );
 
     void this.emailService.sendWelcome(registeredUser.email, registeredUser.name ?? 'there');
@@ -107,7 +116,13 @@ export class AuthService {
     };
   }
 
-  async login(identifier: string, password: string, ip?: string): Promise<LoginResult> {
+  async login(
+    identifier: string,
+    password: string,
+    ip?: string,
+    userAgent?: string,
+    revokeSid?: string,
+  ): Promise<LoginResult> {
     if (ip && !(await checkLoginRateLimit(ip))) {
       throw new UnauthorizedException('Too many login attempts. Try again in 15 minutes.');
     }
@@ -133,9 +148,25 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // The caller proved they know the password, so they are allowed to take a
+    // slot back from an existing session rather than wait for it to log out.
+    if (revokeSid) await revokeSession(user.id, revokeSid);
+
+    const sid = await addSession(user.id, ip ?? '', userAgent);
+    if (sid === null) {
+      throw new HttpException(
+        {
+          error: 'session_limit',
+          message: `This account is already in use on ${MAX_SESSIONS} devices. Log out on one of them, or pick one below to sign out.`,
+          sessions: await listSessions(user.id),
+        },
+        409,
+      );
+    }
+
     const accessToken = this.jwtService.sign(
-      { sub: user.id, email: user.email, name: user.name },
-      { expiresIn: '30d' },
+      { sub: user.id, email: user.email, name: user.name, sid },
+      { expiresIn: TOKEN_TTL_SEC },
     );
 
     return {
@@ -203,5 +234,17 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [passwordHash, tokenRow.user_id]);
     await pool.query(`DELETE FROM password_reset_tokens WHERE id = $1`, [tokenRow.id]);
+
+    // Changing the password signs every device out, so the account owner can
+    // always take their account back from whoever else was logged in.
+    await revokeAllSessions(tokenRow.user_id);
+  }
+
+  async listSessions(userId: string, currentSid?: string) {
+    return listSessions(userId, currentSid);
+  }
+
+  async logout(userId: string, sid: string): Promise<void> {
+    await revokeSession(userId, sid);
   }
 }

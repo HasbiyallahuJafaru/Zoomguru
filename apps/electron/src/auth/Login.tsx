@@ -8,10 +8,28 @@ interface LoginProps {
   onShowRegister: () => void;
 }
 
+interface SessionInfo {
+  sid: string;
+  ip: string;
+  device: string;
+  loginAt: string;
+  lastSeen: string;
+}
+
 interface LoginApiResponse {
   accessToken?: string;
   user?: unknown;
   message?: string;
+  error?: string;
+  sessions?: SessionInfo[];
+}
+
+function whenText(iso: string): string {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 24 ? `${hrs} hr ago` : `${Math.round(hrs / 24)} d ago`;
 }
 
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
@@ -27,6 +45,7 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
+  const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
   const forgotRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -60,8 +79,8 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
     }
   }
 
-  async function handleSubmit(e: FormEvent): Promise<void> {
-    e.preventDefault();
+  async function handleSubmit(e: FormEvent | null, revokeSid?: string): Promise<void> {
+    e?.preventDefault();
     setError('');
     setLoading(true);
     const controller = new AbortController();
@@ -70,11 +89,20 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier, password }),
+        body: JSON.stringify({ email: identifier, password, revokeSid }),
         signal: controller.signal,
       });
       const data: LoginApiResponse = await res.json();
-      if (!res.ok) { setError(data.message ?? 'Invalid credentials'); return; }
+      if (!res.ok) {
+        if (data.error === 'session_limit') {
+          setSessions(data.sessions ?? []);
+          setError('');
+          return;
+        }
+        setError(data.message ?? 'Invalid credentials');
+        return;
+      }
+      setSessions(null);
       await window.zoomguru.setToken(data.accessToken ?? '');
       onLogin();
     } catch {
@@ -213,7 +241,32 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
             <span style={s.brandTag}>Your invisible interview edge</span>
           </div>
 
-          {!showForgot ? (
+          {sessions ? (
+            <div style={s.form}>
+              <p style={s.forgotHint}>
+                This account is already signed in on {sessions.length} devices — the
+                limit. Sign one out to continue here.
+              </p>
+              {sessions.map((sess) => (
+                <div key={sess.sid} style={s.sessionRow}>
+                  <div style={s.sessionMeta}>
+                    <span style={s.sessionDevice}>{sess.device}</span>
+                    <span style={s.sessionSub}>{sess.ip || 'unknown IP'} · active {whenText(sess.lastSeen)}</span>
+                  </div>
+                  <button type="button" className="zg-forgot" style={s.sessionBtn}
+                    disabled={loading}
+                    onClick={() => { void handleSubmit(null, sess.sid); }}>
+                    Sign out
+                  </button>
+                </div>
+              ))}
+              {error && <p style={s.error}>{error}</p>}
+              <button type="button" className="zg-forgot" style={s.forgotLink}
+                onClick={() => { setSessions(null); setError(''); }}>
+                ← Back to sign in
+              </button>
+            </div>
+          ) : !showForgot ? (
             <form onSubmit={(e) => { void handleSubmit(e); }} style={s.form}>
               <input className="zg-field" type="text" placeholder="Email or username"
                 value={identifier} onChange={(e) => setIdentifier(e.target.value)}
@@ -360,6 +413,42 @@ const s: Record<string, ElectronStyle> = {
     flexDirection: 'column',
     alignItems: 'center',
     gap: '20px',
+  },
+  sessionRow: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '10px',
+    padding: '9px 0',
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
+  },
+  sessionMeta: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: '2px',
+    minWidth: 0,
+  },
+  sessionDevice: {
+    fontSize: '12px',
+    color: 'rgba(255,255,255,0.80)',
+    fontFamily: SANS,
+  },
+  sessionSub: {
+    fontSize: '10px',
+    color: 'rgba(255,255,255,0.35)',
+    fontFamily: SANS,
+  },
+  sessionBtn: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontSize: '11px',
+    color: 'rgba(244,63,94,0.75)',
+    fontFamily: SANS,
+    flexShrink: 0,
   },
   error: {
     margin: 0,
