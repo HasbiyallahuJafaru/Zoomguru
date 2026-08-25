@@ -107,11 +107,25 @@ export default function Dashboard({ onContinue, onOpenMeeting, onOpenInterviewer
 
         try {
           const { keyId, publicKey } = await window.zoomguru.getDevicePublicKey();
-          await fetch(`${API_URL}/device/register`, {
+          const regRes = await fetch(`${API_URL}/device/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ keyId, publicKey }),
           });
+          if (regRes.status === 401) { onLogout(); return; }
+          if (!regRes.ok) {
+            // A failed registration used to pass silently here and resurface
+            // much later as a 403 on the first AI call, where the only advice
+            // was to restart — which burns another attempt against the cap.
+            const body = await regRes.json().catch(() => ({})) as { error?: string; retryAfter?: number };
+            const mins = Math.ceil((body.retryAfter ?? 3600) / 60);
+            setDeviceRegError(
+              body.error === 'rate_limit'
+                ? `Too many device registrations. Wait ${mins} minute${mins === 1 ? '' : 's'} and open the app again — restarting sooner won't help.`
+                : 'Device registration failed. Please restart the app.',
+            );
+            return;
+          }
         } catch (err) {
           console.error('Device registration failed:', err);
           setDeviceRegError('Device registration failed. Please restart the app.');

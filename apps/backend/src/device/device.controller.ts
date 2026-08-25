@@ -9,14 +9,15 @@ const DEV_REG_MAX = 5;
 async function checkDeviceRegLimit(userId: string): Promise<{ allowed: boolean; retryAfter: number }> {
   const redis = getRedis();
   const key = `rl_dev:${userId}`;
-  const [[, count], , [, ttlAfter]] = (await redis
-    .pipeline()
-    .incr(key)
-    .expire(key, DEV_REG_WINDOW_SEC)
-    .ttl(key)
-    .exec()) as [[null, number], [null, number], [null, number]];
+  const count = await redis.incr(key);
+  // Only on the first attempt, so the window runs from then. Setting it on
+  // every attempt pushed the reset an hour further out on each retry, which
+  // left anyone who kept restarting the app permanently unable to register a
+  // device — and the error they saw told them to restart.
+  if (count === 1) await redis.expire(key, DEV_REG_WINDOW_SEC);
   if (count > DEV_REG_MAX) {
-    return { allowed: false, retryAfter: ttlAfter > 0 ? ttlAfter : DEV_REG_WINDOW_SEC };
+    const ttl = await redis.ttl(key);
+    return { allowed: false, retryAfter: ttl > 0 ? ttl : DEV_REG_WINDOW_SEC };
   }
   return { allowed: true, retryAfter: 0 };
 }
