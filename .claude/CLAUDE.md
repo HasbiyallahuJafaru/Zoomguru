@@ -597,6 +597,32 @@ Set VITE_API_URL=http://localhost:3000 in apps/electron/.env
 to point the Electron app at local backend during development.
 ```
 
+### Fully local stack (test without touching production)
+
+Redis 3.0 and PostgreSQL 17 are installed as Windows services on the dev
+machine (`winget install Redis.Redis` / `PostgreSQL.PostgreSQL.17`). They
+listen on the default ports and start with Windows.
+
+```
+cd apps/backend
+npm run build && node --env-file=.env.local dist/main.js
+```
+
+`.env.local` (gitignored) points at `127.0.0.1` and uses **fake** Resend,
+Paystack and AI keys, so a local run cannot send real email, charge a card,
+or spend AI credit. `initDB()` builds the whole schema on first boot — an
+empty database is all that is required.
+
+Two traps, both already handled in `.env.local`:
+
+- `db.ts` reads **`DATABASE_POOL_URL` before `DATABASE_URL`**. Override only
+  `DATABASE_URL` and the "local" server silently talks to production.
+- Local Postgres runs `ssl=off`. `db.ts` skips SSL for loopback hosts only;
+  every hosted URL still gets SSL.
+
+Reset local state between runs with
+`"C:\Program Files\Redis\redis-cli.exe" FLUSHALL`.
+
 ---
 
 ## Known Security Issues (Prioritised)

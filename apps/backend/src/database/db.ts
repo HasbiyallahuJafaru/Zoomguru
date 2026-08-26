@@ -18,7 +18,11 @@ export function getDB(): Pool {
       max: process.env.DATABASE_POOL_URL ? 20 : 12,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
-      ssl: { rejectUnauthorized: false },
+      // A local Postgres runs with ssl=off, and forcing SSL there fails with
+      // "The server does not support SSL connections" — which made running the
+      // backend against a local database impossible. Loopback only; every
+      // hosted URL still gets SSL.
+      ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(connectionString) ? false : { rejectUnauthorized: false },
     });
 
     // Prevent idle connection errors from crashing the process.
