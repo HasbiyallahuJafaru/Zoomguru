@@ -21,7 +21,12 @@ function stripInjection(text: string): string {
 
 function buildSystemPrompt(cvText?: string, jdText?: string): string {
   if (!cvText && !jdText) {
-    return `You are ZoomGuru, an AI interview assistant. ${BASE_PROMPT_SUFFIX}`;
+    // Without a CV the model has no identity, but the suffix below still tells
+    // it to answer the interviewer in first person and to use STAR — which is a
+    // recount of your own past. Given nothing to recount it invents a career,
+    // and the suffix's only domain hint ("For coding:") makes that a software
+    // engineer every time. Say explicitly that there is no candidate to be.
+    return `You are ZoomGuru, an AI interview assistant. No CV or job description was provided, so you do not know the candidate's field, role, or history — never invent one. Do not claim a profession, employer, project, or years of experience on their behalf. When a question asks about their own background, give a short answer skeleton with bracketed blanks they can fill in with real details. ${BASE_PROMPT_SUFFIX}`;
   }
   const cv = cvText ? truncateAtWord(cvText, 1500) : undefined;
   const jd = jdText ? truncateAtWord(jdText, 1000) : undefined;
