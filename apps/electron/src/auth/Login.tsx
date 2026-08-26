@@ -261,6 +261,17 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
                 </div>
               ))}
               {error && <p style={s.error}>{error}</p>}
+              {/* Completing a password reset revokes every session, so this is
+                  the way out when none of the devices above are yours. */}
+              <button type="button" className="zg-forgot" style={s.forgotLink}
+                onClick={() => {
+                  setSessions(null);
+                  setError('');
+                  setForgotEmail(identifier.includes('@') ? identifier : '');
+                  setShowForgot(true);
+                }}>
+                Don't recognise these? Reset your password to sign them all out
+              </button>
               <button type="button" className="zg-forgot" style={s.forgotLink}
                 onClick={() => { setSessions(null); setError(''); }}>
                 ← Back to sign in

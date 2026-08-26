@@ -42,6 +42,10 @@ let isQuitting = false;
 let isSessionActive = false;
 const store = new Store<WindowStore>();
 
+// The main process cannot import from src/, so the API base is its own literal
+// here (see .claude/CLAUDE.md). Used by the sign-out-on-quit hook and the CSP.
+const API_BASE = process.env['VITE_API_URL'] ?? 'https://zoomguru-backend-production.up.railway.app';
+
 // Suppress AMD VideoProcessorGetOutputExtension DirectComposition error on Windows.
 if (process.platform === 'win32') {
   app.commandLine.appendSwitch('disable-features', 'UseSkiaRenderer');
@@ -623,7 +627,7 @@ if (!gotLock) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       const connectSrc = [
         "'self'",
-        'https://zoomguru-backend-production.up.railway.app',
+        API_BASE,
         'https://api.groq.com',
         'https://*.paystack.co',
         'https://*.paystack.com',
@@ -663,6 +667,43 @@ if (!gotLock) {
     if (process.platform !== 'darwin') {
       app.quit();
     }
+  });
+
+  // Closing the app signs out, so the account's session slot is released now
+  // rather than being held until the token expires hours later. Every way out —
+  // the in-app × buttons, the tray Quit item, Alt+F4, the last window closing —
+  // funnels through app.quit(), so this one hook catches them all.
+  let quitSignOut: 'pending' | 'running' | 'done' = 'pending';
+
+  app.on('before-quit', (event) => {
+    if (quitSignOut === 'done') return;
+    // Hold the quit open until the logout settles. A second quit arriving while
+    // the request is still in flight has to be held too, or the app exits from
+    // under it — the window's own close event fires one immediately after ours.
+    event.preventDefault();
+    if (quitSignOut === 'running') return;
+    quitSignOut = 'running';
+
+    void (async () => {
+      const token = store.get('accessToken', '');
+      if (token) {
+        try {
+          await fetch(`${API_BASE}/auth/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: '{}',
+            // Never let a hanging request make the app unquittable.
+            signal: AbortSignal.timeout(1500),
+          });
+        } catch {
+          // Offline or backend down — best effort, same as the in-app Log out
+          // button. The slot ages out with the token.
+        }
+        store.delete('accessToken');
+      }
+      quitSignOut = 'done';
+      app.quit();
+    })();
   });
 
   app.on('will-quit', () => {
