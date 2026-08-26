@@ -30,14 +30,13 @@ const {
 const uid = 'selfcheck-user';
 const UA = 'Mozilla/5.0 (Windows NT 10.0) ZoomGuru/1.0';
 
-// Seats per plan. Anything unknown, lapsed or missing gets one seat.
-assert.equal(seatsForPlan('weekly'), 1);
+// Any active subscription seats two computers. No active plan → one.
+assert.equal(seatsForPlan('weekly'), 2);
 assert.equal(seatsForPlan('monthly'), 2);
 assert.equal(seatsForPlan('yearly'), 2);
 assert.equal(seatsForPlan(null), 1);
 assert.equal(seatsForPlan(undefined), 1);
 assert.equal(seatsForPlan(''), 1);
-assert.equal(seatsForPlan('lifetime'), 1);
 
 const SEATS = seatsForPlan('monthly');
 
@@ -75,16 +74,19 @@ const reclaimed = await addSession(uid, '10.0.0.50', UA, SEATS);
 assert.ok(reclaimed, 'a freed slot must be reusable');
 assert.equal(await addSession(uid, '10.0.0.51', UA, SEATS), null, 'cap still holds after reclaim');
 
-// The same device signing in again reclaims its own slot rather than taking a
-// second one — otherwise a client with no logout call locks itself out.
-const beforeRetake = (await listSessions(uid)).length;
-const retaken = await addSession(uid, '10.0.0.50', UA, SEATS);
-assert.ok(retaken, 'same device must be able to sign in again at capacity');
-assert.equal((await listSessions(uid)).length, beforeRetake, 'retake must not consume a slot');
-assert.ok(!(await listSessions(uid)).some((s) => s.sid === reclaimed), 'old slot must be released');
+// The point of two seats: two computers behind one router share a public IP and
+// the same OS label. They must both hold a slot, not evict each other.
+await revokeAllSessions(uid);
+const pcA = await addSession(uid, '203.0.113.9', UA, SEATS);
+const pcB = await addSession(uid, '203.0.113.9', UA, SEATS);
+assert.ok(pcA && pcB, 'two computers on one IP must both get a seat');
+assert.notEqual(pcA, pcB);
+assert.equal(await touchSession(uid, pcA), true, 'the first computer must stay signed in');
+assert.equal((await listSessions(uid)).length, 2);
 
-// ...but a genuinely different device is still refused at capacity.
-assert.equal(await addSession(uid, '10.0.0.77', UA, SEATS), null, 'third device still refused');
+// ...and a third on that same IP is still refused rather than evicting anyone.
+assert.equal(await addSession(uid, '203.0.113.9', UA, SEATS), null, 'third device still refused');
+assert.equal(await touchSession(uid, pcA), true, 'a refused login must not displace a seat');
 
 // A slot dies with the token that owns it, measured from login time. Being
 // seen recently must NOT keep an expired token's slot alive: that would leave

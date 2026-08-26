@@ -1,13 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { getRedis } from '../redis/redis';
 
-// Simultaneous users per plan. Weekly is a single-seat plan; monthly and
-// yearly are shared by two people. Trial and lapsed accounts get one seat.
-const SEATS: Record<string, number> = { weekly: 1, monthly: 2, yearly: 2 };
+// Any active subscription seats two computers, whatever the plan. Trial and
+// lapsed accounts get one. `plan` is already null unless the subscription is
+// active — the caller resolves that with isSubActive().
+const ACTIVE_SEATS = 2;
 export const DEFAULT_SEATS = 1;
 
 export function seatsForPlan(plan: string | null | undefined): number {
-  return SEATS[plan ?? ''] ?? DEFAULT_SEATS;
+  return plan ? ACTIVE_SEATS : DEFAULT_SEATS;
 }
 
 // Login tokens live 3 hours. Sessions are pruned on the same clock, so a slot
@@ -112,29 +113,14 @@ export async function addSession(
     const live = await loadLive(userId);
     const device = deviceLabel(ua);
 
-    // A device signing in again reclaims its own slot instead of taking a
-    // second one. Clients older than POST /auth/logout never release a slot,
-    // so without this one machine locks itself out by signing out and back in
-    // twice inside the token lifetime.
-    // ponytail: ip+device is a weak fingerprint — two people behind one NAT on
-    // the same OS evict each other. Swap for the device key ID if login ever
-    // starts sending X-Key-ID.
-    for (const [oldSid, v] of live) {
-      if (v.ip === ip && v.device === device) {
-        live.delete(oldSid);
-        await redis.hdel(key(userId), oldSid);
-        break;
-      }
-    }
+    // No same-device takeover: two computers on one router share an IP, and
+    // reclaiming by IP collapsed a two-seat account to one. Slots are released
+    // by /auth/logout (called on quit) or by the token expiring.
 
-    // A single-seat plan yields to the newest login rather than refusing: the
-    // session being displaced is almost always this same person's older one, so
-    // refusing would be pure friction. At 2+ seats we refuse instead, so two
-    // legitimate users can see each other and coordinate rather than silently
-    // kicking each other in a loop.
-    // `while`, not `if`: an account that drops from two seats to one can be
-    // holding two live sessions, and a login that evicts one but still gets
-    // refused would kill someone's session for nothing.
+    // One seat yields to the newest login instead of refusing — the displaced
+    // session is the same person's. Two seats refuse, so the pair can see each
+    // other in the 409 list and coordinate. `while` so a two-to-one downgrade
+    // can't evict someone and still be refused.
     while (seats === 1 && live.size >= seats) {
       const oldest = [...live.entries()].sort((a, b) => a[1].at - b[1].at)[0];
       if (!oldest) break;
