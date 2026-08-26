@@ -34,7 +34,7 @@ export interface DailyUsage {
 export interface DailyApiUsage {
   date: string;
   gemini: number;
-  deepseek: number;
+  openrouter: number;
   groq: number;
   openai: number;
   lemonfox: number;
@@ -43,7 +43,7 @@ export interface DailyApiUsage {
 
 export const API_PROVIDERS = [
   'gemini',
-  'deepseek',
+  'openrouter',
   'groq',
   'openai',
   'lemonfox',
@@ -51,9 +51,10 @@ export const API_PROVIDERS = [
 ] as const;
 
 // One row per provider: what it cost you in calls, and whether it is currently
-// refusing to serve. `balanceUsd` is null wherever the provider has no balance
-// API — only DeepSeek publishes one, so the rest rely on billingFailures as
-// their warning that payment is due.
+// refusing to serve. `balanceUsd` is always null now that DeepSeek is gone —
+// no remaining provider publishes a balance — so billingFailures is the only
+// warning that payment is due. The field is kept so the dashboard contract
+// does not change.
 export interface ApiHealthRow {
   provider: string;
   calls30d: number;
@@ -229,9 +230,9 @@ export class AdminService {
 
   // Answers "which APIs am I using, and which one needs paying?" in one call.
   //
-  // DeepSeek is the only provider with a balance endpoint, so it is fetched
-  // live. For every other provider the honest answer is that no balance exists
-  // to read, and billingFailures is what tells you the account has run dry.
+  // No provider left exposes a balance endpoint, so the honest answer is that
+  // no balance exists to read and billingFailures is what tells you an account
+  // has run dry.
   async getApiHealth(): Promise<ApiHealthRow[]> {
     const today = new Date().toISOString().slice(0, 10);
     const days: string[] = [];
@@ -261,40 +262,15 @@ export class AdminService {
       return total;
     };
 
-    const deepseekBalance = await this.fetchDeepSeekBalance();
-
     return API_PROVIDERS.filter((p) => p !== 'other').map((provider, index) => ({
       provider,
       calls30d: sum(usage, index),
       callsToday: sum(usage, index, today),
       billingFailures30d: sum(fails, index),
       billingFailuresToday: sum(fails, index, today),
-      balanceUsd: provider === 'deepseek' ? deepseekBalance : null,
-      balanceNote:
-        provider === 'deepseek'
-          ? 'Live balance from DeepSeek'
-          : 'No balance API — watch billing failures',
+      balanceUsd: null,
+      balanceNote: 'No balance API — watch billing failures',
     }));
-  }
-
-  // DeepSeek is the only one of the five that publishes a balance.
-  private async fetchDeepSeekBalance(): Promise<string | null> {
-    const key = process.env['DEEPSEEK_API_KEY'];
-    if (!key) return null;
-    try {
-      const res = await fetch('https://api.deepseek.com/user/balance', {
-        headers: { Authorization: `Bearer ${key}` },
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok) return null;
-      const body = (await res.json()) as {
-        balance_infos?: Array<{ currency: string; total_balance: string }>;
-      };
-      const usd = body.balance_infos?.find((b) => b.currency === 'USD');
-      return usd?.total_balance ?? body.balance_infos?.[0]?.total_balance ?? null;
-    } catch {
-      return null;
-    }
   }
 
   async getDownloads(days: number): Promise<DailyDownloads[]> {

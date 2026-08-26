@@ -28,7 +28,7 @@ export interface DailyUsage {
 export interface DailyApiUsage {
   date: string;
   gemini: number;
-  deepseek: number;
+  openrouter: number;
   groq: number;
   openai: number;
   lemonfox: number;

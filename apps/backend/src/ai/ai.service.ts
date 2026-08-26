@@ -65,19 +65,19 @@ function buildVisionPrompt(cvText?: string, jdText?: string, priorContext?: stri
 // as its host is listed here — nobody has to remember to add a counter.
 //
 // Counts CALLS ATTEMPTED, not answers served. That is deliberate: when Gemini
-// fails over to DeepSeek both are counted, which is what makes the fallback
+// fails over to OpenRouter both are counted, which is what makes the fallback
 // rate visible. It is also what each provider actually saw traffic for.
 //
 // Written to Redis, not Postgres: this is an operational gauge, and the hot
 // path must not wait on a database write. Fire-and-forget, exactly like
 // logSession — a failed count must never break an AI request.
-export type AiProvider = 'gemini' | 'deepseek' | 'groq' | 'openai' | 'lemonfox' | 'other';
+export type AiProvider = 'gemini' | 'openrouter' | 'groq' | 'openai' | 'lemonfox' | 'other';
 
 const API_USAGE_TTL_SEC = 90 * 24 * 60 * 60; // 90 days of history
 
 function providerFromUrl(url: string): AiProvider {
   if (url.includes('generativelanguage.googleapis.com')) return 'gemini';
-  if (url.includes('api.deepseek.com')) return 'deepseek';
+  if (url.includes('openrouter.ai')) return 'openrouter';
   if (url.includes('api.groq.com')) return 'groq';
   if (url.includes('api.openai.com')) return 'openai';
   if (url.includes('api.lemonfox.ai')) return 'lemonfox';
@@ -103,8 +103,8 @@ function recordApiUsage(provider: AiProvider): void {
 // Statuses that mean "this provider has stopped serving us for a billing or
 // quota reason" — the signal that an account needs topping up or upgrading:
 //   401 key rejected/revoked   402 payment required   429 quota or rate cap
-// Only DeepSeek exposes a balance endpoint; for Gemini, Groq, OpenAI and
-// LemonFox this counter is the only advance warning available, because the
+// No provider here exposes a balance endpoint, so for Gemini, OpenRouter,
+// Groq, OpenAI and LemonFox this counter is the only advance warning, because
 // fallback chains hide the failure from users entirely.
 const BILLING_FAIL_STATUSES = new Set([401, 402, 429]);
 
@@ -160,7 +160,16 @@ function wireSignal(controller: AbortController, signal?: AbortSignal): void {
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
 const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
 const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
-const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_MODEL = 'google/gemini-3.7-flash';
+
+// One Gemini failure routes every later request to OpenRouter for six hours,
+// rather than paying a failed Gemini call on each one. Redis holds the trip and
+// its TTL *is* the reset — no timer, no sweeper, nothing to clean up. Redis down
+// means the key reads as absent, so Gemini is tried as normal: the breaker is an
+// optimisation, never a gate.
+const GEMINI_BREAKER_KEY = 'ai:gemini:down';
+const GEMINI_BREAKER_TTL_SEC = 6 * 60 * 60;
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -193,15 +202,6 @@ interface GeminiCandidate {
 
 interface GeminiChunk {
   candidates?: GeminiCandidate[];
-}
-
-interface DeepSeekDelta {
-  content?: string | null;
-  reasoning_content?: string | null;
-}
-
-interface DeepSeekChunk {
-  choices: Array<{ delta: DeepSeekDelta }>;
 }
 
 interface GroqDelta {
@@ -270,8 +270,9 @@ export class AiService {
   private readonly geminiKeys: string[];
   private geminiKeyIndex = 0;
 
-  private readonly deepseekKeys: string[];
-  private deepseekKeyIndex = 0;
+  // Optional on purpose — unset simply skips the OpenRouter tier. It is NOT in
+  // main.ts REQUIRED, so a missing key must never stop the service booting.
+  private readonly openRouterKey: string;
 
   constructor() {
     this.geminiKeys = [
@@ -286,28 +287,33 @@ export class AiService {
       throw new Error('No Gemini API keys configured');
     }
 
-    this.deepseekKeys = [
-      process.env['DEEPSEEK_API_KEY'],
-      process.env['DEEPSEEK_API_KEY_2'],
-      process.env['DEEPSEEK_API_KEY_3'],
-      process.env['DEEPSEEK_API_KEY_4'],
-      process.env['DEEPSEEK_API_KEY_5'],
-    ].filter((k): k is string => typeof k === 'string' && k.length > 0);
+    this.openRouterKey = process.env['OPENROUTER_API_KEY'] ?? '';
+    if (!this.openRouterKey) {
+      console.warn('[AiService] OPENROUTER_API_KEY not set — Gemini has no fallback except Groq/OpenAI vision');
+    }
+  }
 
-    if (this.deepseekKeys.length === 0) {
-      throw new Error('No DeepSeek API keys configured');
+  // True while the breaker is tripped, meaning skip Gemini entirely.
+  private async geminiTripped(): Promise<boolean> {
+    try {
+      return (await getRedis().get(GEMINI_BREAKER_KEY)) !== null;
+    } catch {
+      return false; // Redis down — try Gemini as normal
+    }
+  }
+
+  private async tripGeminiBreaker(): Promise<void> {
+    try {
+      await getRedis().set(GEMINI_BREAKER_KEY, '1', 'EX', GEMINI_BREAKER_TTL_SEC);
+      console.warn(`[AiService] Gemini failed — routing to OpenRouter for ${GEMINI_BREAKER_TTL_SEC / 3600}h`);
+    } catch {
+      // Breaker is an optimisation; failing to set it just means we retry Gemini.
     }
   }
 
   private nextGeminiKey(): string {
     const key = this.geminiKeys[this.geminiKeyIndex % this.geminiKeys.length];
     this.geminiKeyIndex = (this.geminiKeyIndex + 1) % this.geminiKeys.length;
-    return key;
-  }
-
-  private nextDeepSeekKey(): string {
-    const key = this.deepseekKeys[this.deepseekKeyIndex % this.deepseekKeys.length];
-    this.deepseekKeyIndex = (this.deepseekKeyIndex + 1) % this.deepseekKeys.length;
     return key;
   }
 
@@ -332,7 +338,7 @@ export class AiService {
   // Streams from Gemini using round-robin key rotation.
   // Returns true if Gemini handled the request (success or mid-stream error after
   // chunks were already written). Returns false only when all keys fail before
-  // any bytes reach the client — safe to fall back to DeepSeek/Groq.
+  // any bytes reach the client — safe to fall back to OpenRouter/Groq.
   private async streamToGemini(params: {
     parts: Array<Record<string, unknown>>;
     systemPrompt: string;
@@ -461,70 +467,56 @@ export class AiService {
     }
   }
 
-  private async streamToDeepSeek(params: {
-    transcript: string;
+  // Second Gemini route, via OpenRouter's OpenAI-compatible API. Text and vision
+  // differ only in the shape of `messages`, so both chains share this one method:
+  // the caller builds the messages, this streams the reply. The CONTEXT_SUMMARY
+  // handling is a no-op when the marker never appears, which is the text case.
+  // Returns false without touching `reply` when it cannot serve, so the caller
+  // can fall through to the next tier.
+  private async streamToOpenRouter(params: {
+    messages: unknown[];
     reply: ServerResponse;
-    cvText?: string;
-    jdText?: string;
     signal?: AbortSignal;
-  }): Promise<void> {
-    const { transcript, reply, cvText, jdText } = params;
+  }): Promise<boolean> {
+    const { messages, reply } = params;
+    if (!this.openRouterKey) return false;
+
     const controller = new AbortController();
     wireSignal(controller, params.signal);
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
-    const body = {
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: buildSystemPrompt(cvText, jdText) },
-        {
-          role: 'user',
-          content: `<user_question>\n${stripInjection(truncateAtWord(transcript, 3000))}\n</user_question>`,
-        },
-      ],
-      stream: true,
-      max_tokens: 800,
-      temperature: 0.7,
-    };
-
-    const doFetch = (key: string) =>
-      trackedFetch(DEEPSEEK_URL, {
+    try {
+      const response = await trackedFetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
+          Authorization: `Bearer ${this.openRouterKey}`,
+          // OpenRouter attributes traffic by these; harmless if it ignores them.
+          'HTTP-Referer': 'https://zoomguru.xyz',
+          'X-Title': 'ZoomGuru',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          model: OPENROUTER_MODEL,
+          messages,
+          stream: true,
+          max_tokens: 900,
+          temperature: 0.7,
+        }),
         signal: controller.signal,
       });
 
-    try {
-      let response = await doFetch(this.nextDeepSeekKey());
-      if (response.status === 429 && this.deepseekKeys.length > 1) {
-        const remaining = Array.from({ length: this.deepseekKeys.length - 1 }, () =>
-          doFetch(this.nextDeepSeekKey())
-        );
-        const winner = await Promise.any(
-          remaining.map(async (p) => {
-            const r = await p;
-            if (r.status === 429) throw new Error('429');
-            return r;
-          })
-        ).catch(() => null);
-        if (winner) response = winner;
+      if (!response.ok || !response.body) {
+        const errText = response.body ? await response.text().catch(() => '') : '';
+        console.error('[AiService] OpenRouter error:', response.status, errText.slice(0, 300));
+        return false;
       }
 
-      if (response.status === 429) {
-        sseWrite(reply, { chunk: 'AI is busy. Please try again in a moment.', done: false });
-        sseEnd(reply);
-        return;
-      }
-
-      if (!response.body) {
-        sseWrite(reply, { chunk: 'No response from AI.', done: false });
-        sseEnd(reply);
-        return;
-      }
+      const SUMMARY_MARKER = '\nCONTEXT_SUMMARY:';
+      const HOLD_BACK = SUMMARY_MARKER.length - 1;
+      let summaryFull = '';
+      let summaryEmitted = 0;
+      let summaryFound = false;
+      let contextSummary = '';
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -548,24 +540,49 @@ export class AiService {
           const data = trimmed.slice(6);
           if (data === '[DONE]') { streaming = false; break; }
           try {
-            const parsed = JSON.parse(data) as DeepSeekChunk;
-            // Skip reasoning_content (thinking steps) — only stream the final answer
+            const parsed = JSON.parse(data) as GroqChunk;
             const content = parsed.choices[0]?.delta?.content;
-            if (content) sseWrite(reply, { chunk: content, done: false });
+            if (content && !summaryFound) {
+              summaryFull += content;
+              const markerIdx = summaryFull.indexOf(SUMMARY_MARKER);
+              if (markerIdx !== -1) {
+                summaryFound = true;
+                const toEmit = summaryFull.slice(summaryEmitted, markerIdx);
+                summaryEmitted = summaryFull.length;
+                contextSummary = summaryFull.slice(markerIdx + SUMMARY_MARKER.length).trim();
+                if (toEmit) sseWrite(reply, { chunk: toEmit, done: false });
+              } else {
+                const safeEnd = Math.max(summaryEmitted, summaryFull.length - HOLD_BACK);
+                const toEmit = summaryFull.slice(summaryEmitted, safeEnd);
+                summaryEmitted = safeEnd;
+                if (toEmit) sseWrite(reply, { chunk: toEmit, done: false });
+              }
+            }
           } catch {
             // skip malformed SSE chunks
           }
         }
       }
 
-      sseEnd(reply);
+      const finalMarkerIdx = summaryFull.indexOf(SUMMARY_MARKER);
+      if (finalMarkerIdx !== -1) {
+        const toEmit = summaryFull.slice(summaryEmitted, finalMarkerIdx);
+        if (toEmit) sseWrite(reply, { chunk: toEmit, done: false });
+        contextSummary = summaryFull.slice(finalMarkerIdx + SUMMARY_MARKER.length).trim();
+      } else {
+        const remaining = summaryFull.slice(summaryEmitted);
+        if (remaining) {
+          sseWrite(reply, { chunk: remaining, done: false });
+        } else if (summaryEmitted === 0) {
+          console.error('[AiService] OpenRouter returned empty stream');
+          return false;
+        }
+      }
+      sseEnd(reply, contextSummary ? { contextSummary } : undefined);
+      return true;
     } catch (err) {
-      const message =
-        err instanceof Error && err.name === 'AbortError'
-          ? 'Request timed out. Please try again.'
-          : 'AI service error. Please try again.';
-      sseWrite(reply, { chunk: message, done: false });
-      sseEnd(reply);
+      console.error('[AiService] OpenRouter exception:', (err as Error)?.message);
+      return false;
     } finally {
       clearTimeout(timeout);
     }
@@ -826,20 +843,36 @@ export class AiService {
     signal?: AbortSignal;
   }): Promise<void> {
     const { transcript, reply, cvText, jdText, signal } = params;
+    const systemPrompt = buildSystemPrompt(cvText, jdText);
+    const question = `<user_question>\n${stripInjection(truncateAtWord(transcript, 3000))}\n</user_question>`;
 
-    const geminiHandled = await this.streamToGemini({
-      parts: [
-        {
-          text: `<user_question>\n${stripInjection(truncateAtWord(transcript, 3000))}\n</user_question>`,
-        },
-      ],
-      systemPrompt: buildSystemPrompt(cvText, jdText),
-      reply,
-      signal,
-    });
+    // Gemini direct → Gemini via OpenRouter. One Gemini failure trips the
+    // breaker, so the next six hours skip straight to OpenRouter.
+    let handled = false;
+    if (!(await this.geminiTripped())) {
+      handled = await this.streamToGemini({
+        parts: [{ text: question }],
+        systemPrompt,
+        reply,
+        signal,
+      });
+      if (!handled) await this.tripGeminiBreaker();
+    }
 
-    if (!geminiHandled) {
-      await this.streamToDeepSeek({ transcript, reply, cvText, jdText, signal });
+    if (!handled) {
+      handled = await this.streamToOpenRouter({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: question },
+        ],
+        reply,
+        signal,
+      });
+    }
+
+    if (!handled) {
+      sseWrite(reply, { chunk: 'Sorry — the answer service is unavailable right now. Please try again.', done: false });
+      sseEnd(reply);
     }
   }
 
@@ -854,117 +887,49 @@ export class AiService {
     const { image, reply, cvText, jdText, priorContext, signal } = params;
     const visionPrompt = buildVisionPrompt(cvText, jdText, priorContext);
 
-    const geminiHandled = await this.streamToGemini({
-      parts: [
-        {
-          inlineData: {
-            mimeType: 'image/png',
-            data: image,
+    // Gemini direct → Gemini via OpenRouter → Groq vision → OpenAI vision. The
+    // breaker is shared with streamAnswer: a Gemini failure on either feature
+    // routes both to OpenRouter, then to the vision-capable tails below.
+    let handled = false;
+    if (!(await this.geminiTripped())) {
+      handled = await this.streamToGemini({
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/png',
+              data: image,
+            },
           },
-        },
-      ],
-      systemPrompt: visionPrompt,
-      reply,
-      extractSummary: true,
-      signal,
-    });
+        ],
+        systemPrompt: visionPrompt,
+        reply,
+        extractSummary: true,
+        signal,
+      });
+      if (!handled) await this.tripGeminiBreaker();
+    }
 
-    if (!geminiHandled) {
+    if (!handled) {
+      handled = await this.streamToOpenRouter({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: `data:image/png;base64,${image}` } },
+              { type: 'text', text: visionPrompt },
+            ],
+          },
+        ],
+        reply,
+        signal,
+      });
+    }
+
+    if (!handled) {
       const groqHandled = await this.streamToGroqVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
       if (!groqHandled) {
         await this.streamToOpenAIVision({ imageBase64: image, reply, cvText, jdText, priorContext, signal });
       }
-    }
-  }
-
-  private async streamToDeepSeekQuestion(params: {
-    userMessage: string;
-    systemPrompt: string;
-    reply: ServerResponse;
-    signal?: AbortSignal;
-  }): Promise<void> {
-    const { userMessage, systemPrompt, reply } = params;
-    const controller = new AbortController();
-    wireSignal(controller, params.signal);
-    const timeout = setTimeout(() => controller.abort(), 30_000);
-
-    const doFetch = (key: string) =>
-      trackedFetch(DEEPSEEK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage },
-          ],
-          stream: true,
-          max_tokens: 300,
-          temperature: 0.8,
-        }),
-        signal: controller.signal,
-      });
-
-    try {
-      let response = await doFetch(this.nextDeepSeekKey());
-      if (response.status === 429 && this.deepseekKeys.length > 1) {
-        const remaining = Array.from({ length: this.deepseekKeys.length - 1 }, () =>
-          doFetch(this.nextDeepSeekKey())
-        );
-        const winner = await Promise.any(
-          remaining.map(async (p) => {
-            const r = await p;
-            if (r.status === 429) throw new Error('429');
-            return r;
-          })
-        ).catch(() => null);
-        if (winner) response = winner;
-      }
-
-      if (!response.body) {
-        sseWrite(reply, { chunk: 'Could not generate question. Please try again.', done: false });
-        sseEnd(reply);
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let streaming = true;
-
-      while (streaming) {
-        if (reply.destroyed) break;
-        const result = await reader.read();
-        if (result.done) break;
-        buffer += decoder.decode(result.value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (reply.destroyed) { streaming = false; break; }
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data: ')) continue;
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') { streaming = false; break; }
-          try {
-            const parsed = JSON.parse(data) as DeepSeekChunk;
-            const content = parsed.choices[0]?.delta?.content;
-            if (content) sseWrite(reply, { chunk: content, done: false });
-          } catch { /* skip */ }
-        }
-      }
-      sseEnd(reply);
-    } catch (err) {
-      const message =
-        err instanceof Error && err.name === 'AbortError'
-          ? 'Request timed out. Please try again.'
-          : 'AI service error. Please try again.';
-      sseWrite(reply, { chunk: message, done: false });
-      sseEnd(reply);
-    } finally {
-      clearTimeout(timeout);
     }
   }
 
@@ -1037,10 +1002,21 @@ export class AiService {
         sseEnd(reply);
         return;
       }
-      // Fall back to DeepSeek
+      // Fall back to Gemini via OpenRouter
       const systemPromptFb = buildInterviewerSystemPrompt();
       const userMessageFb = buildInterviewerUserMessage(rest);
-      await this.streamToDeepSeekQuestion({ userMessage: userMessageFb, systemPrompt: systemPromptFb, reply, signal });
+      const orHandled = await this.streamToOpenRouter({
+        messages: [
+          { role: 'system', content: systemPromptFb },
+          { role: 'user', content: userMessageFb },
+        ],
+        reply,
+        signal,
+      });
+      if (!orHandled) {
+        sseWrite(reply, { chunk: ' (error generating question)', done: false });
+        sseEnd(reply);
+      }
       return;
     }
     clearTimeout(timeout);
@@ -1071,7 +1047,7 @@ If the answer is empty or very short, score it 0-20.`;
     const userMessage = `Evaluate this interview session (${entries.length} question${entries.length !== 1 ? 's' : ''}):\n\n${pairs}`;
 
     const parsed = await this.callGemini25ForJson(system, userMessage)
-      ?? await this.callDeepSeekForJson(system, userMessage);
+      ?? await this.callOpenRouterForJson(system, userMessage);
 
     return this.validateScorerReport(parsed, entries);
   }
@@ -1109,18 +1085,21 @@ If the answer is empty or very short, score it 0-20.`;
     }
   }
 
-  private async callDeepSeekForJson(system: string, userMessage: string): Promise<unknown> {
+  private async callOpenRouterForJson(system: string, userMessage: string): Promise<unknown> {
+    if (!this.openRouterKey) throw new Error('OpenRouter not configured');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
     try {
-      const response = await trackedFetch(DEEPSEEK_URL, {
+      const response = await trackedFetch(OPENROUTER_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.nextDeepSeekKey()}`,
+          Authorization: `Bearer ${this.openRouterKey}`,
+          'HTTP-Referer': 'https://zoomguru.xyz',
+          'X-Title': 'ZoomGuru',
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: OPENROUTER_MODEL,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: userMessage },
@@ -1132,7 +1111,7 @@ If the answer is empty or very short, score it 0-20.`;
         }),
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`DeepSeek returned ${response.status}`);
+      if (!response.ok) throw new Error(`OpenRouter returned ${response.status}`);
       const data = await response.json() as { choices: Array<{ message: { content: string } }> };
       const text = data.choices[0]?.message?.content;
       if (!text) throw new Error('Empty response');
@@ -1331,8 +1310,11 @@ If the answer is empty or very short, score it 0-20.`;
     });
 
     if (!handled) {
-      await this.streamToDeepSeek({
-        transcript: `[Document context below — answer ONLY from this document]\n\n${docTruncated}\n\n---\n\nQuestion: ${transcript}`,
+      await this.streamToOpenRouter({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: questionPart },
+        ],
         reply,
         signal,
       });
@@ -1415,9 +1397,12 @@ If the answer is empty or very short, score it 0-20.`;
     });
 
     if (!handled) {
-      // DeepSeek fallback — include doc content in user message since DeepSeek has no system cache
-      await this.streamToDeepSeek({
-        transcript: `[Document context below — answer ONLY from these documents]\n\n${docContent}\n\n---\n\nQuestion: ${transcript}`,
+      // OpenRouter has no system cache, so the doc rides in the system message.
+      await this.streamToOpenRouter({
+        messages: [
+          { role: 'system', content: fullSystemPrompt },
+          { role: 'user', content: questionPart },
+        ],
         reply,
         signal,
       });

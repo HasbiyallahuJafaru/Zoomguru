@@ -154,14 +154,36 @@ Backend (NestJS on Railway — port 3000 locally)
     └── @nestjs/schedule (cron — see warning below)
 
 AI
-    ├── Gemini 2.0 Flash — PRIMARY for all text answers
+    ├── gemini-2.5-flash — PRIMARY for Listen and Screenshot
     │     Key rotation: GEMINI_API_KEY through GEMINI_API_KEY_5
-    ├── DeepSeek (deepseek-chat) — FALLBACK for text answers
-    │     Key rotation: DEEPSEEK_API_KEY through DEEPSEEK_API_KEY_5
+    │     thinkingBudget is 0 — without it, thinking tokens eat
+    │     maxOutputTokens and answers truncate mid-sentence.
+    ├── OpenRouter google/gemini-3.7-flash — the ONLY fallback for
+    │     every text path. Optional key, but nothing backs Gemini up
+    │     without it. Multimodal, so one tier serves text and vision.
     ├── Groq Whisper — audio transcription (/ai/transcribe)
-    ├── Groq Llama-4-Scout — vision/screenshot (/ai/screenshot)
+    ├── Groq Llama-4-Scout — vision fallback (/ai/screenshot)
     └── LemonFox — text-to-speech for AI Interviewer (optional;
           without LEMONFOX_API_KEY the interviewer runs silently)
+
+DeepSeek has been removed entirely — no keys, no client, no balance panel.
+
+Fallback order. Listen and Screenshot share one circuit breaker; the other
+three paths fall through on a per-request basis:
+
+    Listen       Gemini → OpenRouter
+    Screenshot   Gemini → OpenRouter → Groq vision → OpenAI vision
+    Interviewer  Gemini → OpenRouter
+    Scoring      Gemini → OpenRouter   (JSON, non-streaming)
+    Meeting/Doc  Gemini → OpenRouter
+
+A SINGLE Gemini failure sets `ai:gemini:down` in Redis with a 6h TTL, and
+every later request on BOTH features skips Gemini until it expires. The TTL
+is the reset — there is no timer and nothing to clean up. Redis down reads as
+untripped, so Gemini is still tried: the breaker is an optimisation, never a
+gate. `GEMINI_BREAKER_TTL_SEC` in ai.service.ts is the single source of truth.
+
+Self-check: npm run build && node scripts/check-ai-fallback.mjs
 
 Database
     └── Supabase PostgreSQL 17 — direct SQL, via the Supavisor pooler
@@ -523,8 +545,10 @@ JWT_SECRET=            # Any long random string
 REDIS_URL=             # Railway reference: ${{Redis.REDIS_URL}}
 GEMINI_API_KEY=        # Required
 GEMINI_API_KEY_2..5=   # Optional key rotation
-DEEPSEEK_API_KEY=      # Required (fallback)
-DEEPSEEK_API_KEY_2..5= # Optional key rotation
+OPENROUTER_API_KEY=    # The only fallback for every text path. NOT in
+                       # main.ts REQUIRED — unset just skips that tier
+                       # rather than stopping the service booting, but
+                       # unset also means Gemini has no backup at all.
 GROQ_API_KEY=          # Transcription + vision
 OPENAI_API_KEY=        # Optional
 LEMONFOX_API_KEY=      # AI Interviewer TTS (optional — silent without it)
@@ -552,8 +576,8 @@ VITE_PAYSTACK_PLAN_MONTHLY=  # PLN_xxx from Paystack dashboard
 ```
 
 The backend hard-exits on boot if any of these are missing (`main.ts`):
-`DATABASE_URL, JWT_SECRET, REDIS_URL, GEMINI_API_KEY, DEEPSEEK_API_KEY,
-GROQ_API_KEY, PAYSTACK_SECRET_KEY, RESEND_API_KEY, FROM_EMAIL, ADMIN_KEY`
+`DATABASE_URL, JWT_SECRET, REDIS_URL, GEMINI_API_KEY, GROQ_API_KEY,
+PAYSTACK_SECRET_KEY, RESEND_API_KEY, FROM_EMAIL, ADMIN_KEY`
 — plus `DATABASE_POOL_URL` whenever `NODE_ENV=production`.
 
 ---
@@ -587,7 +611,7 @@ for already-packaged binaries. The app must be rebuilt and redistributed.
 Backend URL:     http://localhost:3000
 Electron dev:    http://localhost:5173 (Vite)
 Database:        Supabase (cloud, always accessible unless paused)
-AI APIs:         Gemini + DeepSeek + Groq (cloud, need internet)
+AI APIs:         Gemini + OpenRouter + Groq (cloud, need internet)
 
 Start backend:   cd apps/backend && npm run start:dev
 Start electron:  cd apps/electron && npm run dev

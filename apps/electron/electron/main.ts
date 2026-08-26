@@ -622,7 +622,7 @@ if (!gotLock) {
       : 'http://localhost:5173 http://localhost:5174';
     const vendorOrigins = app.isPackaged
       ? ''
-      : 'https://api.deepseek.com https://*.huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co';
+      : 'https://*.huggingface.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.huggingface.co';
 
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       const connectSrc = [

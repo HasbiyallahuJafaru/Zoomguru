@@ -544,7 +544,7 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                     <Tooltip contentStyle={CHART.tooltip} labelStyle={CHART.tooltipLabel} />
                     <Legend wrapperStyle={{ fontSize: 11, color: C.muted }} />
                     <Bar dataKey="gemini"   stackId="p" fill={ACCENT.blue}   name="Gemini" />
-                    <Bar dataKey="deepseek" stackId="p" fill={ACCENT.purple} name="DeepSeek" />
+                    <Bar dataKey="openrouter" stackId="p" fill={ACCENT.purple} name="OpenRouter" />
                     <Bar dataKey="groq"     stackId="p" fill={ACCENT.gray}   name="Groq" />
                     <Bar dataKey="openai"   stackId="p" fill={ACCENT.orange} name="OpenAI" />
                     <Bar dataKey="lemonfox" stackId="p" fill="#E8E3DE"       name="LemonFox" />
