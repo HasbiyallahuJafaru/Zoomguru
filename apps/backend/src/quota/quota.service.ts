@@ -35,7 +35,9 @@ const LIMITS: Record<PlanType, Record<QuotaFeature, number>> = {
 // No plan carries per-feature quotas — all subscribers are uncapped (the
 // per-minute rate limit + daily session cap still apply). Add a plan here to
 // re-enable its feature quotas; the numbers above are kept for reference.
-const CAPPED_PLANS = new Set<PlanType>();
+// Exported so scripts/check-quota.mjs can switch metering back on and prove
+// the DB counting still behaves before anyone ships that change for real.
+export const CAPPED_PLANS = new Set<PlanType>();
 
 export interface QuotaResult {
   allowed: boolean;

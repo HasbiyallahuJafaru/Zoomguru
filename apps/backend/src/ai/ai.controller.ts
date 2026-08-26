@@ -134,16 +134,17 @@ export class AiController {
       return;
     }
 
-    // Run session cap + quota checks in parallel (saves another serial stage)
-    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
-    const [sessionCapResult, quota] = await Promise.all([
-      peekSessionCap(req.user.userId, plan, periodStart).catch(() => ({ capped: false })),
-      validPlan && periodStart
-        ? this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart)
-        : Promise.resolve(null),
-    ]);
-
+    // Session cap is checked BEFORE quota, not alongside it: checkQuota spends a
+    // quota unit as part of asking, so running the two in parallel billed every
+    // request the cap then refused. Serial costs one Redis GET.
+    const sessionCapResult = await peekSessionCap(req.user.userId, plan, periodStart).catch(() => ({ capped: false }));
     if (sessionCapResult.capped) { await reply.code(429).send({ error: 'session_cap' }); return; }
+
+    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
+    const quota = validPlan && periodStart
+      ? await this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart).catch(() => null)
+      : null;
+
     if (quota && !quota.allowed) {
       await reply.code(429).send({
         error: 'quota_exceeded', feature: quota.feature, planType: quota.planType,
@@ -196,15 +197,15 @@ export class AiController {
     if (!canUse)                  { await reply.code(403).send({ error: 'subscription_required' }); return; }
     if (rateLimitExceeded(rateLimitResult.count, subActive)) { await reply.code(429).send({ error: 'rate_limit', retryAfter: rateLimitResult.retryAfter }); return; }
 
-    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
-    const [sessionCapResult, quota] = await Promise.all([
-      peekSessionCap(req.user.userId, plan, periodStart).catch(() => ({ capped: false })),
-      validPlan && periodStart
-        ? this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart)
-        : Promise.resolve(null),
-    ]);
-
+    // Cap before quota — see the note in stream() above.
+    const sessionCapResult = await peekSessionCap(req.user.userId, plan, periodStart).catch(() => ({ capped: false }));
     if (sessionCapResult.capped) { await reply.code(429).send({ error: 'session_cap' }); return; }
+
+    const validPlan = plan && periodStart && ['weekly', 'monthly', 'yearly'].includes(plan) ? plan as import('../quota/quota.service').PlanType : null;
+    const quota = validPlan && periodStart
+      ? await this.quotaService.checkQuota(req.user.userId, 'copilot_requests', validPlan, periodStart).catch(() => null)
+      : null;
+
     if (quota && !quota.allowed) {
       await reply.code(429).send({
         error: 'quota_exceeded', feature: quota.feature, planType: quota.planType,

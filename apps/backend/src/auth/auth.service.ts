@@ -6,7 +6,7 @@ import { getDB } from '../database/db';
 import { EmailService } from '../email/email.service';
 import { getRedis } from '../redis/redis';
 import { addSession, listSessions, revokeAllSessions, revokeSession, seatsForPlan, DEFAULT_SEATS, TOKEN_TTL_SEC } from './sessions';
-import { isSubActive } from '../subscription/subscription.service';
+import { isSubActive, getSubCache } from '../subscription/subscription.service';
 
 interface UserRow {
   id: string;
@@ -246,7 +246,16 @@ export class AuthService {
   // How many people may be signed in at once. A row can sit at status
   // 'active' with an elapsed period_end (nothing expires subscriptions on a
   // timer), so the date has to be checked too — isSubActive does both.
+  //
+  // Served from the 30s `sc:` cache checkAccess already maintains, because the
+  // overlay polls GET /auth/sessions every 60s just to render a badge. Read
+  // only: a miss falls back to SQL without writing the key, since that entry
+  // holds more fields than this query reads.
   private async seatsFor(userId: string): Promise<number> {
+    const cached = await getSubCache(userId);
+    if (cached) {
+      return seatsForPlan(isSubActive(cached.status, cached.periodEnd) ? cached.plan : null);
+    }
     const result = await getDB().query<{ plan: string | null; status: string; current_period_end: string | null }>(
       `SELECT plan, status, current_period_end FROM subscriptions WHERE user_id = $1 LIMIT 1`,
       [userId],

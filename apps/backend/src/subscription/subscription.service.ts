@@ -97,7 +97,7 @@ interface CheckoutSession {
   createdAt: number;
 }
 
-interface SubCacheEntry {
+export interface SubCacheEntry {
   status: string | null;
   plan: string | null;
   periodStart: string | null;
@@ -123,7 +123,10 @@ export function isSubActive(status: string | null, periodEnd: string | null | un
   return new Date(periodEnd).getTime() > Date.now();
 }
 
-async function getSubCache(userId: string): Promise<SubCacheEntry | null> {
+// Exported as a plain function, not via SubscriptionService: AuthService reads
+// this cache too, and importing the service would make AuthModule and
+// SubscriptionModule circular.
+export async function getSubCache(userId: string): Promise<SubCacheEntry | null> {
   try {
     const val = await getRedis().get(`sc:${userId}`);
     return val ? (JSON.parse(val) as SubCacheEntry) : null;
