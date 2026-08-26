@@ -5,7 +5,8 @@ import { randomBytes, createHash } from 'node:crypto';
 import { getDB } from '../database/db';
 import { EmailService } from '../email/email.service';
 import { getRedis } from '../redis/redis';
-import { addSession, listSessions, revokeAllSessions, revokeSession, MAX_SESSIONS, TOKEN_TTL_SEC } from './sessions';
+import { addSession, listSessions, revokeAllSessions, revokeSession, seatsForPlan, DEFAULT_SEATS, TOKEN_TTL_SEC } from './sessions';
+import { isSubActive } from '../subscription/subscription.service';
 
 interface UserRow {
   id: string;
@@ -102,7 +103,8 @@ export class AuthService {
     if (!user) throw new ConflictException('Email already in use');
     const registeredUser = user;
 
-    const sid = await addSession(registeredUser.id, ip ?? '', userAgent);
+    // A brand-new account has no subscription yet, so it starts on one seat.
+    const sid = await addSession(registeredUser.id, ip ?? '', userAgent, DEFAULT_SEATS);
     const accessToken = this.jwtService.sign(
       { sub: registeredUser.id, email: registeredUser.email, name: registeredUser.name, sid },
       { expiresIn: TOKEN_TTL_SEC },
@@ -152,12 +154,13 @@ export class AuthService {
     // slot back from an existing session rather than wait for it to log out.
     if (revokeSid) await revokeSession(user.id, revokeSid);
 
-    const sid = await addSession(user.id, ip ?? '', userAgent);
+    const seats = await this.seatsFor(user.id);
+    const sid = await addSession(user.id, ip ?? '', userAgent, seats);
     if (sid === null) {
       throw new HttpException(
         {
           error: 'session_limit',
-          message: `This account is already signed in on ${MAX_SESSIONS} devices. Sign out on one of them and try again.`,
+          message: `This account is already signed in on ${seats} devices. Sign out on one of them and try again.`,
           sessions: await listSessions(user.id),
         },
         409,
@@ -240,8 +243,20 @@ export class AuthService {
     await revokeAllSessions(tokenRow.user_id);
   }
 
+  // How many people may be signed in at once. A row can sit at status
+  // 'active' with an elapsed period_end (nothing expires subscriptions on a
+  // timer), so the date has to be checked too — isSubActive does both.
+  private async seatsFor(userId: string): Promise<number> {
+    const result = await getDB().query<{ plan: string | null; status: string; current_period_end: string | null }>(
+      `SELECT plan, status, current_period_end FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    const row = result.rows[0];
+    return seatsForPlan(row && isSubActive(row.status, row.current_period_end) ? row.plan : null);
+  }
+
   async listSessions(userId: string, currentSid?: string) {
-    return listSessions(userId, currentSid);
+    return { max: await this.seatsFor(userId), sessions: await listSessions(userId, currentSid) };
   }
 
   async logout(userId: string, sid: string): Promise<void> {

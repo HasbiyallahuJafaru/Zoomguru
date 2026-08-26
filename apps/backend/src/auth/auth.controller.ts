@@ -7,7 +7,6 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 import { Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { getRedis } from '../redis/redis';
-import { MAX_SESSIONS } from './sessions';
 
 function sanitize(s: string): string {
   return s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
@@ -133,7 +132,7 @@ export class AuthController {
   @Get('sessions')
   @UseGuards(AuthGuard('jwt'))
   async sessions(@Req() req: AuthRequest) {
-    return { max: MAX_SESSIONS, sessions: await this.authService.listSessions(req.user.userId, req.user.sid) };
+    return this.authService.listSessions(req.user.userId, req.user.sid);
   }
 
   // Frees this session's slot. `sid` signs another device out instead.

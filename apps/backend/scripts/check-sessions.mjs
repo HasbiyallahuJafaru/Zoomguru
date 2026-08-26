@@ -24,11 +24,22 @@ const fakeRedis = {
 require('../dist/redis/redis.js').getRedis = () => fakeRedis;
 
 const {
-  addSession, listSessions, touchSession, revokeSession, revokeAllSessions, deviceLabel, MAX_SESSIONS,
+  addSession, listSessions, touchSession, revokeSession, revokeAllSessions, deviceLabel, seatsForPlan,
 } = require('../dist/auth/sessions.js');
 
 const uid = 'selfcheck-user';
 const UA = 'Mozilla/5.0 (Windows NT 10.0) ZoomGuru/1.0';
+
+// Seats per plan. Anything unknown, lapsed or missing gets one seat.
+assert.equal(seatsForPlan('weekly'), 1);
+assert.equal(seatsForPlan('monthly'), 2);
+assert.equal(seatsForPlan('yearly'), 2);
+assert.equal(seatsForPlan(null), 1);
+assert.equal(seatsForPlan(undefined), 1);
+assert.equal(seatsForPlan(''), 1);
+assert.equal(seatsForPlan('lifetime'), 1);
+
+const SEATS = seatsForPlan('monthly');
 
 assert.equal(deviceLabel(UA), 'Windows');
 assert.equal(deviceLabel('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)'), 'Mac');
@@ -36,18 +47,18 @@ assert.equal(deviceLabel(undefined), 'Unknown device');
 
 // Fills every slot.
 const sids = [];
-for (let i = 0; i < MAX_SESSIONS; i++) {
-  const sid = await addSession(uid, `10.0.0.${i}`, UA);
+for (let i = 0; i < SEATS; i++) {
+  const sid = await addSession(uid, `10.0.0.${i}`, UA, SEATS);
   assert.ok(sid, `slot ${i} should be granted`);
   sids.push(sid);
 }
 
 // One past the cap is refused.
-assert.equal(await addSession(uid, '10.0.0.99', UA), null, 'over-cap login must be refused');
+assert.equal(await addSession(uid, '10.0.0.99', UA, SEATS), null, 'over-cap login must be refused');
 
 // Everyone in a slot is listed, oldest first, with the caller's own marked.
 const listed = await listSessions(uid, sids[0]);
-assert.equal(listed.length, MAX_SESSIONS);
+assert.equal(listed.length, SEATS);
 assert.deepEqual(listed.map((s) => s.sid), sids);
 assert.equal(listed[0].current, true);
 assert.equal(listed[1].current, false);
@@ -60,20 +71,20 @@ assert.equal(await touchSession(uid, sids[0]), true);
 await revokeSession(uid, sids[0]);
 assert.equal(await touchSession(uid, sids[0]), false, 'revoked session must be rejected');
 
-const reclaimed = await addSession(uid, '10.0.0.50', UA);
+const reclaimed = await addSession(uid, '10.0.0.50', UA, SEATS);
 assert.ok(reclaimed, 'a freed slot must be reusable');
-assert.equal(await addSession(uid, '10.0.0.51', UA), null, 'cap still holds after reclaim');
+assert.equal(await addSession(uid, '10.0.0.51', UA, SEATS), null, 'cap still holds after reclaim');
 
 // The same device signing in again reclaims its own slot rather than taking a
 // second one — otherwise a client with no logout call locks itself out.
 const beforeRetake = (await listSessions(uid)).length;
-const retaken = await addSession(uid, '10.0.0.50', UA);
+const retaken = await addSession(uid, '10.0.0.50', UA, SEATS);
 assert.ok(retaken, 'same device must be able to sign in again at capacity');
 assert.equal((await listSessions(uid)).length, beforeRetake, 'retake must not consume a slot');
 assert.ok(!(await listSessions(uid)).some((s) => s.sid === reclaimed), 'old slot must be released');
 
 // ...but a genuinely different device is still refused at capacity.
-assert.equal(await addSession(uid, '10.0.0.77', UA), null, 'third device still refused');
+assert.equal(await addSession(uid, '10.0.0.77', UA, SEATS), null, 'third device still refused');
 
 // A slot dies with the token that owns it, measured from login time. Being
 // seen recently must NOT keep an expired token's slot alive: that would leave
@@ -99,5 +110,33 @@ assert.ok(!(await listSessions(uid)).some((s) => s.sid === 'junkSid'));
 await revokeAllSessions(uid);
 assert.deepEqual(await listSessions(uid), []);
 assert.equal(await touchSession(uid, sids[1]), false, 'reset must sign every device out');
+
+// ── Single-seat plans (weekly, trial, lapsed) ───────────────────────────────
+// The newest login wins instead of being refused: at one seat the session
+// being displaced is almost always this same person's older one.
+const solo = 'selfcheck-weekly';
+const first = await addSession(solo, '10.0.0.1', UA, 1);
+assert.ok(first);
+const second = await addSession(solo, '10.0.0.2', UA, 1);
+assert.ok(second, 'a single-seat plan must never refuse a login');
+assert.equal(await touchSession(solo, first), false, 'the older session must be signed out');
+assert.equal((await listSessions(solo)).length, 1, 'a single-seat plan holds one session');
+
+// Same-device takeover still runs first, so it costs no extra eviction pass.
+const retakenSolo = await addSession(solo, '10.0.0.2', UA, 1);
+assert.ok(retakenSolo);
+assert.equal((await listSessions(solo)).length, 1);
+
+// Eviction takes the OLDEST by login time, not an arbitrary entry, and clears
+// every extra when an account drops from two seats to one.
+await revokeAllSessions(solo);
+const now = Date.now();
+await fakeRedis.hset(`sess:${solo}`, 'oldSid', JSON.stringify({ ip: '10.0.0.3', device: 'Mac', at: now - 2 * HOUR, seen: now }));
+await fakeRedis.hset(`sess:${solo}`, 'newerSid', JSON.stringify({ ip: '10.0.0.4', device: 'Mac', at: now - 1 * HOUR, seen: now }));
+const downgraded = await addSession(solo, '10.0.0.5', UA, 1);
+assert.ok(downgraded, 'a downgraded account must still be able to log in');
+assert.deepEqual((await listSessions(solo)).map((s) => s.sid), [downgraded], 'both older sessions must go');
+
+await revokeAllSessions(solo);
 
 console.log('check-sessions: OK');

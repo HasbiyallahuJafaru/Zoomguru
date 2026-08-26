@@ -23,8 +23,7 @@ export class DeviceService {
     await pool.query(
       `INSERT INTO device_keys (user_id, key_id, public_key)
        VALUES ($1, $2, $3)
-       ON CONFLICT (key_id) DO UPDATE SET public_key = EXCLUDED.public_key
-       WHERE device_keys.user_id = EXCLUDED.user_id`,
+       ON CONFLICT (user_id, key_id) DO UPDATE SET public_key = EXCLUDED.public_key`,
       [userId, keyId, publicKey],
     );
   }

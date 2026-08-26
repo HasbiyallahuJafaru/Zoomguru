@@ -117,7 +117,7 @@ interface SubCacheEntry {
 //
 // A null periodEnd is treated as NOT expired: lifetime plans and any
 // legacy row without a period must not be locked out by this check.
-function isSubActive(status: string | null, periodEnd: string | null | undefined): boolean {
+export function isSubActive(status: string | null, periodEnd: string | null | undefined): boolean {
   if (status !== 'active') return false;
   if (!periodEnd) return true;
   return new Date(periodEnd).getTime() > Date.now();

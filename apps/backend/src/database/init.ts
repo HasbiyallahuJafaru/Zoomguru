@@ -212,7 +212,7 @@ export async function initDB(): Promise<void> {
         CREATE TABLE IF NOT EXISTS device_keys (
           id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          key_id      TEXT UNIQUE NOT NULL,
+          key_id      TEXT NOT NULL,
           public_key  TEXT NOT NULL,
           created_at  TIMESTAMPTZ DEFAULT NOW()
         )
@@ -300,6 +300,19 @@ export async function initDB(): Promise<void> {
           )
         `);
         await pool.query(`INSERT INTO schema_version (version) VALUES (2)`);
+      }
+
+      // v3: device keys are unique per account, not globally. A globally unique
+      // key_id let the first account to register a machine own it forever, so a
+      // second account on the same computer wrote nothing and every later AI
+      // call came back not_registered ("Access denied").
+      if (currentVersion < 3) {
+        await pool.query(`ALTER TABLE device_keys DROP CONSTRAINT IF EXISTS device_keys_key_id_key`);
+        await pool.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS device_keys_user_id_key_id_key
+            ON device_keys(user_id, key_id)
+        `);
+        await pool.query(`INSERT INTO schema_version (version) VALUES (3)`);
       }
 
       console.log('✅ ZoomGuru DB ready');

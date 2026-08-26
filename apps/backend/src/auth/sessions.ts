@@ -1,9 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { getRedis } from '../redis/redis';
 
-// Concurrent-session cap. Two people may share one account at the same time;
-// a third has to wait for one of them to log out (or be revoked).
-export const MAX_SESSIONS = 2;
+// Simultaneous users per plan. Weekly is a single-seat plan; monthly and
+// yearly are shared by two people. Trial and lapsed accounts get one seat.
+const SEATS: Record<string, number> = { weekly: 1, monthly: 2, yearly: 2 };
+export const DEFAULT_SEATS = 1;
+
+export function seatsForPlan(plan: string | null | undefined): number {
+  return SEATS[plan ?? ''] ?? DEFAULT_SEATS;
+}
 
 // Login tokens live 3 hours. Sessions are pruned on the same clock, so a slot
 // dies exactly when the token holding it does — never before (the token is
@@ -95,7 +100,12 @@ export async function listSessions(userId: string, currentSid?: string): Promise
 // Returns the new session id, or null when the account is already at its cap.
 // Redis down → returns a session id anyway: the cap is an abuse control, not a
 // security boundary, and it must not become a hard dependency for logging in.
-export async function addSession(userId: string, ip: string, ua: string | undefined): Promise<string | null> {
+export async function addSession(
+  userId: string,
+  ip: string,
+  ua: string | undefined,
+  seats: number,
+): Promise<string | null> {
   const sid = randomBytes(16).toString('hex');
   try {
     const redis = getRedis();
@@ -117,7 +127,22 @@ export async function addSession(userId: string, ip: string, ua: string | undefi
       }
     }
 
-    if (live.size >= MAX_SESSIONS) return null;
+    // A single-seat plan yields to the newest login rather than refusing: the
+    // session being displaced is almost always this same person's older one, so
+    // refusing would be pure friction. At 2+ seats we refuse instead, so two
+    // legitimate users can see each other and coordinate rather than silently
+    // kicking each other in a loop.
+    // `while`, not `if`: an account that drops from two seats to one can be
+    // holding two live sessions, and a login that evicts one but still gets
+    // refused would kill someone's session for nothing.
+    while (seats === 1 && live.size >= seats) {
+      const oldest = [...live.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+      if (!oldest) break;
+      live.delete(oldest[0]);
+      await redis.hdel(key(userId), oldest[0]);
+    }
+
+    if (live.size >= seats) return null;
 
     const now = Date.now();
     const entry: Stored = { ip, device, at: now, seen: now };
@@ -127,7 +152,7 @@ export async function addSession(userId: string, ip: string, ua: string | undefi
     // ponytail: two logins racing here both see a count over the cap and both
     // back out, so the user retries. Cheaper than a Lua CAS, and it fails
     // closed. Swap in an EVAL if simultaneous logins ever become common.
-    if ((await redis.hlen(key(userId))) > MAX_SESSIONS) {
+    if ((await redis.hlen(key(userId))) > seats) {
       await redis.hdel(key(userId), sid);
       return null;
     }
