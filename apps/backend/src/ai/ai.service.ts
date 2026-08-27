@@ -157,19 +157,22 @@ function wireSignal(controller: AbortController, signal?: AbortSignal): void {
   }
 }
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
-const GEMINI_25_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=';
-const GEMINI_25_CONTENT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
+const GEMINI_BASE = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=`;
+const GEMINI_CONTENT_BASE = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=`;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const OPENROUTER_MODEL = 'google/gemini-3.7-flash';
+const OPENROUTER_MODEL = `google/${GEMINI_MODEL}`;
 
-// One Gemini failure routes every later request to OpenRouter for six hours,
-// rather than paying a failed Gemini call on each one. Redis holds the trip and
-// its TTL *is* the reset — no timer, no sweeper, nothing to clean up. Redis down
-// means the key reads as absent, so Gemini is tried as normal: the breaker is an
-// optimisation, never a gate.
+// One Gemini failure routes every later request to OpenRouter for the length of
+// this TTL, rather than paying a failed Gemini call on each one. Redis holds the
+// trip and its TTL *is* the reset — no timer, no sweeper, nothing to clean up.
+// Redis down means the key reads as absent, so Gemini is tried as normal: the
+// breaker is an optimisation, never a gate.
+// Keep this SHORT. It only needs to cover a burst of requests hitting the same
+// outage, not the outage itself — at six hours a single transient 429 pinned
+// every user to OpenRouter for the rest of the day.
 const GEMINI_BREAKER_KEY = 'ai:gemini:down';
-const GEMINI_BREAKER_TTL_SEC = 6 * 60 * 60;
+const GEMINI_BREAKER_TTL_SEC = 60;
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -305,7 +308,7 @@ export class AiService {
   private async tripGeminiBreaker(): Promise<void> {
     try {
       await getRedis().set(GEMINI_BREAKER_KEY, '1', 'EX', GEMINI_BREAKER_TTL_SEC);
-      console.warn(`[AiService] Gemini failed — routing to OpenRouter for ${GEMINI_BREAKER_TTL_SEC / 3600}h`);
+      console.warn(`[AiService] Gemini failed — routing to OpenRouter for ${GEMINI_BREAKER_TTL_SEC}s`);
     } catch {
       // Breaker is an optimisation; failing to set it just means we retry Gemini.
     }
@@ -329,7 +332,7 @@ export class AiService {
       body: JSON.stringify({
         contents: [{ role: 'user', parts }],
         systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { maxOutputTokens: 800, temperature: 0.7, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { maxOutputTokens: 800, temperature: 0.7, thinkingConfig: { thinkingLevel: 'minimal' } },
       }),
       signal,
     });
@@ -353,21 +356,22 @@ export class AiService {
     let streamingStarted = false;
 
     try {
-      // A2-1: Loop over all configured keys on 429, not just one retry
-      const keyCount = this.geminiKeys.length;
+      // A2-1: Try each configured key in turn, stopping at the first that
+      // answers. Two deliberate choices here:
+      //
+      // Retry on ANY non-200, not just 429: a key whose project has lost access
+      // to the model answers 404, and a revoked key answers 403. Gating on 429
+      // alone let one bad key in the round-robin fail the whole request — and
+      // trip the shared breaker — while the healthy keys sat unused.
+      //
+      // Strictly sequential, never a parallel fan-out: firing the remaining keys
+      // at once bills every one that succeeds, not just the winner, and on
+      // /ai/screenshot it re-uploads the whole base64 image per key. One extra
+      // call per dead key is the cheaper trade. Total latency stays bounded by
+      // the shared 30s abort above.
       let response = await this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal);
-      if (response.status === 429 && keyCount > 1) {
-        const remaining = Array.from({ length: keyCount - 1 }, () =>
-          this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal)
-        );
-        const winner = await Promise.any(
-          remaining.map(async (p) => {
-            const r = await p;
-            if (r.status === 429) throw new Error('429');
-            return r;
-          })
-        ).catch(() => null);
-        if (winner) response = winner;
+      for (let i = 1; i < this.geminiKeys.length && response.status !== 200; i++) {
+        response = await this.fetchGemini(this.nextGeminiKey(), parts, systemPrompt, controller.signal);
       }
 
       // All keys exhausted or non-retriable error — fall back
@@ -847,7 +851,7 @@ export class AiService {
     const question = `<user_question>\n${stripInjection(truncateAtWord(transcript, 3000))}\n</user_question>`;
 
     // Gemini direct → Gemini via OpenRouter. One Gemini failure trips the
-    // breaker, so the next six hours skip straight to OpenRouter.
+    // breaker, so requests in the next GEMINI_BREAKER_TTL_SEC skip straight to OpenRouter.
     let handled = false;
     if (!(await this.geminiTripped())) {
       handled = await this.streamToGemini({
@@ -953,13 +957,13 @@ export class AiService {
     let streamingStarted = false;
 
     try {
-      const response = await trackedFetch(`${GEMINI_25_BASE}${this.nextGeminiKey()}`, {
+      const response = await trackedFetch(`${GEMINI_BASE}${this.nextGeminiKey()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: userMessage }] }],
           systemInstruction: { parts: [{ text: systemPrompt }] },
-          generationConfig: { maxOutputTokens: 300, temperature: 0.85, thinkingConfig: { thinkingBudget: 0 } },
+          generationConfig: { maxOutputTokens: 300, temperature: 0.85, thinkingConfig: { thinkingLevel: 'minimal' } },
         }),
         signal: controller.signal,
       });
@@ -1056,7 +1060,7 @@ If the answer is empty or very short, score it 0-20.`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 45_000);
     try {
-      const response = await trackedFetch(`${GEMINI_25_CONTENT_BASE}${this.nextGeminiKey()}`, {
+      const response = await trackedFetch(`${GEMINI_CONTENT_BASE}${this.nextGeminiKey()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1066,7 +1070,7 @@ If the answer is empty or very short, score it 0-20.`;
             maxOutputTokens: 2000,
             temperature: 0.3,
             responseMimeType: 'application/json',
-            thinkingConfig: { thinkingBudget: 0 },
+            thinkingConfig: { thinkingLevel: 'minimal' },
           },
         }),
         signal: controller.signal,
@@ -1209,7 +1213,7 @@ If the answer is empty or very short, score it 0-20.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'models/gemini-2.5-flash',
+          model: `models/${GEMINI_MODEL}`,
           systemInstruction: { parts: [{ text: AiService.DOC_COPILOT_SYSTEM }] },
           contents: [
             { role: 'user',  parts: [{ text: docContent }] },
@@ -1249,7 +1253,7 @@ If the answer is empty or very short, score it 0-20.`;
         body: JSON.stringify({
           cachedContent: cacheName,
           contents: [{ role: 'user', parts: [{ text: questionPart }] }],
-          generationConfig: { maxOutputTokens: 600, temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
+          generationConfig: { maxOutputTokens: 600, temperature: 0.1, thinkingConfig: { thinkingLevel: 'minimal' } },
         }),
         signal: controller.signal,
       });

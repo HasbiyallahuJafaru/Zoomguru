@@ -154,11 +154,15 @@ Backend (NestJS on Railway — port 3000 locally)
     └── @nestjs/schedule (cron — see warning below)
 
 AI
-    ├── gemini-2.5-flash — PRIMARY for Listen and Screenshot
+    ├── gemini-3.1-flash-lite — PRIMARY for Listen and Screenshot
     │     Key rotation: GEMINI_API_KEY through GEMINI_API_KEY_5
-    │     thinkingBudget is 0 — without it, thinking tokens eat
-    │     maxOutputTokens and answers truncate mid-sentence.
-    ├── OpenRouter google/gemini-3.7-flash — the ONLY fallback for
+    │     thinkingLevel is 'minimal' — Gemini 3.x replaced the numeric
+    │     thinkingBudget with this enum; without it, thinking tokens eat
+    │     maxOutputTokens and answers truncate mid-sentence. Sending the
+    │     old thinkingBudget key is a 400 on some 3.x models.
+    │     GEMINI_MODEL in ai.service.ts is the single source of truth —
+    │     it feeds both Gemini URLs and the OpenRouter slug.
+    ├── OpenRouter google/gemini-3.1-flash-lite — the ONLY fallback for
     │     every text path. Optional key, but nothing backs Gemini up
     │     without it. Multimodal, so one tier serves text and vision.
     ├── Groq Whisper — audio transcription (/ai/transcribe)
@@ -177,13 +181,33 @@ three paths fall through on a per-request basis:
     Scoring      Gemini → OpenRouter   (JSON, non-streaming)
     Meeting/Doc  Gemini → OpenRouter
 
-A SINGLE Gemini failure sets `ai:gemini:down` in Redis with a 6h TTL, and
+A SINGLE Gemini failure sets `ai:gemini:down` in Redis with a 60s TTL, and
 every later request on BOTH features skips Gemini until it expires. The TTL
-is the reset — there is no timer and nothing to clean up. Redis down reads as
+is the reset — there is no timer and nothing to clean up. Keep it SHORT: it
+only has to cover a burst of requests hitting the same outage, not the outage
+itself. It was 6h, which meant one transient 429 pinned every user to
+OpenRouter for the rest of the day. Redis down reads as
 untripped, so Gemini is still tried: the breaker is an optimisation, never a
 gate. `GEMINI_BREAKER_TTL_SEC` in ai.service.ts is the single source of truth.
 
 Self-check: npm run build && node scripts/check-ai-fallback.mjs
+            (branching, all mocked, free)
+
+Key check:  node scripts/check-gemini-keys.mjs
+            (or `railway run node scripts/check-gemini-keys.mjs` for prod)
+            Calls Google with every configured key and prints status only.
+            Tells apart the three states that all LOOK configured:
+              401 UNAUTHENTICATED  = key deleted or invalid
+              429 RESOURCE_EXHAUSTED = out of prepayment credits (billing)
+              404 NOT_FOUND        = that project lost access to the model
+              503 UNAVAILABLE      = transient, re-run before concluding
+
+Live check: npm run build && node scripts/check-ai-live.mjs
+            Drives the real streamAnswer/streamScreenshot against the real
+            Gemini key and asserts GEMINI served both — a wrong model ID or
+            thinkingConfig shape 400s, falls through to OpenRouter, and fails
+            the check instead of quietly costing money. Spends a few hundred
+            tokens per run. Run it after ANY change to the model constants.
 
 Database
     └── Supabase PostgreSQL 17 — direct SQL, via the Supavisor pooler
