@@ -112,14 +112,11 @@ export default function HomePage() {
         />
 
         <Reveal className="mt-12">
-          <ComparisonTable />
+          <ComparisonTable centeredNote />
         </Reveal>
 
-        <div className="mt-10">
-          <Link
-            href="/pricing"
-            className="btn btn-secondary"
-          >
+        <div className="mt-10 text-center">
+          <Link href="/pricing" className="btn btn-secondary">
             All three plans →
           </Link>
         </div>

@@ -16,7 +16,7 @@ import { SITE } from '@/lib/site';
  * list price and the block below carries the date those were read. Everything
  * comes from lib/pricing.ts.
  */
-export function ComparisonTable() {
+export function ComparisonTable({ centeredNote = false }: { centeredNote?: boolean } = {}) {
   return (
     <div>
       <ul className="grid gap-5 md:grid-cols-3">
@@ -65,7 +65,11 @@ export function ComparisonTable() {
         ))}
       </ul>
 
-      <p className="mt-7 max-w-[74ch] font-mono text-[0.6875rem] leading-relaxed text-muted">
+      <p
+        className={`mt-7 font-mono text-[0.6875rem] leading-relaxed text-muted ${
+          centeredNote ? 'mx-auto max-w-[74ch] text-center' : 'max-w-[74ch]'
+        }`}
+      >
         List prices read from each vendor&rsquo;s own pricing page on {PRICES_CHECKED}. Both
         localise pricing by country and run promotions, so check theirs before relying on the
         gap. Naira converted at {formatNaira(NGN_PER_USD)} to the dollar for comparison only —
