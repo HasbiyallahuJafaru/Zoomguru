@@ -1,0 +1,50 @@
+# ZoomGuru
+
+> ZoomGuru is an AI interview copilot for Windows. It runs as an overlay that is
+> hidden from screen share, listens to the interviewer's question through your
+> microphone, and writes an answer onto your screen while they are still
+> speaking. It works with Zoom, Google Meet, Microsoft Teams and any other call,
+> because it listens to your microphone rather than integrating with the meeting
+> software. It is one product with one job - there is no mock interviewer, no
+> document copilot and no scoring tool.
+
+Key facts:
+- The overlay is excluded from screen capture at the operating-system level, so
+  it does not appear in a screen share or a recording.
+- Answers stream a word at a time so you can start speaking off the first line.
+- Your CV and the job description are attached to every request, so answers are
+  specific to your history and the role.
+- No audio, screenshots, questions or answers are stored. Only a record that a
+  request happened, and when.
+- Windows 10 and later. There is no macOS build yet.
+- A free 30-minute trial, one per computer, with no card required.
+
+## Pricing
+All plans are unlimited. They differ only in duration and how many computers can
+be signed in at once. Billed in naira through Paystack.
+- Weekly - NGN 15,000, 1 computer at a time
+- Monthly - NGN 45,000, 2 computers at a time
+- Yearly - NGN 450,000, 2 computers at a time
+
+Compared with other interview copilots (list prices, 27 August 2026): Parakeet
+AI charges $74.90/month and LockedIn AI charges $54.99/month for unlimited
+monthly plans. ZoomGuru's monthly plan is about $29 equivalent.
+
+## Product
+- [Home](https://zoomguru.xyz/): what it does, how it works, pricing summary
+- [Features](https://zoomguru.xyz/features): all four capabilities
+- [Live copilot](https://zoomguru.xyz/features/live-copilot): Ctrl+Shift+L, answer on demand
+- [Auto mode](https://zoomguru.xyz/features/auto-mode): Ctrl+Shift+D, hands-free answering
+- [Screenshot answers](https://zoomguru.xyz/features/screenshot-answers): answers what is on screen
+- [Invisible overlay](https://zoomguru.xyz/features/invisible-overlay): why the screen share cannot see it
+- [Pricing](https://zoomguru.xyz/pricing): plans and a comparison with alternatives
+- [Download](https://zoomguru.xyz/download): Windows installer and setup steps
+- [FAQ](https://zoomguru.xyz/faq): what it is, using it, privacy, billing
+
+## Policies
+- [Terms of service](https://zoomguru.xyz/terms)
+- [Privacy policy](https://zoomguru.xyz/privacy)
+- [Refund policy](https://zoomguru.xyz/refund)
+
+## Contact
+- support@zoomguru.xyz

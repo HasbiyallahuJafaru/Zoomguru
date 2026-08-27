@@ -1,0 +1,129 @@
+# ZoomGuru - full context
+
+ZoomGuru is a desktop application for Windows that helps a candidate answer
+questions during a live job interview. It is a single product. Earlier versions
+of this site also advertised a mock interviewer, a document copilot and an
+answer-scoring tool; those are not part of what is sold here.
+
+## What it does
+
+The app runs as a transparent overlay on the candidate's screen. During an
+interview it captures the interviewer's question through the microphone,
+transcribes it, and generates an answer that is written into the overlay a word
+at a time. The candidate reads from it while speaking.
+
+The overlay is marked as protected content at the operating-system level. Screen
+capture software is refused its pixels, so it does not appear in a Zoom, Google
+Meet or Microsoft Teams share, and it does not appear in a recording. It is
+visible on the candidate's own monitor only.
+
+Because it listens to the microphone and draws on the screen, it does not
+integrate with the meeting software and works the same way regardless of which
+one is used.
+
+## The four ways to use it
+
+1. Live copilot (Ctrl+Shift+L). Press once when a question lands. The answer
+   begins streaming immediately. Fallback shortcut Ctrl+Alt+L.
+2. Auto mode (Ctrl+Shift+D). Voice detection watches for the end of each
+   question and answers without any keypress, for the rest of the call.
+   Best for rapid back-and-forth rounds. Fallback Ctrl+Alt+D.
+3. Screenshot answers (Ctrl+Shift+S). Captures the screen and answers what is on
+   it - a diagram, a take-home brief, a block of code - instead of the audio.
+   Fallback Ctrl+Alt+S.
+4. Invisible overlay (Ctrl+Shift+H hides it entirely). Fallback Ctrl+Alt+H.
+
+Ctrl+Shift+C clears the current answer.
+
+## Grounding
+
+The candidate uploads a CV and pastes the job description once per role. Both
+are stored on their own machine and attached to every request, so answers refer
+to the candidate's actual experience and are framed for the specific role rather
+than being generic explanations of a topic.
+
+## Privacy
+
+No audio, screenshots, questions or answers are written to ZoomGuru's database.
+The only record kept is that a request occurred: a user ID, the request type,
+and a timestamp, which is what usage counting and outage detection rely on.
+
+To generate an answer, audio is transcribed and the transcript - with the CV and
+job description - is sent to an AI provider over an encrypted connection for the
+duration of that request. Screenshots follow the same path. None of it is
+retained afterwards and none of it is used to train models. Providers do not
+receive the account name or email.
+
+Passwords are hashed with bcrypt. Every AI request must be signed by a device
+key registered to the account. Sessions expire after three hours, and completing
+a password reset signs every device out.
+
+## Plans
+
+All plans are unlimited in usage. There is no credit balance and no per-hour
+meter. They differ in duration and in how many computers may be signed in
+simultaneously - a limit on concurrent sessions, not on installations.
+
+- Weekly: NGN 15,000, one week, 1 computer at a time.
+- Monthly: NGN 45,000, one month, 2 computers at a time. Most commonly chosen.
+- Yearly: NGN 450,000, one year, 2 computers at a time. Priced at ten months.
+
+Payment is through Paystack in naira, supporting card, bank transfer, USSD and
+Opay. Subscriptions renew automatically and can be cancelled at any time, with
+access continuing to the end of the paid period.
+
+A free trial of 30 minutes is available to every new account, tied to the
+computer that claims it so it cannot be claimed repeatedly on one machine. No
+card is required.
+
+## How it compares
+
+List prices read from each vendor's own pricing page on 27 August 2026. Both
+competitors localise pricing by country and run promotions, so these figures
+should be re-checked before being quoted.
+
+- Parakeet AI: $74.90 per month, unlimited. Also sells credit packs where one
+  credit is one hour of live session time.
+- LockedIn AI: $54.99 per month, unlimited; $29.99 per month on quarterly
+  billing. Also offers a credits option and a lifetime plan.
+- ZoomGuru: NGN 45,000 per month, unlimited, roughly $29 equivalent.
+
+ZoomGuru's position is that it is the cheaper option, and that it does not meter
+by the hour while someone is being interviewed.
+
+## Requirements and availability
+
+Windows 10 or later. Roughly 90 MB download, 4 GB RAM. There is no macOS build
+yet; the screen-capture protection the overlay depends on behaves differently on
+macOS, and shipping it before that is solved would risk the overlay appearing in
+a user's screen share.
+
+Windows SmartScreen may warn about the installer because it is not yet widely
+distributed. Choosing "More info" then "Run anyway" proceeds.
+
+## Limits worth stating
+
+- It answers what the microphone picks up. A muffled or interrupted question
+  produces a worse answer.
+- Auto mode answers everything it hears, including rhetorical questions and
+  small talk. The manual shortcut is calmer in a discursive conversation.
+- Screenshot answers capture the current screen only; content on a second
+  monitor must be moved across first.
+- The overlay is hidden from screen capture, not from the room. A person behind
+  the candidate, or a second camera pointed at the monitor, sees what they see.
+- AI-generated answers can be wrong or unsuitable and are suggestions, not fact.
+- Some employers and institutions forbid outside assistance during an
+  assessment. Whether using ZoomGuru is permitted is the candidate's judgement
+  and the consequences are theirs.
+
+## Refunds
+
+A full refund is available within 7 days of a charge if the app did not work as
+described and the problem was not resolved within 48 hours of being reported.
+Duplicate charges, unauthorised charges, and outages exceeding 24 consecutive
+hours are also refunded. Changing your mind after use, forgetting to cancel
+before renewal, and local device or connectivity problems are not refunded.
+
+## Contact
+
+support@zoomguru.xyz
