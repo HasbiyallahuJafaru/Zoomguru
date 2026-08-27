@@ -221,6 +221,8 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
 
   useEffect(() => { void load(days); }, [load, days]);
 
+  const servingProviders = data?.apiHealth.filter((r) => r.callsToday > 0 || r.calls30d > 0) ?? [];
+
   const dateline = `Admin · ${new Date().toLocaleDateString('en-GB', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })}${page === 'analytics' ? ` · Last ${days} days` : ''}`;
@@ -278,19 +280,15 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
 
             {/* ── Infrastructure ── */}
             <section className="mt-16">
-              <SectionHead
-                eyebrow="Infrastructure"
-                title="AI providers"
-                aside={
-                  <p className="max-w-[38ch] text-[0.8125rem] leading-snug text-muted">
-                    Billing failures stop answers reaching users. Check this row first.
-                  </p>
-                }
-              />
+              <SectionHead eyebrow="Infrastructure" title="AI providers" />
 
-              <LedgerCard title="Billing health" caption="Live provider status, all keys">
+              <LedgerCard title="Provider traffic" caption="Providers with no calls in the window are hidden">
                 {!data ? (
                   <div className="p-5"><Skel h={140} /></div>
+                ) : servingProviders.length === 0 ? (
+                  <p className="px-5 py-10 text-center text-[0.875rem] text-muted">
+                    No provider has served a request yet.
+                  </p>
                 ) : (
                   <table className="ledger">
                     <thead>
@@ -298,52 +296,18 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
                         <th>Provider</th>
                         <th className="num">Calls today</th>
                         <th className="num">Calls 30d</th>
-                        <th>Billing</th>
-                        <th className="num">Balance</th>
-                        <th>Where to check</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.apiHealth.map((r) => {
-                        const failing = r.billingFailuresToday > 0;
-                        const low = r.balanceUsd !== null && parseFloat(r.balanceUsd) < 5;
-                        return (
-                          <tr key={r.provider}>
-                            <td className="font-medium text-ink">
-                              {PROVIDER_NAME[r.provider] ?? r.provider}
-                            </td>
-                            <td className="num text-muted">{r.callsToday.toLocaleString()}</td>
-                            <td className="num text-muted">{r.calls30d.toLocaleString()}</td>
-                            <td>
-                              {failing ? (
-                                <Badge tone={STATUS.bad}>{r.billingFailuresToday} failed today</Badge>
-                              ) : r.billingFailures30d > 0 ? (
-                                <Badge tone="#6e6e78">{r.billingFailures30d} in 30d</Badge>
-                              ) : (
-                                <Badge tone={STATUS.good}>Clear</Badge>
-                              )}
-                            </td>
-                            <td className="num">
-                              {r.balanceUsd === null ? (
-                                <Empty />
-                              ) : (
-                                <span
-                                  className="figure font-medium"
-                                  style={{ color: low ? STATUS.bad : undefined }}
-                                >
-                                  ${r.balanceUsd}
-                                  {low && (
-                                    <span className="ml-2 font-mono text-[0.625rem] uppercase tracking-[0.14em]">
-                                      low
-                                    </span>
-                                  )}
-                                </span>
-                              )}
-                            </td>
-                            <td className="whitespace-normal text-[0.8125rem] text-muted">{r.balanceNote}</td>
-                          </tr>
-                        );
-                      })}
+                      {servingProviders.map((r) => (
+                        <tr key={r.provider}>
+                          <td className="font-medium text-ink">
+                            {PROVIDER_NAME[r.provider] ?? r.provider}
+                          </td>
+                          <td className="num text-muted">{r.callsToday.toLocaleString()}</td>
+                          <td className="num text-muted">{r.calls30d.toLocaleString()}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 )}
