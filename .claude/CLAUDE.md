@@ -365,7 +365,9 @@ rather than trusting any figure written here.
 
 ## Concurrent Session Cap
 
-Two people may use one account at the same time. A third is refused.
+Seats are per plan. Monthly and yearly run on two computers at once — a third
+is refused. Weekly runs on one, and so do trial and lapsed accounts.
+`seatsForPlan()` in sessions.ts is the only place this is decided.
 
 ```
 On login:  a session slot is claimed in Redis hash sess:{userId}

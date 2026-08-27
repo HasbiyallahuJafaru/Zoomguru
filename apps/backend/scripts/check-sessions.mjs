@@ -30,8 +30,8 @@ const {
 const uid = 'selfcheck-user';
 const UA = 'Mozilla/5.0 (Windows NT 10.0) ZoomGuru/1.0';
 
-// Any active subscription seats two computers. No active plan → one.
-assert.equal(seatsForPlan('weekly'), 2);
+// Weekly seats one computer; monthly and yearly seat two. No active plan → one.
+assert.equal(seatsForPlan('weekly'), 1);
 assert.equal(seatsForPlan('monthly'), 2);
 assert.equal(seatsForPlan('yearly'), 2);
 assert.equal(seatsForPlan(null), 1);

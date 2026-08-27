@@ -1,14 +1,16 @@
 import { randomBytes } from 'node:crypto';
 import { getRedis } from '../redis/redis';
 
-// Any active subscription seats two computers, whatever the plan. Trial and
-// lapsed accounts get one. `plan` is already null unless the subscription is
-// active — the caller resolves that with isSubActive().
+// Monthly and yearly seat two computers. Weekly seats one — that is the
+// difference the plan sells. Trial and lapsed accounts get one. `plan` is
+// already null unless the subscription is active — the caller resolves that
+// with isSubActive().
 const ACTIVE_SEATS = 2;
 export const DEFAULT_SEATS = 1;
 
 export function seatsForPlan(plan: string | null | undefined): number {
-  return plan ? ACTIVE_SEATS : DEFAULT_SEATS;
+  if (!plan) return DEFAULT_SEATS;
+  return plan === 'weekly' ? DEFAULT_SEATS : ACTIVE_SEATS;
 }
 
 // Login tokens live 3 hours. Sessions are pruned on the same clock, so a slot
