@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import type { BroadcastRow, BroadcastCreatedRow, TargetFilter } from './types';
 import {
   fetchBroadcasts,
@@ -8,23 +9,7 @@ import {
   cancelBroadcast,
   retryBroadcast,
 } from './api';
-
-// ── Design tokens (matching Dashboard) ─────────────────────────
-// Mirrors the token block in Dashboard.tsx — the two pages share one surface,
-// so they must share one palette. Change both together.
-const C = {
-  bg:      '#F7F4F0',
-  card:    '#FFFFFF',
-  border:  'rgba(23,20,17,0.07)',
-  primary: '#26221F',
-  secondary:'#6E6660',
-  muted:   '#A69E97',
-  shadow:  '0 1px 2px rgba(23,20,17,0.04), 0 10px 24px -12px rgba(23,20,17,0.12)',
-};
-const F = {
-  heading: "'Cormorant Garamond', Georgia, serif",
-  body:    "'Inter', system-ui, sans-serif",
-};
+import { SERIES, STATUS, Badge, Notice, Skel, Segmented, LedgerCard } from './ui';
 
 // WAT = UTC+1
 const WAT_OFFSET_MS = 60 * 60 * 1000;
@@ -46,20 +31,30 @@ function watNowDefault(): string {
   return now.toISOString().slice(0, 16);
 }
 
-function statusColor(status: BroadcastRow['status']): string {
+/** Broadcast state is a lifecycle, not a series, so it draws from the reserved
+ *  status colours plus two neutrals — never from the chart palette. */
+function statusTone(status: BroadcastRow['status']): string {
   switch (status) {
-    case 'sent': return '#5C7F6B';
-    case 'sending': return '#E2894A';
-    case 'scheduled': return '#8C847D';
-    case 'failed': return '#BE5540';
-    case 'cancelled': return '#CFC8C1';
+    case 'sent': return STATUS.good;
+    case 'sending': return SERIES[1];
+    case 'scheduled': return SERIES[0];
+    case 'failed': return STATUS.bad;
+    case 'cancelled': return '#6e6e78';
   }
 }
 
 function estimateDuration(count: number): string {
   const batches = Math.ceil(count / 50);
-  if (batches <= 1) return 'under 1 minute';
-  return `~${(batches - 1) * 3} minutes`;
+  if (batches <= 1) return 'under a minute';
+  const mins = (batches - 1) * 3;
+  if (mins < 90) return `about ${mins} minutes`;
+  const hours = Math.round(mins / 30) / 2;
+  return `about ${hours} hour${hours === 1 ? '' : 's'}`;
+}
+
+function filterLabel(filter: TargetFilter): string {
+  if (!filter.plans || filter.plans.length === 0) return 'All users';
+  return filter.plans.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(', ');
 }
 
 interface Props {
@@ -67,6 +62,11 @@ interface Props {
 }
 
 type Tab = 'compose' | 'history';
+
+const TAB_OPTIONS = [
+  { value: 'compose' as const, label: 'Compose' },
+  { value: 'history' as const, label: 'History' },
+];
 
 const PLAN_OPTIONS: Array<{ value: 'weekly' | 'monthly' | 'yearly'; label: string }> = [
   { value: 'weekly', label: 'Weekly' },
@@ -87,33 +87,12 @@ export default function BroadcastPage({ adminKey }: Props) {
   const [tab, setTab] = useState<Tab>('compose');
 
   return (
-    <div style={{ fontFamily: F.body }}>
-      {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 28 }}>
-        {(['compose', 'history'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: '8px 22px',
-              borderRadius: 10,
-              border: 'none',
-              background: tab === t ? C.primary : 'transparent',
-              color: tab === t ? '#fff' : C.secondary,
-              fontFamily: F.body,
-              fontSize: 13,
-              fontWeight: tab === t ? 600 : 400,
-              cursor: 'pointer',
-              transition: 'background 0.15s',
-            }}
-          >
-            {t === 'compose' ? 'Compose' : 'History'}
-          </button>
-        ))}
+    <div>
+      <div className="mb-8 flex justify-start">
+        <Segmented options={TAB_OPTIONS} value={tab} onChange={setTab} label="Broadcast view" />
       </div>
 
-      {tab === 'compose' && <ComposeTab adminKey={adminKey} />}
-      {tab === 'history' && <HistoryTab adminKey={adminKey} />}
+      {tab === 'compose' ? <ComposeTab adminKey={adminKey} /> : <HistoryTab adminKey={adminKey} />}
     </div>
   );
 }
@@ -167,17 +146,17 @@ function ComposeTab({ adminKey }: { adminKey: string }) {
       setPreviewHtml(res.html);
       setShowPreview(true);
     } catch {
-      setError('Could not generate preview.');
+      setError('Could not build the preview.');
     }
   }
 
   function handleSendClick() {
     if (!subject.trim() || !body.trim()) {
-      setError('Subject and body are required.');
+      setError('Add a subject and a body before sending.');
       return;
     }
     if (recipientCount === 0) {
-      setError('No recipients match the selected filter.');
+      setError('No one matches this filter. Widen it, then send.');
       return;
     }
     setError('');
@@ -206,7 +185,7 @@ function ComposeTab({ adminKey }: { adminKey: string }) {
       const result: BroadcastCreatedRow = await createBroadcast(adminKey, payload);
       const when = result.scheduled_at
         ? `Scheduled for ${toWAT(result.scheduled_at)}`
-        : 'Queued for immediate send';
+        : 'Queued to send now';
       setSuccessMsg(
         `${when}. ${result.recipient_count ?? 0} recipients across ${Math.ceil((result.recipient_count ?? 0) / 50)} batch(es).`,
       );
@@ -215,183 +194,154 @@ function ComposeTab({ adminKey }: { adminKey: string }) {
       setPlanFilter([]);
       setScheduleMode('now');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send broadcast.');
+      setError(err instanceof Error ? err.message : 'The broadcast could not be queued.');
     } finally {
       setSending(false);
     }
   }
 
+  const batches = recipientCount === null ? 0 : Math.ceil(recipientCount / 50);
+  const blocked = sending || !subject.trim() || !body.trim();
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
-      {/* Left: compose form */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="grid items-start gap-5 xl:grid-cols-2">
+      {/* Left: the draft */}
+      <div className="card p-6 md:p-7">
+        <div className="flex flex-col gap-6">
+          {successMsg && (
+            <Notice tone={STATUS.good} onClose={() => setSuccessMsg('')}>{successMsg}</Notice>
+          )}
+          {error && (
+            <Notice tone={STATUS.bad} onClose={() => setError('')}>{error}</Notice>
+          )}
 
-        {successMsg && (
-          <Notice color="#5C7F6B" bg="rgba(92,127,107,0.07)" border="rgba(92,127,107,0.22)">
-            {successMsg}
-            <button onClick={() => setSuccessMsg('')} style={styles.noticeClose}>×</button>
-          </Notice>
-        )}
-        {error && (
-          <Notice color="#BE5540" bg="rgba(190,85,64,0.07)" border="rgba(190,85,64,0.20)">
-            {error}
-            <button onClick={() => setError('')} style={styles.noticeClose}>×</button>
-          </Notice>
-        )}
+          <Field label="Subject" htmlFor="bc-subject">
+            <input
+              id="bc-subject"
+              className="field-input"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="What the email is about"
+              maxLength={200}
+            />
+          </Field>
 
-        {/* Subject */}
-        <Field label="Subject">
-          <input
-            style={styles.input}
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder="Your email subject line"
-            maxLength={200}
-          />
-        </Field>
+          <Field label="Body" htmlFor="bc-body" hint="HTML. Everything else in the email is added by the template.">
+            <textarea
+              id="bc-body"
+              className="field-input h-56 resize-y font-mono text-[0.8125rem] leading-relaxed"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder={'<p>Hello,</p>\n<p>Your message here.</p>'}
+            />
+            <button
+              type="button"
+              onClick={() => void handlePreview()}
+              disabled={!body.trim()}
+              className="btn btn-outline btn-sm mt-3 self-start"
+            >
+              Build preview
+            </button>
+          </Field>
 
-        {/* Body */}
-        <Field label="Body (HTML)">
-          <textarea
-            style={{ ...styles.input, height: 220, resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={'<p>Hello,</p>\n<p>Your message here.</p>'}
-          />
-          <button
-            onClick={() => void handlePreview()}
-            disabled={!body.trim()}
-            style={{ ...styles.btnGhost, marginTop: 8, alignSelf: 'flex-start' }}
-          >
-            Preview email →
-          </button>
-        </Field>
-
-        {/* Targeting */}
-        <Field label="Recipients">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, color: C.secondary }}>Filter by plan:</span>
-              {PLAN_OPTIONS.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => togglePlan(p.value)}
-                  style={{
-                    ...styles.pillBtn,
-                    background: planFilter.includes(p.value) ? C.primary : 'transparent',
-                    color: planFilter.includes(p.value) ? '#fff' : C.secondary,
-                    borderColor: planFilter.includes(p.value) ? C.primary : 'rgba(0,0,0,0.12)',
-                  }}
-                >
-                  {p.label}
-                </button>
-              ))}
+          <Field label="Recipients">
+            <div className="flex flex-wrap gap-2">
+              {PLAN_OPTIONS.map((p) => {
+                const on = planFilter.includes(p.value);
+                return (
+                  <button
+                    key={p.value}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => togglePlan(p.value)}
+                    className={`btn btn-sm ${on ? 'btn-primary' : 'btn-outline'}`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
             </div>
-            <div style={{ fontSize: 13, color: C.muted }}>
+            <p className="mt-3 text-[0.8125rem] text-muted">
               {recipientCount === null
                 ? 'Counting…'
                 : planFilter.length === 0
-                ? `${recipientCount.toLocaleString()} total registered users`
-                : `${recipientCount.toLocaleString()} active subscribers on selected plan(s)`}
-            </div>
-          </div>
-        </Field>
+                  ? `${recipientCount.toLocaleString()} registered users. Pick a plan to narrow this.`
+                  : `${recipientCount.toLocaleString()} active subscribers on the selected plan(s).`}
+            </p>
+          </Field>
 
-        {/* Scheduling */}
-        <Field label="Send timing">
-          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-            {(['now', 'later'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setScheduleMode(m)}
-                style={{
-                  ...styles.pillBtn,
-                  background: scheduleMode === m ? C.primary : 'transparent',
-                  color: scheduleMode === m ? '#fff' : C.secondary,
-                  borderColor: scheduleMode === m ? C.primary : 'rgba(0,0,0,0.12)',
-                }}
-              >
-                {m === 'now' ? 'Send immediately' : 'Schedule for later'}
-              </button>
-            ))}
-          </div>
-          {scheduleMode === 'later' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <input
-                type="datetime-local"
-                style={styles.input}
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-              />
-              <span style={{ fontSize: 11, color: C.muted }}>Time in WAT (UTC+1)</span>
+          <Field label="Timing">
+            <div className="flex flex-wrap gap-2">
+              {([
+                { value: 'now' as const, label: 'Send now' },
+                { value: 'later' as const, label: 'Schedule' },
+              ]).map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  aria-pressed={scheduleMode === m.value}
+                  onClick={() => setScheduleMode(m.value)}
+                  className={`btn btn-sm ${scheduleMode === m.value ? 'btn-primary' : 'btn-outline'}`}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
+            {scheduleMode === 'later' && (
+              <div className="mt-3">
+                <input
+                  type="datetime-local"
+                  aria-label="Send at (WAT)"
+                  className="field-input"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                />
+                <p className="mt-2 text-[0.75rem] text-muted">Times are WAT (UTC+1).</p>
+              </div>
+            )}
+          </Field>
+
+          {recipientCount !== null && recipientCount > 0 && (
+            <p className="label border-t border-rule/60 pt-5">
+              {batches} batch{batches !== 1 ? 'es' : ''} · delivery takes {estimateDuration(recipientCount)}
+            </p>
           )}
-        </Field>
 
-        {/* Estimated duration */}
-        {recipientCount !== null && recipientCount > 0 && (
-          <div style={{
-            padding: '12px 16px',
-            background: 'rgba(59,130,246,0.05)',
-            border: '1px solid rgba(59,130,246,0.15)',
-            borderRadius: 10,
-            fontSize: 13,
-            color: C.secondary,
-          }}>
-            {Math.ceil(recipientCount / 50)} batch{Math.ceil(recipientCount / 50) !== 1 ? 'es' : ''} · estimated delivery: {estimateDuration(recipientCount)}
-          </div>
-        )}
-
-        <button
-          onClick={handleSendClick}
-          disabled={sending || !subject.trim() || !body.trim()}
-          style={{
-            ...styles.btnPrimary,
-            opacity: sending || !subject.trim() || !body.trim() ? 0.5 : 1,
-            cursor: sending || !subject.trim() || !body.trim() ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {sending ? 'Queueing…' : scheduleMode === 'later' ? 'Schedule broadcast' : 'Send broadcast'}
-        </button>
+          <button
+            type="button"
+            onClick={handleSendClick}
+            disabled={blocked}
+            className="btn btn-primary w-full !py-3.5"
+          >
+            {sending ? 'Queueing…' : scheduleMode === 'later' ? 'Schedule broadcast' : 'Send broadcast'}
+          </button>
+        </div>
       </div>
 
-      {/* Right: live preview */}
-      <div style={{
-        background: C.card,
-        borderRadius: 16,
-        border: `1px solid ${C.border}`,
-        boxShadow: C.shadow,
-        overflow: 'hidden',
-        minHeight: 400,
-      }}>
-        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-            Email preview
-          </span>
+      {/* Right: what lands in the inbox */}
+      <div className="card xl:sticky xl:top-24">
+        <div className="border-b border-rule/60 px-5 py-4">
+          <p className="label">Inbox preview</p>
         </div>
         {showPreview && previewHtml ? (
           <iframe
             srcDoc={previewHtml}
-            style={{ width: '100%', height: 600, border: 'none', display: 'block' }}
+            className="block h-[38rem] w-full border-0 bg-paper"
             sandbox="allow-same-origin"
             title="Email preview"
           />
         ) : (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            height: 360, color: C.muted, fontSize: 13,
-          }}>
-            Click "Preview email →" to see how it looks
+          <div className="flex h-[24rem] flex-col items-center justify-center gap-2 px-8 text-center">
+            <p className="text-[0.9375rem] text-ink">Nothing to preview yet</p>
+            <p className="max-w-[32ch] text-[0.8125rem] text-muted">
+              Write the body, then choose Build preview to see the email exactly as it will arrive.
+            </p>
           </div>
         )}
       </div>
 
-      {/* Confirmation modal */}
       {confirmModal && (
-        <ConfirmationModal
-          modal={confirmModal}
-          onCancel={() => setConfirmModal(null)}
-        />
+        <ConfirmationModal modal={confirmModal} onCancel={() => setConfirmModal(null)} />
       )}
     </div>
   );
@@ -412,7 +362,7 @@ function HistoryTab({ adminKey }: { adminKey: string }) {
       const rows = await fetchBroadcasts(adminKey);
       setBroadcasts(rows);
     } catch {
-      setError('Failed to load broadcast history.');
+      setError('Could not load the broadcast history.');
     } finally {
       setLoading(false);
     }
@@ -426,7 +376,7 @@ function HistoryTab({ adminKey }: { adminKey: string }) {
       await cancelBroadcast(adminKey, id);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Cancel failed.');
+      setError(err instanceof Error ? err.message : 'The broadcast could not be cancelled.');
     } finally {
       setActionId(null);
     }
@@ -438,130 +388,107 @@ function HistoryTab({ adminKey }: { adminKey: string }) {
       await retryBroadcast(adminKey, id);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Retry failed.');
+      setError(err instanceof Error ? err.message : 'The broadcast could not be retried.');
     } finally {
       setActionId(null);
     }
   }
 
-  if (loading) {
-    return <div style={{ padding: 40, color: C.muted, fontSize: 13, textAlign: 'center' }}>Loading…</div>;
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: C.muted }}>{broadcasts.length} broadcast{broadcasts.length !== 1 ? 's' : ''}</span>
-        <button onClick={() => void load()} style={styles.btnGhost}>Refresh</button>
-      </div>
+    <div className="flex flex-col gap-4">
+      {error && <Notice tone={STATUS.bad} onClose={() => setError('')}>{error}</Notice>}
 
-      {error && (
-        <Notice color="#BE5540" bg="rgba(190,85,64,0.07)" border="rgba(190,85,64,0.20)">
-          {error}
-        </Notice>
-      )}
-
-      {broadcasts.length === 0 ? (
-        <div style={{
-          padding: '48px 24px',
-          textAlign: 'center',
-          background: C.card,
-          borderRadius: 16,
-          border: `1px solid ${C.border}`,
-          color: C.muted,
-          fontSize: 14,
-        }}>
-          No broadcasts yet. Use the Compose tab to send your first one.
-        </div>
-      ) : (
-        <div style={{
-          background: C.card,
-          borderRadius: 16,
-          border: `1px solid ${C.border}`,
-          boxShadow: C.shadow,
-          overflow: 'hidden',
-        }}>
-          {/* Table header */}
-          <div style={{ ...styles.tableRow, background: 'rgba(0,0,0,0.02)', fontWeight: 600, color: C.muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-            <div style={{ flex: 3 }}>Subject</div>
-            <div style={{ flex: 1 }}>Filter</div>
-            <div style={{ flex: 1 }}>Recipients</div>
-            <div style={{ flex: 1 }}>Opens</div>
-            <div style={{ flex: 1 }}>Status</div>
-            <div style={{ flex: 1.5 }}>Time (WAT)</div>
-            <div style={{ flex: 1.2 }}>Actions</div>
+      <LedgerCard
+        title="Sent and scheduled"
+        caption={loading ? 'Loading…' : `${broadcasts.length} broadcast${broadcasts.length !== 1 ? 's' : ''}`}
+        footer={
+          <button type="button" onClick={() => void load()} className="btn btn-outline btn-sm">
+            Refresh
+          </button>
+        }
+      >
+        {loading ? (
+          <div className="p-5"><Skel h={140} /></div>
+        ) : broadcasts.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-8 py-14 text-center">
+            <p className="text-[0.9375rem] text-ink">No broadcasts yet</p>
+            <p className="max-w-[34ch] text-[0.8125rem] text-muted">
+              Write one in Compose. Everything you send shows up here with its open rate.
+            </p>
           </div>
-
-          {broadcasts.map((b, idx) => (
-            <div
-              key={b.id}
-              style={{
-                ...styles.tableRow,
-                borderTop: idx === 0 ? 'none' : `1px solid ${C.border}`,
-                fontSize: 13,
-              }}
-            >
-              <div style={{ flex: 3, color: C.primary, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 12 }}>
-                {b.subject}
-              </div>
-              <div style={{ flex: 1, color: C.secondary, fontSize: 12 }}>
-                {filterLabel(b.target_filter)}
-              </div>
-              <div style={{ flex: 1, color: C.secondary, fontVariantNumeric: 'tabular-nums' }}>
-                {b.recipient_count?.toLocaleString() ?? '—'}
-              </div>
-              <div style={{ flex: 1, color: C.secondary, fontVariantNumeric: 'tabular-nums' }}>
-                {b.open_count > 0 ? (
-                  <span>
-                    {b.open_count.toLocaleString()}
-                    {b.recipient_count ? (
-                      <span style={{ color: C.muted, marginLeft: 4 }}>
-                        ({Math.round((b.open_count / b.recipient_count) * 100)}%)
+        ) : (
+          <table className="ledger">
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Sent to</th>
+                <th className="num">Recipients</th>
+                <th className="num">Opens</th>
+                <th>Status</th>
+                <th>Time (WAT)</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {broadcasts.map((b) => (
+                <tr key={b.id}>
+                  <td className="max-w-[22rem] truncate font-medium text-ink">{b.subject}</td>
+                  <td className="text-muted">{filterLabel(b.target_filter)}</td>
+                  <td className="num text-muted">{b.recipient_count?.toLocaleString() ?? '—'}</td>
+                  <td className="num">
+                    {b.open_count > 0 ? (
+                      <span className="figure text-ink">
+                        {b.open_count.toLocaleString()}
+                        {b.recipient_count ? (
+                          <span className="ml-1.5 text-muted">
+                            {Math.round((b.open_count / b.recipient_count) * 100)}%
+                          </span>
+                        ) : null}
                       </span>
-                    ) : null}
-                  </span>
-                ) : '—'}
-              </div>
-              <div style={{ flex: 1 }}>
-                <StatusBadge status={b.status} />
-              </div>
-              <div style={{ flex: 1.5, color: C.muted, fontSize: 12 }}>
-                {b.sent_at
-                  ? toWAT(b.sent_at)
-                  : b.scheduled_at
-                  ? toWAT(b.scheduled_at)
-                  : '—'}
-              </div>
-              <div style={{ flex: 1.2, display: 'flex', gap: 6 }}>
-                {(b.status === 'scheduled' || b.status === 'sending') && (
-                  <button
-                    onClick={() => void handleCancel(b.id)}
-                    disabled={actionId === b.id}
-                    style={{ ...styles.actionBtn, color: '#BE5540', borderColor: 'rgba(190,85,64,0.30)' }}
-                  >
-                    {actionId === b.id ? '…' : 'Cancel'}
-                  </button>
-                )}
-                {b.status === 'failed' && (
-                  <button
-                    onClick={() => void handleRetry(b.id)}
-                    disabled={actionId === b.id}
-                    style={{ ...styles.actionBtn, color: '#E2894A', borderColor: 'rgba(226,137,74,0.32)' }}
-                  >
-                    {actionId === b.id ? '…' : 'Retry'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                    ) : (
+                      <span className="text-rule">—</span>
+                    )}
+                  </td>
+                  <td><Badge tone={statusTone(b.status)}>{b.status}</Badge></td>
+                  <td className="font-mono text-[0.75rem] text-muted">
+                    {b.sent_at ? toWAT(b.sent_at) : b.scheduled_at ? toWAT(b.scheduled_at) : '—'}
+                  </td>
+                  <td>
+                    {(b.status === 'scheduled' || b.status === 'sending') && (
+                      <button
+                        type="button"
+                        onClick={() => void handleCancel(b.id)}
+                        disabled={actionId === b.id}
+                        className="btn btn-danger btn-sm"
+                      >
+                        {actionId === b.id ? '…' : 'Cancel'}
+                      </button>
+                    )}
+                    {b.status === 'failed' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRetry(b.id)}
+                        disabled={actionId === b.id}
+                        className="btn btn-outline btn-sm"
+                      >
+                        {actionId === b.id ? '…' : 'Retry'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </LedgerCard>
     </div>
   );
 }
 
-// ── Confirmation modal ──────────────────────────────────────────
+// ── Confirmation ────────────────────────────────────────────────
 
+/** The last stop before real email reaches real people, so it restates every
+ *  decision rather than asking "are you sure?". */
 function ConfirmationModal({
   modal,
   onCancel,
@@ -569,30 +496,44 @@ function ConfirmationModal({
   modal: ConfirmModal;
   onCancel: () => void;
 }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   return (
-    <div style={styles.modalOverlay}>
-      <div style={styles.modalCard}>
-        <h2 style={{ fontFamily: F.heading, fontSize: 26, fontWeight: 700, fontStyle: 'italic', margin: '0 0 20px', color: C.primary }}>
-          Confirm broadcast
-        </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+    <div
+      className="fixed inset-0 z-100 flex items-center justify-center bg-ink/35 p-5 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        onClick={(e) => e.stopPropagation()}
+        className="overlay-panel rise w-full max-w-[28rem] p-8"
+      >
+        <p className="label">Before it goes out</p>
+        <h2 id="confirm-title" className="mt-2.5 text-sub">Send this broadcast?</h2>
+
+        <dl className="my-7 flex flex-col">
           <Row label="Subject" value={modal.subject} />
-          <Row label="Recipients" value={`${modal.recipientCount.toLocaleString()} users`} />
-          <Row label="Filter" value={filterLabel(modal.filter)} />
-          <Row label="Est. delivery" value={estimateDuration(modal.recipientCount)} />
-          {modal.scheduledAt && (
-            <Row label="Scheduled for" value={toWAT(modal.scheduledAt)} />
-          )}
-          {!modal.scheduledAt && (
-            <Row label="Timing" value="Immediate" />
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={onCancel} style={{ ...styles.btnGhost, flex: 1 }}>
-            Cancel
+          <Row label="Recipients" value={`${modal.recipientCount.toLocaleString()} people`} />
+          <Row label="Sent to" value={filterLabel(modal.filter)} />
+          <Row label="Delivery takes" value={estimateDuration(modal.recipientCount)} />
+          <Row
+            label={modal.scheduledAt ? 'Scheduled for' : 'Timing'}
+            value={modal.scheduledAt ? toWAT(modal.scheduledAt) : 'Immediately'}
+          />
+        </dl>
+
+        <div className="flex gap-3">
+          <button type="button" onClick={onCancel} className="btn btn-secondary flex-1">
+            Back to draft
           </button>
-          <button onClick={modal.onConfirm} style={{ ...styles.btnPrimary, flex: 2 }}>
-            Confirm &amp; Send
+          <button type="button" onClick={modal.onConfirm} className="btn btn-primary flex-[2]" autoFocus>
+            Send broadcast
           </button>
         </div>
       </div>
@@ -600,157 +541,33 @@ function ConfirmationModal({
   );
 }
 
-// ── Small helpers ───────────────────────────────────────────────
+// ── Small parts ─────────────────────────────────────────────────
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function Notice({ color, bg, border, children }: {
-  color: string; bg: string; border: string; children: React.ReactNode;
+function Field({
+  label,
+  htmlFor,
+  hint,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  hint?: string;
+  children: ReactNode;
 }) {
   return (
-    <div style={{
-      background: bg, border: `1px solid ${border}`, borderRadius: 10,
-      padding: '11px 15px', display: 'flex', alignItems: 'center',
-      justifyContent: 'space-between', fontSize: 13, color,
-    }}>
-      {children}
+    <div className="flex flex-col">
+      <label className="label" htmlFor={htmlFor}>{label}</label>
+      {hint && <p className="mt-1.5 text-[0.75rem] text-muted">{hint}</p>}
+      <div className="mt-2.5 flex flex-col">{children}</div>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 10 }}>
-      <span style={{ fontSize: 13, color: C.muted }}>{label}</span>
-      <span style={{ fontSize: 13, color: C.primary, fontWeight: 500, textAlign: 'right', maxWidth: '60%' }}>{value}</span>
+    <div className="flex items-baseline justify-between gap-6 border-b border-rule/50 py-2.5 last:border-b-0">
+      <dt className="label shrink-0">{label}</dt>
+      <dd className="max-w-[60%] truncate text-right text-[0.875rem] font-medium text-ink">{value}</dd>
     </div>
   );
 }
-
-function StatusBadge({ status }: { status: BroadcastRow['status'] }) {
-  const color = statusColor(status);
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 6,
-      fontSize: 11,
-      fontWeight: 600,
-      letterSpacing: '0.05em',
-      textTransform: 'capitalize',
-      background: `${color}18`,
-      color,
-      border: `1px solid ${color}30`,
-    }}>
-      {status}
-    </span>
-  );
-}
-
-function filterLabel(filter: TargetFilter): string {
-  if (!filter.plans || filter.plans.length === 0) return 'All users';
-  return filter.plans.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(', ');
-}
-
-// ── Styles ──────────────────────────────────────────────────────
-
-const styles: Record<string, React.CSSProperties> = {
-  input: {
-    display: 'block',
-    width: '100%',
-    padding: '11px 14px',
-    background: 'rgba(0,0,0,0.03)',
-    border: '1.5px solid rgba(0,0,0,0.09)',
-    borderRadius: 12,
-    fontFamily: F.body,
-    fontSize: 14,
-    color: C.primary,
-    boxSizing: 'border-box',
-    outline: 'none',
-  },
-  btnPrimary: {
-    padding: '13px 24px',
-    background: C.primary,
-    color: '#fff',
-    border: 'none',
-    borderRadius: 12,
-    fontFamily: F.body,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  btnGhost: {
-    padding: '8px 16px',
-    background: 'transparent',
-    color: C.secondary,
-    border: '1.5px solid rgba(0,0,0,0.1)',
-    borderRadius: 10,
-    fontFamily: F.body,
-    fontSize: 12,
-    fontWeight: 500,
-    cursor: 'pointer',
-  },
-  pillBtn: {
-    padding: '6px 14px',
-    borderRadius: 20,
-    border: '1.5px solid',
-    fontFamily: F.body,
-    fontSize: 12,
-    fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  actionBtn: {
-    padding: '4px 10px',
-    background: 'transparent',
-    border: '1px solid',
-    borderRadius: 6,
-    fontFamily: F.body,
-    fontSize: 12,
-    fontWeight: 500,
-    cursor: 'pointer',
-  },
-  noticeClose: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: 18,
-    lineHeight: 1,
-    color: 'inherit',
-    opacity: 0.6,
-    padding: '0 4px',
-  },
-  tableRow: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '13px 20px',
-    gap: 8,
-  },
-  modalOverlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0,0,0,0.35)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    backdropFilter: 'blur(4px)',
-  },
-  modalCard: {
-    background: '#fff',
-    borderRadius: 20,
-    padding: '36px 36px 32px',
-    width: '100%',
-    maxWidth: 460,
-    boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
-  },
-};

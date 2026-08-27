@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { fetchStats } from './api';
 import Dashboard from './Dashboard';
+import { Notice, Wordmark, STATUS } from './ui';
 
 const SESSION_KEY = 'zg_admin_key';
 
-const F = {
-  heading: "'Cormorant Garamond', Georgia, serif",
-  body: "'Inter', system-ui, sans-serif",
-};
+/** What the dashboard covers. Signposting, so the door tells you what is
+ *  behind it rather than just asking for a key. */
+const COVERS = ['Signups', 'Payments', 'AI providers', 'Referrals', 'Broadcasts'];
 
 export default function App() {
   const [adminKey, setAdminKey] = useState('');
@@ -31,7 +31,7 @@ export default function App() {
       setAuthed(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg === '401' ? 'Invalid admin key.' : 'Could not reach backend.');
+      setError(msg === '401' ? 'That key was not accepted.' : 'Could not reach the backend.');
     } finally {
       setLoading(false);
     }
@@ -49,156 +49,81 @@ export default function App() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'radial-gradient(70rem 48rem at 12% -8%, rgba(226,137,74,0.12), transparent 60%), linear-gradient(145deg, #F9F6F2 0%, #F3EFE9 55%, #EDE8E1 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px',
-    }}>
-      {/* Decorative blobs */}
-      <div style={{
-        position: 'fixed', top: '-10%', right: '-8%',
-        width: 420, height: 420, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'fixed', bottom: '-8%', left: '-6%',
-        width: 360, height: 360, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(0,0,0,0.03) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
+    <div className="grid min-h-screen bg-paper lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+      {/* The screen layer at full scale. On the site it is a tinted panel over
+          the page; here, on the one screen that sits outside the product, it
+          takes a whole half and the wordmark inverts onto it. */}
+      <aside className="relative flex flex-col justify-between overflow-hidden bg-overlay px-8 py-10 text-paper md:px-14 lg:py-14">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-24 -top-32 size-[34rem] rounded-full opacity-60"
+          style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.16), transparent 62%)' }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-40 -left-24 size-[30rem] rounded-full opacity-50"
+          style={{ background: 'radial-gradient(circle, rgba(255,74,28,0.5), transparent 66%)' }}
+        />
 
-      {/* Card */}
-      <div style={{
-        background: 'rgba(255,255,255,0.82)',
-        backdropFilter: 'blur(28px)',
-        WebkitBackdropFilter: 'blur(28px)',
-        borderRadius: 28,
-        padding: '52px 44px',
-        width: '100%',
-        maxWidth: 420,
-        border: '1px solid rgba(255,255,255,0.95)',
-        boxShadow: [
-          '0 2px 4px rgba(0,0,0,0.03)',
-          '0 8px 24px rgba(0,0,0,0.06)',
-          '0 24px 64px rgba(0,0,0,0.06)',
-        ].join(', '),
-        animation: 'fadeSlideUp 0.65s cubic-bezier(0.16,1,0.3,1) both',
-      }}>
-        {/* Brand */}
-        <div style={{ marginBottom: 44 }}>
-          <h1 style={{
-            fontFamily: F.heading,
-            fontStyle: 'italic',
-            fontWeight: 700,
-            fontSize: 42,
-            color: '#26221F',
-            letterSpacing: '-0.025em',
-            lineHeight: 1,
-          }}>
-            ZoomGuru
-          </h1>
-          <p style={{
-            fontFamily: F.body,
-            fontSize: 11,
-            fontWeight: 500,
-            color: '#A69E97',
-            marginTop: 7,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
-          }}>
-            Analytics · Admin Access
-          </p>
-          {/* Thin decorative rule */}
-          <div style={{
-            marginTop: 24,
-            height: 1,
-            background: 'linear-gradient(90deg, rgba(0,0,0,0.1) 0%, transparent 100%)',
-          }} />
+        <div className="relative flex items-center gap-3">
+          <Wordmark className="!text-paper [&_em]:!text-paper/70" />
+          <span className="label !text-paper/70">Admin</span>
         </div>
 
-        <form onSubmit={(e) => { void handleSubmit(e); }}>
-          {/* Label */}
-          <label style={{
-            display: 'block',
-            fontFamily: F.body,
-            fontSize: 11,
-            fontWeight: 600,
-            color: '#6E6660',
-            marginBottom: 9,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-          }}>
-            Admin Key
-          </label>
+        <h1
+          className="relative my-10 max-w-[15ch] text-hed lg:my-0"
+          style={{ fontVariationSettings: '"SOFT" 0, "WONK" 1, "opsz" 144' }}
+        >
+          Everything the product knows about itself.
+        </h1>
 
-          {/* Input */}
+        <ul className="relative flex flex-wrap gap-x-5 gap-y-2">
+          {COVERS.map((c) => (
+            <li key={c} className="label !text-paper/70">
+              {c}
+            </li>
+          ))}
+        </ul>
+      </aside>
+
+      {/* Paper. The form itself stays quiet — one field, one button. */}
+      <main className="flex items-center justify-center px-6 py-16 md:px-12">
+        <form
+          onSubmit={(e) => void handleSubmit(e)}
+          className="rise w-full max-w-[24rem]"
+        >
+          <p className="label">Admin access</p>
+          <h2 className="mt-3 text-hed">Sign in</h2>
+
+          <label htmlFor="admin-key" className="label mt-10 block">
+            Admin key
+          </label>
           <input
-            className="admin-input"
+            id="admin-key"
+            className="field-input mt-2.5"
             type="password"
-            placeholder="Enter your admin key"
+            placeholder="Paste your key"
             value={adminKey}
             onChange={(e) => setAdminKey(e.target.value)}
             autoComplete="current-password"
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '15px 18px',
-              background: 'rgba(0,0,0,0.03)',
-              border: '1.5px solid rgba(0,0,0,0.09)',
-              borderRadius: 14,
-              fontFamily: F.body,
-              fontSize: 14,
-              color: '#26221F',
-              marginBottom: 14,
-            }}
+            autoFocus
           />
 
-          {/* Error */}
           {error && (
-            <div style={{
-              background: 'rgba(239,68,68,0.06)',
-              border: '1px solid rgba(239,68,68,0.18)',
-              borderRadius: 10,
-              padding: '11px 15px',
-              marginBottom: 16,
-              fontFamily: F.body,
-              fontSize: 13,
-              color: '#BE5540',
-              animation: 'fadeIn 0.2s ease',
-            }}>
-              {error}
+            <div className="mt-4">
+              <Notice tone={STATUS.bad}>{error}</Notice>
             </div>
           )}
 
-          {/* Submit */}
-          <button
-            className="btn-black"
-            type="submit"
-            disabled={loading}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: '15px',
-              background: loading ? '#A69E97' : '#26221F',
-              border: 'none',
-              borderRadius: 14,
-              fontFamily: F.body,
-              fontSize: 14,
-              fontWeight: 600,
-              color: '#FFFFFF',
-              letterSpacing: '0.02em',
-              opacity: loading ? 0.75 : 1,
-              marginTop: 4,
-            }}
-          >
-            {loading ? 'Verifying…' : 'Sign In'}
+          <button type="submit" disabled={loading} className="btn btn-primary mt-6 w-full !py-3.5">
+            {loading ? 'Checking…' : 'Sign in'}
           </button>
+
+          <p className="mt-5 text-[0.8125rem] leading-relaxed text-muted">
+            The key is kept in this browser tab only, and is cleared when the tab closes.
+          </p>
         </form>
-      </div>
+      </main>
     </div>
   );
 }

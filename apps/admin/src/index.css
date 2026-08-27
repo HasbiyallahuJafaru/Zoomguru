@@ -1,207 +1,401 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ---------------------------------------------------------------------------
+   The admin runs on the marketing site's design system, not its own. Every
+   token below is copied from apps/landing/app/globals.css so the two surfaces
+   cannot drift apart: the page is paper, the product is a screen layer sitting
+   on top of it, and ultramarine is the only saturated colour in the system.
 
-html {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
-}
+   What is NOT in the landing system, and only exists here, is the chart series
+   palette. Charts are the one thing this surface has that the site does not.
+   --------------------------------------------------------------------------- */
 
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  /* 60% of the design: the warm ground. Two very low-opacity peach pools sit
-     in opposite corners so the page has depth without any card needing a
-     gradient of its own. Fixed, so they do not travel while scrolling. */
-  background-color: #F7F4F0;
-  background-image:
-    radial-gradient(60rem 40rem at 8% -10%, rgba(226,137,74,0.10), transparent 60%),
-    radial-gradient(50rem 36rem at 100% 4%, rgba(226,137,74,0.07), transparent 62%);
-  background-attachment: fixed;
-  background-repeat: no-repeat;
-  overflow-x: hidden;
-  max-width: 100vw;
-}
+@theme {
+  --color-paper: #ffffff;
+  --color-paper-deep: #f4f4f6;
+  --color-ink: #0e0e0c;
+  --color-overlay: #1b2ed6;
+  --color-overlay-tint: #e6e8fb;
+  --color-signal: #ff4a1c;
+  --color-rule: #d8d8dd;
+  --color-muted: #6e6e78;
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.14); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.24); }
+  /* Status. Reserved — never reused as a chart series. Both always ship with a
+     word beside them, because green/red is the one pair that collapses under
+     deuteranopia and colour alone would not survive it. */
+  --color-good: #16794a;
+  --color-bad: #b3261e;
 
-/* ── Keyframes ── */
-@keyframes fadeSlideUp {
-  from { opacity: 0; transform: translateY(22px); }
-  to   { opacity: 1; transform: translateY(0);    }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
+  /* Chart series, in fixed order. Validated against the paper surface for the
+     lightness band, chroma floor, adjacent-pair CVD separation, normal-vision
+     separation and contrast. Assign by position, never cycle, never reorder:
+     slot 3 and slot 5 are only safe because the fixed order keeps them apart. */
+  --color-series-1: #1b2ed6;
+  --color-series-2: #ff4a1c;
+  --color-series-3: #00897d;
+  --color-series-4: #a8801f;
+  --color-series-5: #b0407a;
+  --color-series-6: #8b7ae8;
 
-/* ── Responsive grids ──
-   min-width:0 is critical — without it CSS Grid items default
-   to min-width:auto which lets Recharts SVGs blow past the grid cell. */
-.stats-grid {
-  /* uniform gutter shared with .charts-grid so columns align across rows */
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
-}
-.stats-grid > * { min-width: 0; }
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", monospace;
 
-.charts-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-.charts-grid > * { min-width: 0; }
+  /* Display sizes are fluid; body sizes are not, so figures stay readable. */
+  --text-mega: clamp(2.5rem, 6vw, 4.5rem);
+  --text-hed: clamp(1.75rem, 3.4vw, 2.75rem);
+  --text-sub: clamp(1.25rem, 2.2vw, 1.625rem);
+  /* The live figure only. Larger than --text-mega on purpose: it is the one
+     number the page is built around, and it has a panel to fill. */
+  --text-lede: clamp(4rem, 9vw, 7rem);
 
-@media (max-width: 1200px) {
-  .stats-grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 900px) {
-  .stats-grid  { grid-template-columns: repeat(2, 1fr); }
-  .charts-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 480px) {
-  .stats-grid { grid-template-columns: 1fr; }
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Softened geometry. Nothing on the page is a hard-cornered box. */
+  --radius-sm: 0.625rem;
+  --radius-card: 1.375rem;
+  --radius-lg: 1.75rem;
+  --radius-pill: 9999px;
 }
 
-/* ── Welcome heading responsive ── */
-.welcome-heading {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: 58px;
-  color: #0D0D0D;
-  letter-spacing: -0.025em;
-  line-height: 1;
-}
-@media (max-width: 768px) { .welcome-heading { font-size: 38px; } }
-@media (max-width: 480px) { .welcome-heading { font-size: 30px; } }
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-/* ── Header "Admin" tag — hide on tight screens ── */
-.header-tag {
-  font-size: 11px;
-  color: rgba(0,0,0,0.3);
-  font-family: 'Inter', sans-serif;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-left: 10px;
-}
-@media (max-width: 480px) { .header-tag { display: none; } }
+  body {
+    background-color: var(--color-paper-deep);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
 
-/* ── Table scroll ── */
-.table-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
+  /* WONK and SOFT are what stop Fraunces reading as a default serif. */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    font-variation-settings: "SOFT" 0, "WONK" 1, "opsz" 144;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.04;
+    text-wrap: balance;
+  }
 
-/* ── Card lift on hover ── */
-.card-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.card-lift:hover {
-  transform: translateY(-2px);
-  border-color: rgba(23,20,17,0.12) !important;
-  box-shadow:
-    0 1px 2px rgba(23,20,17,0.05),
-    0 18px 32px -16px rgba(23,20,17,0.20) !important;
-}
-/* Respect users who have asked the OS for less motion. */
-@media (prefers-reduced-motion: reduce) {
-  .card-lift, .card-lift:hover { transition: none; transform: none; }
-  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
-}
+  ::selection {
+    background: var(--color-overlay);
+    color: var(--color-paper);
+  }
 
-/* ── Input ── */
-.admin-input {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.admin-input:focus {
-  outline: none;
-  border-color: rgba(0,0,0,0.32) !important;
-  box-shadow: 0 0 0 4px rgba(0,0,0,0.05);
+  :focus-visible {
+    outline: 2px solid var(--color-overlay);
+    outline-offset: 3px;
+    border-radius: 1px;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-ink) 16%, transparent);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-ink) 28%, transparent);
+  }
 }
 
-/* ── Primary button (black) ── */
-.btn-black {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  cursor: pointer;
-}
-.btn-black:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(0,0,0,0.22);
-}
-.btn-black:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+@layer components {
+  /* The signature surface, straight from the site: a screen layer over the
+     page — tinted, blurred, hairline-edged. Used for exactly two things here,
+     the live figure and the send confirmation, because both are the product
+     talking rather than the ledger reporting. */
+  .overlay-panel {
+    position: relative;
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--color-overlay) 4%, #ffffff 96%);
+    border: 1px solid color-mix(in srgb, var(--color-overlay) 14%, transparent);
+    box-shadow:
+      0 2px 6px -2px color-mix(in srgb, var(--color-ink) 8%, transparent),
+      0 24px 60px -28px color-mix(in srgb, var(--color-ink) 40%, transparent);
+    backdrop-filter: blur(12px) saturate(1.15);
+    overflow: hidden;
+  }
 
-/* ── Ghost / outline buttons ── */
-.btn-ghost {
-  transition: background 0.15s ease;
-  cursor: pointer;
+  /* The one surface shape used everywhere a group of content needs edges. */
+  .card {
+    border-radius: var(--radius-card);
+    background: var(--color-paper);
+    border: 1px solid color-mix(in srgb, var(--color-rule) 60%, transparent);
+    box-shadow: 0 1px 2px -1px color-mix(in srgb, var(--color-ink) 6%, transparent);
+    overflow: hidden;
+  }
+
+  /* Pill, because every button in this product is a pill. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-pill);
+    padding: 0.65rem 1.35rem;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 0.25s var(--ease-out-soft),
+      color 0.25s var(--ease-out-soft),
+      border-color 0.25s var(--ease-out-soft),
+      transform 0.25s var(--ease-out-soft);
+  }
+
+  .btn:active:not(:disabled) { transform: scale(0.975); }
+
+  .btn:disabled {
+    cursor: not-allowed;
+    background: color-mix(in srgb, var(--color-rule) 45%, transparent);
+    color: color-mix(in srgb, var(--color-muted) 70%, transparent);
+    border-color: transparent;
+  }
+
+  .btn-primary { background: var(--color-overlay); color: var(--color-paper); }
+  .btn-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-overlay) 84%, #000);
+  }
+
+  .btn-secondary {
+    background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    color: var(--color-ink);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-ink) 11%, transparent);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--color-muted);
+    border: 1px solid var(--color-rule);
+  }
+  .btn-outline:hover:not(:disabled) {
+    color: var(--color-ink);
+    border-color: color-mix(in srgb, var(--color-ink) 32%, transparent);
+  }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--color-bad);
+    border: 1px solid color-mix(in srgb, var(--color-bad) 30%, transparent);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-bad) 7%, transparent);
+  }
+
+  .btn-sm { padding: 0.4rem 0.9rem; font-size: 0.75rem; }
+
+  /* Eyebrows, column heads, data captions. The utility voice, and the device
+     this page repeats most: every section and every figure is introduced by
+     one of these before anything else is said. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  /* Every figure on the page. Tabular so columns of numbers line up. */
+  .figure {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  /* The live dot, from the site. Used once, on the one reading that is live. */
+  .live-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: var(--color-signal);
+    flex-shrink: 0;
+    animation: pulse-dot 2s var(--ease-out-soft) infinite;
+  }
+
+  /* Segmented control — page nav and the date window. */
+  .seg {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  }
+
+  .seg-item {
+    border-radius: var(--radius-pill);
+    padding: 0.35rem 0.85rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 0.2s var(--ease-out-soft),
+      color 0.2s var(--ease-out-soft);
+  }
+
+  .seg-item:hover { color: var(--color-ink); }
+
+  .seg-item[aria-selected="true"] {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 10%, transparent);
+  }
+
+  .field-input {
+    display: block;
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-rule);
+    background: var(--color-paper);
+    padding: 0.7rem 0.9rem;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    transition:
+      border-color 0.2s var(--ease-out-soft),
+      box-shadow 0.2s var(--ease-out-soft);
+  }
+
+  .field-input::placeholder {
+    color: color-mix(in srgb, var(--color-muted) 65%, transparent);
+  }
+
+  .field-input:focus {
+    outline: none;
+    border-color: var(--color-overlay);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-overlay) 12%, transparent);
+  }
+
+  /* Tables read as a ledger: hairline rules, mono column heads, no zebra. */
+  .ledger { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+
+  .ledger th {
+    padding: 0.7rem 1.25rem;
+    text-align: left;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .ledger td {
+    padding: 0.85rem 1.25rem;
+    white-space: nowrap;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-rule) 45%, transparent);
+  }
+
+  .ledger tbody tr:last-child td { border-bottom: 0; }
+
+  .ledger tbody tr {
+    transition: background-color 0.15s var(--ease-out-soft);
+  }
+
+  .ledger tbody tr:hover {
+    background: color-mix(in srgb, var(--color-overlay) 3%, transparent);
+  }
+
+  .ledger .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* One badge shape for plan, status and broadcast state. Hue is passed in as
+     --tone so the shape never has to be redefined per colour. */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: var(--radius-pill);
+    padding: 0.2rem 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--tone, var(--color-muted));
+    background: color-mix(in srgb, var(--tone, var(--color-muted)) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tone, var(--color-muted)) 22%, transparent);
+  }
+
+  .badge::before {
+    content: "";
+    width: 0.3125rem;
+    height: 0.3125rem;
+    border-radius: 9999px;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* Inline message. Tone is passed the same way badges do it. */
+  .notice {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--tone, var(--color-ink));
+    background: color-mix(in srgb, var(--tone, var(--color-ink)) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--tone, var(--color-ink)) 20%, transparent);
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-paper-deep) 25%,
+      color-mix(in srgb, var(--color-rule) 55%, var(--color-paper-deep)) 50%,
+      var(--color-paper-deep) 75%
+    );
+    background-size: 800px 100%;
+    animation: shimmer 1.6s infinite linear;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Entrance. Sections arrive in reading order via an inline --d delay. */
+  .rise {
+    animation: rise 0.6s var(--ease-out-soft) both;
+    animation-delay: var(--d, 0ms);
+  }
 }
-.btn-ghost:hover { background: rgba(0,0,0,0.055) !important; }
 
-/* ── Day tab ── */
-.day-tab {
-  transition: background 0.15s ease, color 0.15s ease;
-  cursor: pointer;
-  border: none;
-  white-space: nowrap;
-}
-.day-tab:hover { background: rgba(0,0,0,0.06) !important; }
-
-/* ── Table row hover ── */
-.trow { transition: background 0.12s ease; }
-.trow:hover { background: rgba(0,0,0,0.018) !important; }
-
-/* ── Header inner ──
-   Uses padding + flex-wrap so it grows naturally on mobile
-   instead of clipping at a fixed 66px height.              */
-.header-inner {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 14px 36px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-@media (max-width: 768px) { .header-inner { padding: 12px 18px; gap: 8px; } }
-@media (max-width: 480px) { .header-inner { padding: 10px 14px; gap: 6px; } }
-
-/* ── Header controls ── */
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+@keyframes pulse-dot {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-signal) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 0.4rem transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-/* ── Main content ── */
-.main-content {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 40px 36px 60px;
-}
-@media (max-width: 768px)  { .main-content { padding: 28px 18px 48px; } }
-@media (max-width: 480px)  { .main-content { padding: 20px 14px 40px; } }
-
-/* ── Skeleton shimmer ── */
 @keyframes shimmer {
-  0%   { background-position: -400px 0; }
-  100% { background-position:  400px 0; }
+  from { background-position: -400px 0; }
+  to   { background-position: 400px 0; }
 }
-.skeleton {
-  background: linear-gradient(90deg,
-    #EEECE9 25%, #E5E2DE 50%, #EEECE9 75%);
-  background-size: 800px 100%;
-  animation: shimmer 1.6s infinite linear;
-  border-radius: 8px;
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Anyone who has asked for less motion gets the finished state, immediately. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .rise { opacity: 1; transform: none; }
 }
