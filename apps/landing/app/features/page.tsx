@@ -70,7 +70,7 @@ export default function FeaturesIndex() {
           })}
         </div>
 
-        <div className="mt-14">
+        <div className="mt-14 text-center">
           <DownloadButton />
           <p className="mt-5 font-mono text-xs text-muted">
             Free for 30 minutes. No card. Windows 10 and later.

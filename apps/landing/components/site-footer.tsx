@@ -7,11 +7,14 @@ export function SiteFooter() {
     <footer className="mt-32 border-t border-rule">
       <div className="mx-auto max-w-[1240px] px-6 py-16 md:px-10">
         <div className="grid gap-12 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
-          <div>
+          <div className="text-center md:text-left">
             <Wordmark />
-            <p className="mt-4 max-w-[26ch] text-sm text-muted">{SITE.tagline}</p>
+            <p className="mx-auto mt-4 max-w-[26ch] text-sm text-muted md:mx-0">{SITE.tagline}</p>
           </div>
 
+          {/* The link columns are desktop only. On a phone the header menu
+              already carries the same routes, so repeating them at the bottom
+              of every page is just a long scroll past nothing. */}
           <FooterColumn title="Product" links={NAV} />
           <FooterColumn
             title="Features"
@@ -23,8 +26,10 @@ export function SiteFooter() {
           />
         </div>
 
-        <div className="mt-16 flex flex-col gap-3 border-t border-rule pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="label">© {new Date().getFullYear()} {SITE.domain}</p>
+        <div className="mt-12 flex flex-col items-center gap-3 border-t border-rule pt-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left md:mt-16">
+          <p className="label">
+            © {new Date().getFullYear()} {SITE.domain}
+          </p>
           <p className="label">Windows 10 and later</p>
         </div>
       </div>
@@ -40,7 +45,7 @@ function FooterColumn({
   links: ReadonlyArray<{ href: string; label: string }>;
 }) {
   return (
-    <div>
+    <div className="hidden md:block">
       <h2 className="label">{title}</h2>
       <ul className="mt-4 space-y-2.5">
         {links.map((link) => (
