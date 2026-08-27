@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Threads from './Threads';
+import { useAtmosphere } from '@/lib/use-atmosphere';
 
 // Ultramarine, as 0-1 RGB. Threads draws coloured lines on transparent, so this
 // is the thread colour itself rather than a background.
@@ -12,31 +12,19 @@ const ULTRAMARINE: [number, number, number] = [0.106, 0.18, 0.839];
  * content and above the paper, so it reads as texture in the paper rather than
  * as a graphic competing with the type.
  *
- * The home page hero paints an opaque background over this and runs its own
- * SideRays instead — one atmospheric effect per screen, never two at once.
+ * Desktop pointers only — see useAtmosphere for why. On everything else the
+ * page is plain white, which is what it looks like under the threads anyway.
  *
- * Threads already parks itself when the tab is hidden or the canvas scrolls out
- * of view. What it has no concept of is reduced motion, so amplitude drops to 0
- * there, which holds the threads straight and still instead of removing them.
+ * The home hero paints over this and runs its own rays instead: one
+ * atmospheric effect per screen, never two at once.
  */
 export function SiteBackdrop() {
-  const [still, setStill] = useState(false);
-
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    setStill(query.matches);
-
-    const onChange = (e: MediaQueryListEvent) => setStill(e.matches);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
+  const enabled = useAtmosphere();
+  if (!enabled) return null;
 
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 opacity-[0.22]"
-    >
-      <Threads color={ULTRAMARINE} amplitude={still ? 0 : 1.1} distance={0.35} />
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 opacity-[0.22]">
+      <Threads color={ULTRAMARINE} amplitude={1.1} distance={0.35} />
     </div>
   );
 }
