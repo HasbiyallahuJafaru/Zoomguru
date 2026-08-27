@@ -177,6 +177,56 @@ export async function touchSession(userId: string, sid: string): Promise<boolean
   }
 }
 
+// How recently a session must have been seen to count as online. The overlay
+// polls /auth/sessions every 60s while it is open and touchSession() stamps
+// `seen`, so an open app refreshes itself roughly once a minute. Five minutes
+// leaves room for a missed poll or a slow network without going stale.
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
+// How many people have the app open right now.
+//
+// This adds no tracking: the session cap already writes `seen` on every
+// authenticated request, and the overlay's 60s poll keeps it fresh for as long
+// as the app is running. So this is purely a read of data that production has
+// been collecting all along.
+//
+// Counts PEOPLE, not devices — a two-seat account with both computers running
+// is one user online.
+//
+// Redis down → 0, matching every other Redis path here. Worth knowing when
+// reading the number: a Redis blip shows as "nobody online", not as an error.
+export async function countOnline(): Promise<number> {
+  try {
+    const redis = getRedis();
+    const now = Date.now();
+    let online = 0;
+    let cursor = '0';
+
+    do {
+      // ponytail: SCAN walks the whole keyspace and then reads each hash, which
+      // is fine at this size but is O(keys). If the keyspace ever gets large,
+      // keep a single `online` sorted set of userId → seen and ZCOUNT it.
+      const [next, keys] = await redis.scan(cursor, 'MATCH', 'sess:*', 'COUNT', 200);
+      cursor = next;
+
+      for (const k of keys) {
+        const all = await redis.hgetall(k);
+        for (const raw of Object.values(all)) {
+          const v = parse(raw);
+          if (v && now - v.seen <= ONLINE_WINDOW_MS) {
+            online++;
+            break; // one user, however many of their devices are up
+          }
+        }
+      }
+    } while (cursor !== '0');
+
+    return online;
+  } catch {
+    return 0;
+  }
+}
+
 export async function revokeSession(userId: string, sid: string): Promise<void> {
   try {
     await getRedis().hdel(key(userId), sid);

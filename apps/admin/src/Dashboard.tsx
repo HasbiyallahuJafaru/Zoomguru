@@ -414,11 +414,12 @@ export default function Dashboard({ adminKey, onLogout }: Props) {
             ))
           ) : (
             <>
-              <StatCard label="Total Users"    value={data.stats.total_users}           color={ACCENT.blue}   delay={0}   />
-              <StatCard label="Downloads"       value={data.stats.total_downloads}       color={ACCENT.gray}   delay={55}  />
-              <StatCard label="Active Subs"     value={data.stats.active_subscriptions}  color={ACCENT.purple} sub="All plans, currently paid" delay={110} />
-              <StatCard label="Yearly Subs"     value={data.stats.yearly_subscriptions}  color={ACCENT.orange} sub="₦450k/year"  delay={165} />
-              <StatCard label="AI Sessions"     value={data.stats.total_ai_sessions}     color={ACCENT.gray}   delay={220} />
+              <StatCard label="Online Now"      value={data.stats.online_now}            color={ACCENT.green}  sub="App open in the last 5 min" delay={0} />
+              <StatCard label="Total Users"    value={data.stats.total_users}           color={ACCENT.blue}   delay={55}  />
+              <StatCard label="Downloads"       value={data.stats.total_downloads}       color={ACCENT.gray}   delay={110}  />
+              <StatCard label="Active Subs"     value={data.stats.active_subscriptions}  color={ACCENT.purple} sub="All plans, currently paid" delay={165} />
+              <StatCard label="Yearly Subs"     value={data.stats.yearly_subscriptions}  color={ACCENT.orange} sub="₦450k/year"  delay={220} />
+              <StatCard label="AI Sessions"     value={data.stats.total_ai_sessions}     color={ACCENT.gray}   delay={275} />
             </>
           )}
         </div>

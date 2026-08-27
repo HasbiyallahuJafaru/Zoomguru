@@ -19,12 +19,23 @@ const fakeRedis = {
   hlen: async (k) => hash(k).size,
   pexpire: async () => 1,
   del: async (k) => (store.delete(k) ? 1 : 0),
+  // Deliberately pages: returns one key at a time so countOnline's cursor loop
+  // is exercised, not short-circuited by a single all-in-one reply.
+  scan: async (cursor, _m, pattern, _c, _n) => {
+    const re = new RegExp('^' + pattern.replace('*', '.*') + '$');
+    const keys = [...store.keys()].filter((k) => re.test(k));
+    const i = Number(cursor);
+    if (i >= keys.length) return ['0', []];
+    const next = i + 1;
+    return [next >= keys.length ? '0' : String(next), [keys[i]]];
+  },
 };
 
 require('../dist/redis/redis.js').getRedis = () => fakeRedis;
 
 const {
   addSession, listSessions, touchSession, revokeSession, revokeAllSessions, deviceLabel, seatsForPlan,
+  countOnline,
 } = require('../dist/auth/sessions.js');
 
 const uid = 'selfcheck-user';
@@ -140,5 +151,52 @@ assert.ok(downgraded, 'a downgraded account must still be able to log in');
 assert.deepEqual((await listSessions(solo)).map((s) => s.sid), [downgraded], 'both older sessions must go');
 
 await revokeAllSessions(solo);
+
+// ── countOnline: who has the app open right now ─────────────────────────────
+// Reads the `seen` stamp the cap already maintains, so the thing under test is
+// the window and the per-user de-duplication, not any new tracking.
+{
+  store.clear();
+  const t = Date.now();
+  const MIN = 60 * 1000;
+  const sess = (seenAgo, atAgo = 0) =>
+    JSON.stringify({ ip: '10.0.0.1', device: 'Windows', at: t - atAgo, seen: t - seenAgo });
+
+  assert.equal(await countOnline(), 0, 'no sessions means nobody online');
+
+  // Two devices, one person — must count as ONE user online.
+  await fakeRedis.hset('sess:u1', 'a', sess(10 * 1000));
+  await fakeRedis.hset('sess:u1', 'b', sess(30 * 1000));
+  assert.equal(await countOnline(), 1, 'two devices of one user is one user online');
+
+  // A second person, freshly seen.
+  await fakeRedis.hset('sess:u2', 'a', sess(2 * MIN));
+  assert.equal(await countOnline(), 2, 'a second active user must be counted');
+
+  // Signed in but idle past the window — has a valid token, is not "online".
+  await fakeRedis.hset('sess:u3', 'a', sess(20 * MIN));
+  assert.equal(await countOnline(), 2, 'a session idle past the window is not online');
+
+  // One stale device does not hide a user whose other device is live.
+  await fakeRedis.hset('sess:u3', 'b', sess(5 * 1000));
+  assert.equal(await countOnline(), 3, 'a live device must count even when a sibling is stale');
+
+  // Corrupt entries must not throw or inflate the count.
+  await fakeRedis.hset('sess:u4', 'a', 'not json');
+  assert.equal(await countOnline(), 3, 'unparseable sessions must be ignored, not counted');
+
+  // Unrelated keys in the same keyspace must not be scanned in.
+  store.set('rl:u1', new Map([['x', '1']]));
+  store.set('dcc:abc', new Map([['y', '2']]));
+  assert.equal(await countOnline(), 3, 'only sess:* keys may be counted');
+}
+
+// Redis down must read as 0 rather than throwing into the admin endpoint.
+{
+  const boom = new Proxy({}, { get: () => async () => { throw new Error('redis down'); } });
+  require('../dist/redis/redis.js').getRedis = () => boom;
+  assert.equal(await countOnline(), 0, 'redis down must return 0, not throw');
+  require('../dist/redis/redis.js').getRedis = () => fakeRedis;
+}
 
 console.log('check-sessions: OK');

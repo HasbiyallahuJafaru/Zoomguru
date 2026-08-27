@@ -325,7 +325,13 @@ Referral
     POST /referral/payout/request
 
 Admin  (requires X-Admin-Key header)
-    GET    /admin/stats
+    GET    /admin/stats          includes online_now — how many people have the
+                                 app open, counted from the session cap's
+                                 existing `seen` stamp (no separate tracking).
+                                 The overlay polls /auth/sessions every 60s, so
+                                 an open app refreshes itself; the window is
+                                 5 min. Redis down reads as 0, not an error.
+                                 Self-check: node scripts/check-sessions.mjs
     GET    /admin/signups?days=30
     GET    /admin/payments?days=30
     GET    /admin/usage?days=30

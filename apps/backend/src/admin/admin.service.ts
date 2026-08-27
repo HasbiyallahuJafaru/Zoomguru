@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { getDB } from '../database/db';
 import { getRedis } from '../redis/redis';
 import { apiUsageKey, apiBillingFailKey } from '../ai/ai.service';
+import { countOnline } from '../auth/sessions';
 
 // Keep in sync with apps/admin/src/types.ts
 export interface StatsResult {
+  online_now: number;
   total_users: number;
   total_downloads: number;
   active_subscriptions: number;
@@ -111,7 +113,7 @@ const subActiveSql = (alias = ''): string => {
 export class AdminService {
   async getStats(): Promise<StatsResult> {
     const pool = getDB();
-    const [users, downloads, monthlySubs, lifetimeSubs, sessions] = await Promise.all([
+    const [users, downloads, monthlySubs, lifetimeSubs, sessions, online] = await Promise.all([
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM users'),
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM downloads'),
       // Every active plan, not just monthly. This counted `plan = 'monthly'`
@@ -124,8 +126,12 @@ export class AdminService {
         `SELECT COUNT(*)::int AS count FROM subscriptions WHERE ${subActiveSql()} AND plan = 'yearly'`,
       ),
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM ai_sessions'),
+      // Redis, not Postgres: who is online is live state the session cap
+      // already keeps. Nothing writes it for this — see countOnline().
+      countOnline(),
     ]);
     return {
+      online_now: online,
       total_users: users.rows[0].count,
       total_downloads: downloads.rows[0].count,
       active_subscriptions: monthlySubs.rows[0].count,

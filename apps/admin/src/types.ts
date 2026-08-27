@@ -1,5 +1,6 @@
 // Source of truth — keep in sync with apps/backend/src/admin/admin.service.ts
 export interface StatsResult {
+  online_now: number;
   total_users: number;
   total_downloads: number;
   active_subscriptions: number;
