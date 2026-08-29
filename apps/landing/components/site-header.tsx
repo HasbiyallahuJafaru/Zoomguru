@@ -20,18 +20,23 @@ export function SiteHeader() {
     };
   }, [open]);
 
+  // The header itself is only a positioner — the pill inside it is the surface,
+  // so the page scrolls visibly under it instead of meeting a hard edge.
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-rule/60 bg-paper/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-6 md:px-10">
+    <header className="fixed inset-x-0 top-0 z-50 px-4 pt-3 md:px-6 md:pt-4">
+      <div className="mx-auto flex h-14 max-w-[1180px] items-center justify-between rounded-full border border-rule/40 bg-paper/45 px-5 shadow-[0_10px_30px_-20px_rgba(14,14,12,0.3)] backdrop-blur-md backdrop-saturate-150 md:px-7">
         <Wordmark />
 
-        <nav className="hidden items-center gap-9 md:flex">
+        <nav className="hidden items-center gap-8 md:flex">
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
+              // Not text-muted: the pill is transparent enough that these sit on
+              // the hero painting, where muted falls to ~1.6:1. Ink holds on both
+              // the photograph and the white pages below it.
               className={`font-mono text-[0.6875rem] uppercase tracking-[0.14em] transition-colors hover:text-ink ${
-                pathname.startsWith(item.href) ? 'text-ink' : 'text-muted'
+                pathname.startsWith(item.href) ? 'text-ink' : 'text-ink/80'
               }`}
             >
               {item.label}
@@ -69,13 +74,13 @@ export function SiteHeader() {
       {open && (
         <nav
           id="mobile-nav"
-          className="border-t border-rule bg-paper px-6 pb-8 pt-4 md:hidden"
+          className="mt-2 rounded-card border border-rule/60 bg-paper/90 px-6 pb-8 pt-2 shadow-[0_18px_44px_-24px_rgba(14,14,12,0.45)] backdrop-blur-xl md:hidden"
         >
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="block border-b border-rule py-4 font-display text-2xl text-ink"
+              className="block border-b border-rule/60 py-4 font-display text-2xl text-ink last:border-b-0"
             >
               {item.label}
             </Link>

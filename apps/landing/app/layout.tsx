@@ -83,7 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           <SiteHeader />
           <div className="relative z-10">
-            <main id="main" className="pt-16">
+            <main id="main" className="pt-20">
               {children}
             </main>
             <SiteFooter />
