@@ -25,7 +25,12 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false, trustProxy: true, bodyLimit: 15_728_640 }),
+    // 4 MB. The only large body is a screenshot at 1280x720: measured base64 is
+    // ~50-90 KB as JPEG and ~80-200 KB as PNG from an old client, so 4 MB is a
+    // wide safety margin over anything the app can actually produce. 15 MB let
+    // one request buffer far more than that, and Fastify buffers the whole body
+    // before the 10 MB guard in ai.controller.ts even runs.
+    new FastifyAdapter({ logger: false, trustProxy: true, bodyLimit: 4_194_304 }),
     { rawBody: true },
   );
 

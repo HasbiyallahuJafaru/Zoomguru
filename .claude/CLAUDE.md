@@ -25,8 +25,7 @@ Beyond the core flows, the product now also ships: AI Interviewer
 (mock interview + scoring), Meeting/Doc Copilot, a referral system
 with Paystack payouts, email broadcasts, and free trials.
 
-Next priorities: brute-force protection on auth, JWT migration
-from localStorage to electron-store.
+Next priority: brute-force protection on auth.
 
 ---
 
@@ -39,7 +38,7 @@ Backend    → Railway
              URL:      https://zoomguru-backend-production.up.railway.app
              Region:   EU West
              Builder:  Railpack (no Dockerfile)
-             Replicas: 1  ← MUST STAY 1, see "Cron Jobs" below
+             Replicas: 1  ← raisable now, see "Cron Jobs" below
 
 Redis      → Railway managed Redis 8.2 (same project, EU West)
              REDIS_URL is a Railway *reference*: ${{Redis.REDIS_URL}}
@@ -51,7 +50,16 @@ Database   → Supabase PostgreSQL 17  (NOT Neon — see warning below)
              Connected via the Supavisor pooler
              (aws-0-eu-west-1.pooler.supabase.com)
 
-Downloads  → Cloudflare R2
+Downloads  → Firebase Storage
+             Bucket: zoomguru-downloads.firebasestorage.app
+             Object: ZoomGuru-Setup.exe  (fixed name, overwritten in place)
+             Vars: APP_DOWNLOAD_LINK_WINDOWS / APP_DOWNLOAD_LINK_MAC. Renamed from
+             R2_DOWNLOAD_URL_* — that name survived two host moves and
+             misled a reader each time. The old names are still read as a
+             fallback; drop it once Railway no longer sets them.
+             APP_DOWNLOAD_LINK_MAC is UNSET, so mac downloads 503.
+             electron-builder also has a GitHub publish provider; that
+             release asset is NOT what the download button serves.
 ```
 
 > **The database is Supabase, not Neon.** Earlier revisions of these docs
@@ -76,7 +84,7 @@ FLOW 1: Window
 
 FLOW 2: Auth
     Register (email + name + password) or login
-    POST /auth/login → JWT → stored in localStorage
+    POST /auth/login → JWT → stored in electron-store (via IPC)
     Dashboard shows subscription status
     ✅ Gate: can register, log in, and see dashboard
 
@@ -145,8 +153,6 @@ Electron App
 Backend (NestJS on Railway — port 3000 locally)
     ├── NestJS + Fastify adapter (trustProxy: true)
     ├── pg (node-postgres Pool) — the ONLY database driver in use
-    │     @neondatabase/serverless is in package.json but never
-    │     imported. Dead dependency, safe to remove.
     ├── ioredis (Redis — rate limiting, session log queue)
     ├── @nestjs/jwt (3-hour JWT, no refresh tokens — users re-login every 3h)
     ├── bcryptjs (password hashing)
@@ -215,25 +221,31 @@ Database
 
 ---
 
-## Cron Jobs — DO NOT SCALE PAST 1 REPLICA
+## Cron Jobs — safe on multiple replicas
 
-`apps/backend/src/cron/cron.service.ts` defines five `@Cron` jobs:
+`apps/backend/src/cron/cron.service.ts` defines six `@Cron` jobs:
 
 ```
-sendNoPaymentFollowUps   0 11 * * *   (UTC)
-sendExpiryReminders      0 9  * * *   (UTC)
-resetWeeklyUsage         0 1  * * *   (UTC)
-resetMonthlyUsage        0 2  * * *   (UTC)
-flushSessionLogQueue     */30 * * * * *  (every 30s)
+expireLapsedSubscriptions 15 0 * * *   (UTC)   idempotent WHERE
+sendNoPaymentFollowUps    0 11 * * *   (UTC)   advisory lock
+sendExpiryReminders       0 9  * * *   (UTC)   advisory lock
+resetWeeklyUsage          0 1  * * *   (UTC)   idempotent overwrite
+resetMonthlyUsage         0 2  * * *   (UTC)   idempotent overwrite
+flushSessionLogQueue      */30 * * * * *       atomic RPOP
 ```
 
-**None of them take a distributed lock or do leader election.** If the
-service runs more than one replica, every replica fires every job:
-duplicate expiry and follow-up emails to real customers, plus an
-`lrange`/`ltrim` race in `flushSessionLogQueue`.
+Every job is now safe to fire on every replica. Only the two that email real
+customers take a lock — `withLock()` in cron.service.ts, a session-level
+`pg_try_advisory_lock`, where the replica that loses the race skips the tick.
+The other four are idempotent by construction and deliberately take no lock:
+the expiry job's `WHERE` excludes rows it has already updated, the two usage
+resets overwrite to the same zeroes, and `flushSessionLogQueue` pops with
+`RPOP key count` (Redis 6.2+), which is atomic — that is its lock.
 
-Keep Railway at 1 replica. To scale horizontally, add a Postgres advisory
-lock around each job first.
+Self-check: `npm run build && node scripts/check-cron.mjs`
+
+Railway is still set to 1 replica; nothing in the code requires it any more.
+Raise it in the dashboard when load justifies it.
 
 ---
 
@@ -241,7 +253,7 @@ lock around each job first.
 
 ```
 App opens
-  └─ localStorage has token? → Dashboard
+  └─ electron-store has token? → Dashboard
   └─ No token → Login
        └─ Sign up → Register
        └─ Forgot password → email reset flow
@@ -596,8 +608,8 @@ APP_URL=               # PUBLIC BACKEND URL — used in password reset links.
 CHECKOUT_URL=          # Hosted checkout origin (defaults to https://zoomguru.xyz)
 ADMIN_CORS_ORIGIN=     # Admin dashboard origin
 ELECTRON_ORIGIN=       # app://zoomguru in production
-R2_DOWNLOAD_URL_WINDOWS=
-R2_DOWNLOAD_URL_MAC=
+APP_DOWNLOAD_LINK_WINDOWS=  # Firebase Storage URL (old name R2_DOWNLOAD_URL_* still read)
+APP_DOWNLOAD_LINK_MAC=      # unset in production — mac downloads 503
 PORT=                  # Defaults to 3000
 NODE_ENV=
 
@@ -676,6 +688,11 @@ Two traps, both already handled in `.env.local`:
 - Local Postgres runs `ssl=off`. `db.ts` skips SSL for loopback hosts only;
   every hosted URL still gets SSL.
 
+Redis 3.0 is too old for `RPOP key count` (6.2+), which flushSessionLogQueue
+uses — on the dev machine that job logs an error every 30s and the queue never
+drains. Harmless locally; production Redis is 8.2. Upgrade the local Redis if
+you need session logs to land.
+
 Reset local state between runs with
 `"C:\Program Files\Redis\redis-cli.exe" FLUSHALL`.
 
@@ -687,11 +704,8 @@ Reset local state between runs with
 OPEN — implement before scaling:
     1. No brute-force protection on /auth/login and /auth/register
        (Redis is available — add rate limit by IP)
-    2. JWT stored in localStorage (renderer)
-       (should move to electron-store via IPC)
-    3. Device fingerprint is client-generated and forgeable
+    2. Device fingerprint is client-generated and forgeable
        (architectural — needs server-side challenge post-launch)
-    4. Cron jobs have no distributed lock (see "Cron Jobs" above)
 ```
 
 ---
@@ -703,7 +717,6 @@ OPEN — implement before scaling:
     ├── Wake word (Porcupine) — hotkeys only
     ├── Auto-updater  ← note: this is why host changes are expensive
     ├── Brute-force protection on auth endpoints
-    ├── JWT in electron-store (currently localStorage)
     ├── Server-side device fingerprint verification
     ├── Cloudflare protection
     └── DB-enforced usage caps (the `usage` table tracks, but the

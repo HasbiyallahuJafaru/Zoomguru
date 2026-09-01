@@ -37,6 +37,16 @@ function buildSystemPrompt(cvText?: string, jdText?: string): string {
   return prompt;
 }
 
+// The client sends a screenshot as bare base64 with no content type. It used to
+// always be PNG, so every vision call hardcoded image/png; the client now sends
+// JPEG, which is 5-10x smaller. Sniffing the base64 prefix serves both, so an
+// already-installed app keeps working — there is no auto-updater, so old
+// clients are around indefinitely. base64 of JPEG's FF D8 FF header is "/9j/";
+// PNG's 89 50 4E 47 is "iVBOR".
+export function imageMime(base64: string): 'image/jpeg' | 'image/png' {
+  return base64.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+}
+
 function buildVisionPrompt(cvText?: string, jdText?: string, priorContext?: string[]): string {
   let prompt: string;
   if (!cvText && !jdText) {
@@ -620,7 +630,7 @@ export class AiService {
               content: [
                 {
                   type: 'image_url',
-                  image_url: { url: `data:image/png;base64,${imageBase64}` },
+                  image_url: { url: `data:${imageMime(imageBase64)};base64,${imageBase64}` },
                 },
                 { type: 'text', text: buildVisionPrompt(cvText, jdText, priorContext) },
               ],
@@ -743,7 +753,7 @@ export class AiService {
             {
               role: 'user',
               content: [
-                { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}`, detail: 'high' } },
+                { type: 'image_url', image_url: { url: `data:${imageMime(imageBase64)};base64,${imageBase64}`, detail: 'high' } },
                 { type: 'text', text: buildVisionPrompt(cvText, jdText, priorContext) },
               ],
             },
@@ -900,7 +910,7 @@ export class AiService {
         parts: [
           {
             inlineData: {
-              mimeType: 'image/png',
+              mimeType: imageMime(image),
               data: image,
             },
           },
@@ -919,7 +929,7 @@ export class AiService {
           {
             role: 'user',
             content: [
-              { type: 'image_url', image_url: { url: `data:image/png;base64,${image}` } },
+              { type: 'image_url', image_url: { url: `data:${imageMime(image)};base64,${image}` } },
               { type: 'text', text: visionPrompt },
             ],
           },

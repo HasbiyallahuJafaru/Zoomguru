@@ -63,7 +63,8 @@ Encode the rule as `const evictOldest = seats === 1;` so it stays in one place.
   build. Nothing references them; the build works without a `.env`.
 - `apps/backend/migrations/add_device_keys.sql` says "Run this against Neon".
   The database is **Supabase**. That file is stale — do not use it as truth.
-- `R2_DOWNLOAD_URL_WINDOWS` sounds like Cloudflare but actually holds a GitHub
+- `APP_DOWNLOAD_LINK_WINDOWS` (formerly `R2_DOWNLOAD_URL_WINDOWS`) holds a Firebase
+  Storage URL. It has also, at points, held a GitHub
   release URL. Irrelevant here, but it has misled people twice.
 
 ---

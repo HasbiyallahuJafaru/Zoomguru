@@ -128,4 +128,19 @@ assert.equal(touched, false, 'a skipped tier must not write to the response');
   assert.equal(calls, 1, 'one key must be tried exactly once, not looped');
 }
 
+// Screenshot format is sniffed, not assumed: an old client still sends PNG and
+// a new one sends JPEG, and all four vision providers are told which it is.
+// Getting this wrong breaks every screenshot, so it is worth four asserts.
+{
+  const { imageMime } = require('../dist/ai/ai.service.js');
+  // Real headers: JPEG is FF D8 FF, PNG is 89 50 4E 47.
+  const jpegB64 = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]).toString('base64');
+  const pngB64 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]).toString('base64');
+  assert.equal(imageMime(jpegB64), 'image/jpeg', 'JPEG base64 starts /9j/');
+  assert.equal(imageMime(pngB64), 'image/png', 'PNG base64 starts iVBOR');
+  assert.equal(jpegB64.slice(0, 4), '/9j/', 'the prefix the sniff keys on');
+  // Anything unrecognised falls back to PNG, which is what old clients send.
+  assert.equal(imageMime(''), 'image/png', 'empty falls back to PNG');
+}
+
 console.log('check-ai-fallback: OK');

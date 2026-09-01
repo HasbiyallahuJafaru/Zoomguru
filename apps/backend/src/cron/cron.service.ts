@@ -24,6 +24,27 @@ interface UsageResetRow {
   created_at: string;
 }
 
+// Daily jobs that email real customers must run once across all replicas.
+// pg_try_advisory_lock returns false immediately when another replica holds the
+// key, so the loser just skips this tick — no leader election, no new table, no
+// Redlock. Session-level (not _xact_) because these jobs are not in a
+// transaction, which is why the unlock has to sit in a finally: a leaked
+// session lock lives until the pooled connection is reset, and that can be a
+// long time.
+const LOCK_FOLLOW_UPS = 1;
+const LOCK_EXPIRY_REMINDERS = 2;
+
+async function withLock(key: number, fn: () => Promise<void>): Promise<void> {
+  const pool = getDB();
+  const { rows } = await pool.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [key]);
+  if (!rows[0].ok) return;
+  try {
+    await fn();
+  } finally {
+    await pool.query('SELECT pg_advisory_unlock($1)', [key]);
+  }
+}
+
 @Injectable()
 export class CronService {
   constructor(
@@ -43,7 +64,7 @@ export class CronService {
   // know the rule. The read-time checks in subscription.service.ts stay as
   // defence in depth: this job can fail, and access must not depend on it.
   //
-  // Safe to run concurrently despite the crons having no distributed lock —
+  // Safe to run concurrently without an advisory lock —
   // the WHERE clause excludes rows it has already updated, so a second run is
   // a no-op rather than a double-charge or a duplicate email.
   @Cron('15 0 * * *', { timeZone: 'UTC' })
@@ -67,53 +88,57 @@ export class CronService {
 
   @Cron('0 11 * * *', { timeZone: 'UTC' })
   async sendNoPaymentFollowUps(): Promise<void> {
-    const pool = getDB();
-    try {
-      const result = await pool.query<FollowUpRow>(`
-        SELECT u.email, u.name
-        FROM users u
-        LEFT JOIN subscriptions s ON s.user_id = u.id
-        WHERE u.created_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours'
-          AND (s.status IS NULL OR s.status NOT IN ('active'))
-      `);
-      for (const row of result.rows) {
-        void this.emailService.sendFollowUp(row.email, row.name ?? 'there');
+    await withLock(LOCK_FOLLOW_UPS, async () => {
+      const pool = getDB();
+      try {
+        const result = await pool.query<FollowUpRow>(`
+          SELECT u.email, u.name
+          FROM users u
+          LEFT JOIN subscriptions s ON s.user_id = u.id
+          WHERE u.created_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours'
+            AND (s.status IS NULL OR s.status NOT IN ('active'))
+        `);
+        for (const row of result.rows) {
+          void this.emailService.sendFollowUp(row.email, row.name ?? 'there');
+        }
+      } catch (err) {
+        console.error('[CronService] sendNoPaymentFollowUps failed:', err);
       }
-    } catch (err) {
-      console.error('[CronService] sendNoPaymentFollowUps failed:', err);
-    }
+    });
   }
 
   @Cron('0 9 * * *', { timeZone: 'UTC' })
   async sendExpiryReminders(): Promise<void> {
-    const pool = getDB();
-    try {
-      const result = await pool.query<ReminderRow>(`
-        SELECT u.email, u.name, s.current_period_end,
-               EXTRACT(DAY FROM (s.current_period_end - NOW()))::int AS days_remaining
-        FROM subscriptions s
-        JOIN users u ON u.id = s.user_id
-        WHERE s.status = 'active'
-          AND s.plan = 'monthly'
-          AND s.current_period_end IS NOT NULL
-          AND s.current_period_end > NOW()
-          AND s.current_period_end <= NOW() + INTERVAL '3 days 1 hour'
-      `);
+    await withLock(LOCK_EXPIRY_REMINDERS, async () => {
+      const pool = getDB();
+      try {
+        const result = await pool.query<ReminderRow>(`
+          SELECT u.email, u.name, s.current_period_end,
+                 EXTRACT(DAY FROM (s.current_period_end - NOW()))::int AS days_remaining
+          FROM subscriptions s
+          JOIN users u ON u.id = s.user_id
+          WHERE s.status = 'active'
+            AND s.plan = 'monthly'
+            AND s.current_period_end IS NOT NULL
+            AND s.current_period_end > NOW()
+            AND s.current_period_end <= NOW() + INTERVAL '3 days 1 hour'
+        `);
 
-      for (const row of result.rows) {
-        if (row.days_remaining == null) continue;
-        const days = row.days_remaining;
-        const name = row.name ?? 'there';
-        const periodEnd = row.current_period_end;
-        if (days >= 3) {
-          void this.emailService.sendExpiryReminder(row.email, name, 3, periodEnd);
-        } else {
-          void this.emailService.sendExpiryReminder(row.email, name, 1, periodEnd);
+        for (const row of result.rows) {
+          if (row.days_remaining == null) continue;
+          const days = row.days_remaining;
+          const name = row.name ?? 'there';
+          const periodEnd = row.current_period_end;
+          if (days >= 3) {
+            void this.emailService.sendExpiryReminder(row.email, name, 3, periodEnd);
+          } else {
+            void this.emailService.sendExpiryReminder(row.email, name, 1, periodEnd);
+          }
         }
+      } catch (err) {
+        console.error('[CronService] sendExpiryReminders failed:', err);
       }
-    } catch (err) {
-      console.error('[CronService] sendExpiryReminders failed:', err);
-    }
+    });
   }
 
   // Resets weekly usage for users whose 7-day window has elapsed.
@@ -169,11 +194,18 @@ export class CronService {
   @Cron('*/30 * * * * *')
   async flushSessionLogQueue(): Promise<void> {
     const redis = getRedis();
-    const BATCH = 100;
+    // 100/tick was 3.3 writes/sec — slower than ~50 concurrent interviews
+    // produce, so the queue grew unbounded and analytics silently fell behind.
+    // 1000 is still one small INSERT.
+    const BATCH = 1000;
     try {
-      const entries = await redis.lrange('session_log_queue', -BATCH, -1);
-      if (entries.length === 0) return;
-      await redis.ltrim('session_log_queue', 0, -(entries.length + 1));
+      // Entries are lpushed to the head, so the oldest sit at the tail. rpop
+      // takes them and removes them in the same atomic step; the old
+      // lrange-then-ltrim pair could double-insert and then trim rows that were
+      // never written whenever two ticks overlapped. That atomicity is also why
+      // this job needs no advisory lock. Needs Redis 6.2+ for the count arg.
+      const entries = await redis.rpop('session_log_queue', BATCH);
+      if (!entries || entries.length === 0) return;
 
       type Entry = { userId: string; type: string; ts: number };
       const rows: Entry[] = [];
