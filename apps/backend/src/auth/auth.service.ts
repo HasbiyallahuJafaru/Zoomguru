@@ -86,7 +86,7 @@ export class AuthService {
       try {
         const result = await pool.query<UserRow>(
           `INSERT INTO users (email, name, password_hash, referral_code, referred_by_user_id)
-           VALUES ($1, $2, $3, $4, $5)
+           VALUES (lower($1), $2, $3, $4, $5)
            RETURNING id, email, name, username, password_hash`,
           [email, name, passwordHash, newReferralCode, referredByUserId],
         );
@@ -132,7 +132,7 @@ export class AuthService {
 
     const result = await pool.query<UserRow>(
       `(SELECT id, email, name, username, password_hash
-          FROM users WHERE email = $1 LIMIT 1)
+          FROM users WHERE email = lower($1) LIMIT 1)
        UNION ALL
        (SELECT id, email, name, username, password_hash
           FROM users WHERE username = $1 LIMIT 1)
@@ -187,11 +187,14 @@ export class AuthService {
     const pool = getDB();
 
     const userResult = await pool.query<{ id: string; name: string | null }>(
-      `SELECT id, name FROM users WHERE email = $1 LIMIT 1`,
+      `SELECT id, name FROM users WHERE email = lower($1) LIMIT 1`,
       [email],
     );
     const user = userResult.rows[0];
-    if (!user) return;
+    if (!user) {
+      console.warn('[AuthService] forgotPassword: no account matches that address');
+      return;
+    }
 
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(rawToken).digest('hex');
