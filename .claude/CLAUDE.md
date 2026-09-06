@@ -809,10 +809,26 @@ Reset local state between runs with
 ## Known Security Issues (Prioritised)
 
 ```
+DONE — auth endpoints ARE rate limited (this file said otherwise until
+2026-09-06; the code had shipped and the doc never caught up):
+
+    checkIpRateLimit() in auth.controller.ts, per IP, Redis INCR+EXPIRE
+        register   5 / 3600s
+        login     10 /  900s
+        forgot     3 /  300s
+    checkLoginRateLimit() in auth.service.ts, per IP
+        login     20 /  900s   ← UNREACHABLE, see below
+
 OPEN — implement before scaling:
-    1. No brute-force protection on /auth/login and /auth/register
-       (Redis is available — add rate limit by IP)
-    2. Device fingerprint is client-generated and forgeable
+    1. The two login limiters are redundant and the looser one is dead.
+       The controller rejects at 10/900s before the service's 20/900s can
+       ever fire, so checkLoginRateLimit() never runs. Delete one. Keep
+       whichever number you actually want; do not leave both.
+    2. Rate limiting is per IP ONLY, never per account. One attacker with
+       many IPs can still grind a single account, and each IP gets a fresh
+       10 attempts. If credential stuffing shows up, add a per-user counter
+       keyed on the account, not the caller.
+    3. Device fingerprint is client-generated and forgeable
        (architectural — needs server-side challenge post-launch)
 ```
 
@@ -824,7 +840,6 @@ OPEN — implement before scaling:
     ├── Google OAuth — email/password only for now
     ├── Wake word (Porcupine) — hotkeys only
     ├── Auto-updater  ← note: this is why host changes are expensive
-    ├── Brute-force protection on auth endpoints
     ├── Server-side device fingerprint verification
     ├── Cloudflare protection
     └── DB-enforced usage caps (the `usage` table tracks, but the
