@@ -16,7 +16,7 @@ import { getRedis } from '../redis/redis';
 // would truncate a real solution. The spoken cap lives in BASE_PROMPT_SUFFIX.
 const HUMAN_VOICE = `You are being read aloud, live, while someone waits. Talk like a person, not a document.
 
-Lead with the answer. No preamble, no restating the question, no "Great question", no summary at the end.
+Lead with the answer. No preamble, no restating the question, no "Great question", and do not close by recapping what you just said.
 Use contractions. Use the plain word: use, not utilise; help, not facilitate; so, not therefore; about, not regarding.
 Vary the rhythm. A short sentence lands.
 Be concrete — name the thing, the number, what actually happened. Abstractions sound generated.
