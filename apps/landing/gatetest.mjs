@@ -58,6 +58,16 @@ assert.ok(
   `gate is not vertically centred: ${JSON.stringify(box)}`,
 );
 
+// The action row sits centred on the card. Left-aligned it hangs off one edge
+// with dead space beside it, because the copy above it is left-aligned.
+const agree = await page.locator('dialog.gate a.btn-primary').boundingBox();
+const notNow = await page.locator('dialog.gate button', { hasText: 'Not now' }).boundingBox();
+const rowMid = (agree.x + notNow.x + notNow.width) / 2;
+assert.ok(
+  Math.abs(rowMid - (box.x + box.width / 2)) <= 2,
+  `action row is not centred on the card: row mid ${rowMid}, card mid ${box.x + box.width / 2}`,
+);
+
 await page.screenshot({ path: 'gate.png' });
 
 // Esc closes it — free with <dialog>, but assert it so a rewrite cannot lose it.

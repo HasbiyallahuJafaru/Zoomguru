@@ -69,7 +69,7 @@ function DownloadGate({
             .
           </p>
 
-          <div className="mt-7 flex flex-wrap items-center gap-3">
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
             <a
               href={href}
               className="btn btn-primary"
