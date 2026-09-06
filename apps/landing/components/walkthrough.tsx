@@ -1,16 +1,22 @@
+'use client';
+
 import Image from 'next/image';
-import { Reveal } from './reveal';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * Screen-by-screen tour of the actual app.
+ * Screen-by-screen tour of the actual app, one screen at a time.
  *
  * The images are real renders of the shipped components, captured by
  * apps/electron/src/shots.tsx — not mockups. Re-run that harness when a screen
  * changes, or these quietly start advertising an app that no longer exists.
  *
- * The app window is 420x600, so every shot is portrait. That is what drives
- * the layout: a narrow image column against a wide text column, which is the
- * asymmetry rather than a decorative one.
+ * Built on native scroll-snap rather than a carousel library: swipe, trackpad
+ * and keyboard scrolling all work on their own, and the buttons only have to
+ * nudge the scroll container. Nothing here reimplements scrolling.
+ *
+ * Note there is no Reveal inside a slide. Reveal shows content when it
+ * intersects the viewport, and a slide parked off to the right never does —
+ * it would stay invisible until scrolled to, then fade in late.
  */
 interface Step {
   n: string;
@@ -22,8 +28,6 @@ interface Step {
   how: string[];
   /** Only where a hotkey genuinely exists. */
   keys?: string[];
-  /** The overlay is the product; it gets more room. */
-  wide?: boolean;
 }
 
 const STEPS: Step[] = [
@@ -88,97 +92,145 @@ const STEPS: Step[] = [
       'NS filters background noise before it is transcribed',
     ],
     keys: ['Ctrl+Shift+L', 'Ctrl+Shift+S', 'Ctrl+Shift+D', 'Ctrl+Shift+H'],
-    wide: true,
-  },
-  {
-    n: '06',
-    screen: 'interviewer',
-    title: 'Practise before the real one',
-    body:
-      'A mock interview that asks questions and scores how you answered. Useful the night before, when the live copilot is not what you need yet.',
-    how: [
-      'Pick a difficulty, from foundational to dynamic',
-      'It asks out loud and listens to your answer',
-      'You get a scored report at the end',
-    ],
-  },
-  {
-    n: '07',
-    screen: 'meeting',
-    title: 'Meetings and documents too',
-    body:
-      'The same copilot pointed at a document instead of an interview. Upload the deck or the brief, and it answers against that.',
-    how: [
-      'Upload the document you will be asked about',
-      'It answers from that document during the call',
-      'Same overlay, same hotkeys',
-    ],
   },
 ];
 
 export function Walkthrough() {
+  const track = useRef<HTMLOListElement>(null);
+  const [index, setIndex] = useState(0);
+
+  // The scroll position is the source of truth, not a state variable we hope
+  // stays in step with it — a swipe moves the container without touching React.
+  const syncIndex = useCallback(() => {
+    const el = track.current;
+    if (!el) return;
+    setIndex(Math.round(el.scrollLeft / el.clientWidth));
+  }, []);
+
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    el.addEventListener('scroll', syncIndex, { passive: true });
+    return () => el.removeEventListener('scroll', syncIndex);
+  }, [syncIndex]);
+
+  const goTo = useCallback((i: number) => {
+    const el = track.current;
+    if (!el) return;
+    const target = Math.max(0, Math.min(STEPS.length - 1, i));
+    el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' });
+  }, []);
+
+  const atStart = index === 0;
+  const atEnd = index === STEPS.length - 1;
+
   return (
-    <ol className="mt-16 flex flex-col gap-24 md:gap-32">
-      {STEPS.map((step, i) => (
-        <li
-          key={step.screen}
-          className="grid items-center gap-10 md:grid-cols-12 md:gap-14"
-        >
-          {/* The shot. Narrow column, because the app window really is narrow. */}
-          <div className={step.wide ? 'md:col-span-5' : 'md:col-span-4'}>
-            <Reveal>
-              <div className="app-shot">
-                <Image
-                  src={`/walkthrough/${step.screen}.png`}
-                  alt={`ZoomGuru — ${step.title}`}
-                  width={420}
-                  height={600}
-                  quality={90}
-                  sizes="(max-width: 768px) 90vw, 420px"
-                  className="block h-auto w-full"
-                  /* The first two are near the top of the page on mobile. */
-                  priority={i < 2}
-                />
-              </div>
-            </Reveal>
-          </div>
-
-          {/* The guide. Offset from the image so the rows do not read as a
-              table — the asymmetry is the point. */}
-          <div
-            className={
-              step.wide
-                ? 'md:col-span-6 md:col-start-7'
-                : 'md:col-span-7 md:col-start-6'
-            }
+    <div className="mt-14">
+      <ol
+        ref={track}
+        className="walk-track"
+        tabIndex={0}
+        aria-label="App walkthrough, one screen per slide"
+      >
+        {STEPS.map((step, i) => (
+          <li
+            key={step.screen}
+            className="walk-slide"
+            aria-label={`${i + 1} of ${STEPS.length}: ${step.title}`}
+            /* Off-screen slides are hidden from the reading order, so a screen
+               reader is not handed five screens at once. */
+            aria-hidden={i !== index}
           >
-            <Reveal delay={90}>
-              <span className="font-mono text-xs text-overlay">{step.n}</span>
-              <h3 className="mt-4 text-sub">{step.title}</h3>
-              <p className="mt-4 max-w-[46ch] text-[1.0625rem] leading-relaxed text-muted">
-                {step.body}
-              </p>
-
-              <ul className="mt-7 flex flex-col gap-3 border-t border-rule pt-7">
-                {step.how.map((line) => (
-                  <li key={line} className="flex gap-3 text-[0.9375rem] leading-snug">
-                    <span aria-hidden="true" className="mt-[0.55em] h-px w-4 shrink-0 bg-overlay" />
-                    <span className="text-ink/80">{line}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {step.keys && (
-                <div className="mt-7 flex flex-wrap gap-2">
-                  {step.keys.map((k) => (
-                    <kbd key={k} className="keycap">{k}</kbd>
-                  ))}
+            {/* Every slide is the same height, so the controls below do not
+                jump as you page through. The tallest slide sets the number. */}
+            <div className="grid items-center gap-8 md:min-h-[460px] md:grid-cols-12 md:gap-12">
+              <div className="flex justify-center md:col-span-4 md:justify-start">
+                {/* Fixed width. The shot is a 420x600 window, so letting it
+                    fill the column made it the size of the whole viewport. */}
+                <div className="app-shot w-[230px] sm:w-[272px]">
+                  <Image
+                    src={`/walkthrough/${step.screen}.png`}
+                    alt={`ZoomGuru — ${step.title}`}
+                    width={420}
+                    height={600}
+                    quality={90}
+                    sizes="272px"
+                    className="block h-auto w-full"
+                    /* Only the first slide is on screen at load. */
+                    priority={i === 0}
+                  />
                 </div>
-              )}
-            </Reveal>
-          </div>
-        </li>
-      ))}
-    </ol>
+              </div>
+
+              <div className="md:col-span-7 md:col-start-6">
+                <span className="font-mono text-xs text-overlay">{step.n}</span>
+                <h3 className="mt-3 text-2xl md:text-[1.75rem]">{step.title}</h3>
+                <p className="mt-3 max-w-[48ch] text-[0.9375rem] leading-relaxed text-muted">
+                  {step.body}
+                </p>
+
+                <ul className="mt-5 flex flex-col gap-2.5 border-t border-rule pt-5">
+                  {step.how.map((line) => (
+                    <li key={line} className="flex gap-3 text-sm leading-snug">
+                      <span aria-hidden="true" className="mt-[0.6em] h-px w-3.5 shrink-0 bg-overlay" />
+                      <span className="text-ink/80">{line}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {step.keys && (
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {step.keys.map((k) => (
+                      <kbd key={k} className="keycap">{k}</kbd>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      {/* Controls, centred under the slide. Numbers rather than dots, because
+          the steps are an order and "03" says where you are in a way a dot
+          does not. The arrows flank them so the whole cluster reads as one. */}
+      <div className="mt-10 flex items-center justify-center gap-2 border-t border-rule pt-6">
+        <button
+          type="button"
+          onClick={() => goTo(index - 1)}
+          disabled={atStart}
+          aria-label="Previous screen"
+          className="walk-arrow"
+        >
+          &larr;
+        </button>
+
+        <ol className="flex gap-1">
+          {STEPS.map((step, i) => (
+            <li key={step.screen}>
+              <button
+                type="button"
+                onClick={() => goTo(i)}
+                aria-label={`Go to ${step.title}`}
+                aria-current={i === index ? 'true' : undefined}
+                className={`walk-num ${i === index ? 'is-active' : ''}`}
+              >
+                {step.n}
+              </button>
+            </li>
+          ))}
+        </ol>
+
+        <button
+          type="button"
+          onClick={() => goTo(index + 1)}
+          disabled={atEnd}
+          aria-label="Next screen"
+          className="walk-arrow"
+        >
+          &rarr;
+        </button>
+      </div>
+    </div>
   );
 }

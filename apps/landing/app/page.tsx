@@ -44,6 +44,15 @@ export default function HomePage() {
       {/* A thin index of what follows, running edge to edge. */}
       <FeatureMarquee />
 
+      <Section id="walkthrough" className="border-t border-rule">
+        <SectionHead
+          eyebrow="Every screen"
+          title="What it actually looks like."
+          lede="The whole app, in the order you meet it. These are the real screens, not illustrations of them."
+        />
+        <Walkthrough />
+      </Section>
+
       <Section id="setup">
         <SectionHead
           eyebrow="What it does"
@@ -92,15 +101,6 @@ export default function HomePage() {
             </li>
           ))}
         </ol>
-      </Section>
-
-      <Section id="walkthrough" className="border-t border-rule">
-        <SectionHead
-          eyebrow="Every screen"
-          title="What it actually looks like."
-          lede="The whole app, in the order you meet it. These are the real screens, not illustrations of them."
-        />
-        <Walkthrough />
       </Section>
 
       <Section className="border-t border-rule">

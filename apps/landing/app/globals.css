@@ -249,6 +249,60 @@
     transform: none;
   }
 
+  /* The walkthrough carousel. Native scroll-snap does the scrolling; the
+     buttons only set scrollLeft. That means swipe and trackpad work with no
+     JavaScript of ours involved, and there is no library. */
+  .walk-track {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    /* The rail is edge-to-edge inside the column, so slides align cleanly. */
+    scrollbar-width: none;
+  }
+
+  .walk-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .walk-slide {
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+    /* Without this a long slide can push the flex item wider than the rail. */
+    min-width: 0;
+  }
+
+  .walk-arrow,
+  .walk-num {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1;
+    color: var(--color-muted);
+    border: 1px solid color-mix(in srgb, var(--color-rule) 70%, transparent);
+    border-radius: var(--radius-pill);
+    padding: 0.5rem 0.7rem;
+    transition:
+      color 0.25s var(--ease-out-soft),
+      border-color 0.25s var(--ease-out-soft),
+      background-color 0.25s var(--ease-out-soft);
+  }
+
+  .walk-arrow:hover:not(:disabled),
+  .walk-num:hover {
+    color: var(--color-ink);
+    border-color: color-mix(in srgb, var(--color-ink) 30%, transparent);
+  }
+
+  .walk-arrow:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .walk-num.is-active {
+    color: var(--color-paper);
+    background: var(--color-overlay);
+    border-color: var(--color-overlay);
+  }
+
   /* Frames a screenshot of the app. The shots are dark and the page is paper,
      so the frame is what stops them reading as holes punched in the page:
      a hairline, the app's own corner radius, and a shadow that lifts it. */
