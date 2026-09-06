@@ -14,7 +14,10 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section id={id} className={`py-20 md:py-28 ${className}`}>
+    /* Two adjacent sections stack their padding, so this is half the gap you
+       see between them, not all of it. At py-20/28 that came to 160-224px and
+       the page read as a series of unrelated pages. */
+    <section id={id} className={`py-12 md:py-16 ${className}`}>
       <Wrap>{children}</Wrap>
     </section>
   );

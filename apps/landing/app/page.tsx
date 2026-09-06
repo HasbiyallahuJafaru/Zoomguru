@@ -158,7 +158,7 @@ export default function HomePage() {
         </div>
       </Section>
 
-      <section className="border-t border-rule py-24 md:py-32">
+      <section className="border-t border-rule py-16 md:py-24">
         <Wrap className="text-center">
           <h2 className="mx-auto max-w-[18ch] text-hed">
             The next question is coming either way.

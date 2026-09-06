@@ -258,6 +258,9 @@
     scroll-snap-type: x mandatory;
     /* The rail is edge-to-edge inside the column, so slides align cleanly. */
     scrollbar-width: none;
+    /* On mobile the height is set per slide, so ease between them rather than
+       letting the controls snap up and down. */
+    transition: height 0.3s var(--ease-out-soft);
   }
 
   .walk-track::-webkit-scrollbar {
