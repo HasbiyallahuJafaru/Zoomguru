@@ -26,8 +26,6 @@ interface Step {
   body: string;
   /** The literal actions, in order. Short enough to scan. */
   how: string[];
-  /** Only where a hotkey genuinely exists. */
-  keys?: string[];
 }
 
 const STEPS: Step[] = [
@@ -91,7 +89,6 @@ const STEPS: Step[] = [
       'Auto keeps listening and answers each question hands-free',
       'NS filters background noise before it is transcribed',
     ],
-    keys: ['Ctrl+Shift+L', 'Ctrl+Shift+S', 'Ctrl+Shift+D', 'Ctrl+Shift+H'],
   },
 ];
 
@@ -226,14 +223,6 @@ export function Walkthrough() {
                     </li>
                   ))}
                 </ul>
-
-                {step.keys && (
-                  <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
-                    {step.keys.map((k) => (
-                      <kbd key={k} className="keycap">{k}</kbd>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </li>
