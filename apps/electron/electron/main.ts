@@ -18,6 +18,7 @@ import fs from 'fs';
 import Store from 'electron-store';
 import { initCapture } from './capture';
 import { initDeviceKey, getPublicKeyInfo, signRequest } from './deviceKey';
+import { extractDocumentText } from './documents';
 
 interface WindowStore {
   windowX: number;
@@ -417,7 +418,11 @@ if (!gotLock) {
       const result = await dialog.showOpenDialog(mainWindow!, {
         title: 'Select your CV',
         properties: ['openFile'],
-        filters: [{ name: 'Documents', extensions: ['pdf', 'txt', 'md'] }],
+        // .doc is listed deliberately even though it cannot be parsed: leaving
+        // it out hides the user's file from the picker with no explanation,
+        // whereas selecting it now returns "save it as .docx" and tells them
+        // exactly what to do.
+        filters: [{ name: 'Documents', extensions: ['pdf', 'docx', 'doc', 'txt', 'md'] }],
       });
 
       if (result.canceled || !result.filePaths[0]) return null;
@@ -427,23 +432,12 @@ if (!gotLock) {
       const ext = path.extname(filePath).toLowerCase();
 
       try {
-        let text: string;
-        if (ext === '.pdf') {
-          const buffer = fs.readFileSync(filePath);
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const pdfParse = (require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>);
-          const parsed = await pdfParse(buffer);
-          text = parsed.text;
-        } else {
-          text = fs.readFileSync(filePath, 'utf-8');
-        }
-
+        const text = await extractDocumentText(filePath);
         store.set('cvText', text);
         store.set('cvFilename', filename);
         return { text, filename };
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return { error: `Failed to parse file: ${message}` };
+        return { error: err instanceof Error ? err.message : 'Could not read that file.' };
       }
     });
 
@@ -544,7 +538,7 @@ if (!gotLock) {
       const result = await dialog.showOpenDialog(mainWindow!, {
         title: 'Select your document or presentation',
         properties: ['openFile'],
-        filters: [{ name: 'Documents', extensions: ['pdf', 'pptx', 'txt', 'md'] }],
+        filters: [{ name: 'Documents', extensions: ['pdf', 'docx', 'doc', 'pptx', 'txt', 'md'] }],
       });
 
       if (result.canceled || !result.filePaths[0]) return null;
@@ -554,35 +548,12 @@ if (!gotLock) {
       const ext = path.extname(filePath).toLowerCase();
 
       try {
-        let text: string;
-        if (ext === '.pdf') {
-          const buffer = fs.readFileSync(filePath);
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const pdfParse = (require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>);
-          const parsed = await pdfParse(buffer);
-          text = parsed.text;
-        } else if (ext === '.pptx') {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const AdmZip = require('adm-zip') as new (p: string) => { getEntries(): { entryName: string; getData(): Buffer }[]; };
-          const zip = new AdmZip(filePath);
-          const slideEntries = zip.getEntries()
-            .filter((e) => /^ppt\/slides\/slide\d+\.xml$/.test(e.entryName))
-            .sort((a, b) => a.entryName.localeCompare(b.entryName));
-          const slideTexts = slideEntries.map((entry) => {
-            const xml = entry.getData().toString('utf-8');
-            return xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          });
-          text = slideTexts.join('\n\n---\n\n');
-        } else {
-          text = fs.readFileSync(filePath, 'utf-8');
-        }
-
+        const text = await extractDocumentText(filePath);
         store.set('meetingDocText', text);
         store.set('meetingDocFilename', filename);
         return { text, filename };
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        return { error: `Failed to parse file: ${message}` };
+        return { error: err instanceof Error ? err.message : 'Could not read that file.' };
       }
     });
 

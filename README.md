@@ -163,6 +163,13 @@ node scripts/check-gemini-keys.mjs   # calls Google with every configured key, p
 
 `node scripts/check-ai-live.mjs` drives the real providers and costs a few hundred tokens per run. Run it after any change to the model constants.
 
+The Electron app has one too, covering CV and document text extraction:
+
+```bash
+cd apps/electron
+node scripts/check-documents.mjs   # PDF/PPTX/text extraction, error messages, size cap
+```
+
 ---
 
 ## Hotkeys
