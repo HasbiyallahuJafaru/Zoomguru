@@ -98,6 +98,12 @@ Downloads  → Cloudflare R2  (moved off Firebase 2026-09-06)
 > backend was almost pointed at the wrong database. If you see a Neon
 > reference anywhere in `.claude/`, it is stale — treat Supabase as truth.
 
+> **The Railway service runs with `NODE_ENV=development`.** Only one thing
+> in the codebase reads it — the guard in `main.ts` that hard-exits when
+> `DATABASE_POOL_URL` is missing in production. That variable *is* set, so
+> nothing is broken today, but the safety net is disarmed: unset the pool URL
+> and the app boots anyway instead of refusing to. Observed 2026-09-06.
+
 > **Supabase free-tier projects auto-pause after ~7 days idle.** When
 > paused, Supavisor returns `tenant/user postgres.<ref> not found` and the
 > whole backend 500s while still reporting `/health` 200. This has already
@@ -229,6 +235,29 @@ gate. `GEMINI_BREAKER_TTL_SEC` in ai.service.ts is the single source of truth.
 
 Self-check: npm run build && node scripts/check-ai-fallback.mjs
             (branching, all mocked, free)
+
+Voice check: npm run build && node scripts/check-ai-voice.mjs
+            Every answer here is READ ALOUD mid-conversation, so HUMAN_VOICE
+            in ai.service.ts is shared by the answer and screenshot paths.
+            Three things were removed from it deliberately and should not come
+            back: "professional" (buys the corporate register that reads as
+            machine-written), "unless more depth is needed" (an escape hatch
+            the model took every time — the source of the rambling), and
+            naming STAR (made the template audible).
+
+            Naming the banned vocabulary is the part that works. "Sound human"
+            is not actionable to a model; "never say delve" is.
+
+            The sentence cap lives in BASE_PROMPT_SUFFIX, NOT in HUMAN_VOICE:
+            screenshot answers are often code, where a cap truncates a real
+            solution.
+
+            Do not phrase a voice rule as "no summary at the end". The vision
+            prompt requires a trailing CONTEXT_SUMMARY line, which is what
+            priorContext for the next screenshot is built from. The service
+            strips that marker from the visible stream and returns it on the
+            final SSE event, so it is invisible in the answer text — check
+            chunks for contextSummary, not the text.
 
 Key check:  node scripts/check-gemini-keys.mjs
             (or `railway run node scripts/check-gemini-keys.mjs` for prod)
@@ -590,6 +619,55 @@ Self-check: `cd apps/electron && node scripts/check-documents.mjs`
 
 ---
 
+## Landing Site (apps/landing)
+
+Next 16 on Vercel. Two things there are easy to break by accident.
+
+**The download terms gate.** Every download button on the site routes through
+`DownloadGate` in components/download-button.tsx, so there is exactly one place
+the terms are shown and no button can skip them. The trigger stays a real
+`<a href>`: modified clicks (new tab, copy link) pass through, and if the JS
+never runs the click just downloads. Failing open is right for the primary call
+to action. The confirm inside the dialog is the same link, so the hit is still
+recorded by /analytics/download.
+
+MacButton routes through the same gate even though mac is unavailable — gating
+only Windows would ship an ungated mac button the day DOWNLOAD.mac.available
+flips.
+
+⚠ Tailwind's preflight zeroes every margin, including the `margin: auto` that
+centres a modal `<dialog>`. Without `.gate { margin: auto }` the dialog sits in
+the top-left corner.
+
+Self-check: npm run build && npm start, then `node gatetest.mjs`
+            `node livecheck.mjs` runs the same assertions against production,
+            minus the two that would fire a real download.
+
+⚠ The download href is an ABSOLUTE production URL, so serving the page from
+localhost does NOT make its links local. A test that clicks one records a real
+row in the production downloads table. gatetest.mjs aborts that request at the
+browser context; keep it that way.
+
+**The walkthrough carousel** (components/walkthrough.tsx) shows five real app
+screens. The images are renders of the shipped components, produced by
+apps/electron/src/shots.tsx — not mockups. Re-shoot them when a screen changes
+or the site starts advertising an app that no longer exists:
+
+    cd apps/electron
+    npx vite --config vite.shots.config.ts     # not `npm run dev` — that boots Electron
+    # then capture localhost:5174/shots.html?screen=<login|register|dashboard|cv|overlay>
+
+The harness stubs the preload bridge and the network only; everything visual is
+the component. Two things it has to get right: the real window is 420x600, so
+shots taken at desktop size photograph a small panel marooned in background;
+and headless Chromium has no microphone, so the overlay renders a NO MIC badge
+unless the browser is launched with a fake media device.
+
+It is dev-only and cannot reach a user: vite.config.ts builds index.html alone,
+and the built renderer contains none of it.
+
+---
+
 ## Rate Limiting (AI Endpoints Only)
 
 ```
@@ -600,6 +678,47 @@ Returns 429 { error: 'rate_limit', retryAfter: N } when exceeded
 Auth endpoints ARE limited too — per IP in auth.controller.ts and per
 account in auth.service.ts. See "Known Security Issues" for both.
 ```
+
+---
+
+## Downloads Are Counted Only When Served
+
+`analytics.controller.ts` INSERTs into `downloads` AFTER the availability
+check, not before. It used to be before, so `?platform=mac` recorded a
+download and then 503'd — and since there is no macOS build, every mac row in
+production is a download that never happened. A row means a file was served.
+
+An unrecognised platform is stored as 'unknown' and served the Windows build.
+Pre-existing, asserted so a refactor cannot change it quietly.
+
+Self-check: npm run build && node scripts/check-download-tracking.mjs
+
+Admin shows all-time and calendar-month-to-date counts. `downloads_this_month`
+resets on the 1st (UTC), not a rolling 30 days. StatsResult is duplicated in
+apps/admin/src/types.ts and says so — keep the two in step.
+
+---
+
+## Email Broadcasts — the Resend response shape
+
+`broadcast-queue.service.ts` reads `error` off the batch send, not a
+per-recipient array. Resend returns `{ data: { data: [{id}] }, error }` — the
+array is a level deeper than it looks, and there is no per-recipient error
+unless the request opts into permissive batch validation, which it does not.
+
+The first broadcast ever attempted reached nobody because a cast invented a
+shape and TypeScript believed it:
+
+    (result as unknown as { data?: Array<{ error?: unknown }> })?.data?.filter(...)
+
+`.filter` is not a method on the outer object, so it threw, retried, and marked
+itself FINAL_FAILURE. Do not reach for a cast here; the SDK's own types are
+correct.
+
+A rejected batch throws into the retry path already there: one retry after 60s,
+then permanent failure with the message stored on the batch row.
+
+Self-check: npm run build && node scripts/check-broadcast-send.mjs
 
 ---
 

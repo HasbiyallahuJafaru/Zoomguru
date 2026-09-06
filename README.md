@@ -47,7 +47,7 @@ There is no root `package.json` — this is a folder layout, not an npm workspac
 | Payments | Paystack (hosted checkout and inline.js; weekly, monthly, yearly plans) |
 | Email | Resend (transactional and broadcasts) |
 | Cache, rate limiting, sessions | Redis via ioredis |
-| Installer downloads | Firebase Storage (`zoomguru-downloads`), served via `storage.googleapis.com` |
+| Installer downloads | Cloudflare R2, bucket `zoomguru-releases`, served from `dl.zoomguru.xyz` |
 
 ---
 
@@ -102,7 +102,7 @@ CHECKOUT_URL=https://zoomguru.xyz
 ADMIN_CORS_ORIGIN=http://localhost:5174
 ELECTRON_ORIGIN=app://zoomguru
 
-APP_DOWNLOAD_LINK_WINDOWS=       # e.g. https://storage.googleapis.com/<bucket>/ZoomGuru-Setup.exe
+APP_DOWNLOAD_LINK_WINDOWS=       # e.g. https://dl.zoomguru.xyz/ZoomGuru-Setup.exe
 APP_DOWNLOAD_LINK_MAC=           # unset in production today, so mac downloads 503
 ```
 
@@ -154,20 +154,36 @@ Branching logic ships with a runnable check. None of them need a server, and non
 
 ```bash
 cd apps/backend && npm run build
-node scripts/check-ai-fallback.mjs   # provider fallback order, key rotation, image format sniffing
-node scripts/check-cron.mjs          # session-log drain and cron advisory locks
-node scripts/check-sessions.mjs      # concurrent session cap, pruning, revocation
-node scripts/check-quota.mjs         # per-plan usage quotas
-node scripts/check-gemini-keys.mjs   # calls Google with every configured key, prints status only
+node scripts/check-ai-fallback.mjs       # provider fallback order, key rotation, image format sniffing
+node scripts/check-cron.mjs              # session-log drain and cron advisory locks
+node scripts/check-sessions.mjs          # concurrent session cap, pruning, revocation
+node scripts/check-quota.mjs             # per-plan usage quotas
+node scripts/check-login-throttle.mjs    # per-account login throttle, fail-open, no enumeration
+node scripts/check-download-tracking.mjs # a download row means a file was actually served
+node scripts/check-broadcast-send.mjs    # Resend batch response shape, retry and final failure
+node scripts/check-gemini-keys.mjs       # calls Google with every configured key, prints status only
 ```
 
-`node scripts/check-ai-live.mjs` drives the real providers and costs a few hundred tokens per run. Run it after any change to the model constants.
+Two drive real providers and cost a few hundred tokens per run:
+
+- `node scripts/check-ai-live.mjs` — proves the configured model actually serves each flow. Run it after any change to the model constants.
+- `node scripts/check-ai-voice.mjs` — reads the answers back and fails on filler vocabulary, preamble, over-length or leaked markdown. Run it after any change to the prompts.
+
+On a machine behind a TLS-intercepting proxy, node's `fetch` cannot reach Google and every key reads as dead (`network: fetch failed`, not a 401). That is the machine, not the key — prefix those two with `NODE_OPTIONS=--use-system-ca`.
 
 The Electron app has one too, covering CV and document text extraction:
 
 ```bash
 cd apps/electron
 node scripts/check-documents.mjs   # PDF/PPTX/text extraction, error messages, size cap
+```
+
+The landing site's checks need it running (`npm run build && npm start`):
+
+```bash
+cd apps/landing
+node gatetest.mjs      # the download terms gate: opens, centred, closes, every button gated
+node livecheck.mjs     # the same gate on production, read-only — never fires a real download
 ```
 
 ---
@@ -261,12 +277,22 @@ npm run dist:mac
 
 Output lands in `apps/electron/release/` as `ZoomGuru.<version>.exe`.
 
-Downloads are served from **Firebase Storage**, bucket `zoomguru-downloads.firebasestorage.app`, where the installer is stored under the fixed, version-less name **`ZoomGuru-Setup.exe`**. Publishing a build means uploading the new `.exe` to that bucket under that name — it overwrites in place, so every existing download link keeps working and `APP_DOWNLOAD_LINK_WINDOWS` does not need to change.
+Downloads are served from **Cloudflare R2**, bucket `zoomguru-releases`, over the custom domain **`dl.zoomguru.xyz`**, where the installer is stored under the fixed, version-less name **`ZoomGuru-Setup.exe`**. Publishing a build means uploading the new `.exe` to that bucket under that name — it overwrites in place, so every existing download link keeps working and `APP_DOWNLOAD_LINK_WINDOWS` does not need to change.
+
+Upload with wrangler, and note the trap:
+
+```bash
+npx wrangler r2 object put zoomguru-releases/ZoomGuru-Setup.exe \n  --file=apps/electron/release/ZoomGuru-Setup.exe \n  --content-type application/octet-stream --remote
+```
+
+Without `--remote`, wrangler 4.x writes to a **local simulator** and still prints "Upload complete". Nothing reaches Cloudflare. The tell is that `wrangler r2 bucket info` does not change.
+
+This section said Firebase until 2026-09-06, long after the move. Production redirects to `dl.zoomguru.xyz` — check `/analytics/download?platform=windows` rather than trusting this paragraph.
 
 Two traps worth knowing:
 
 - The variables are `APP_DOWNLOAD_LINK_WINDOWS` / `APP_DOWNLOAD_LINK_MAC`. They were once called `R2_DOWNLOAD_URL_*`, which stayed put through two moves of the actual host and misled readers both times; the backend still reads the old names as a fallback until they are removed from Railway.
-- `electron-builder.config.js` also configures a GitHub `publish` provider, and `npm run release:win` will push a release asset there. That asset is **not** what the download button serves — `/analytics/download` redirects to the Firebase URL. Uploading to only one of the two leaves them out of sync.
+- `electron-builder.config.js` also configures a GitHub `publish` provider, and `npm run release:win` will push a release asset there. That asset is **not** what the download button serves — `/analytics/download` redirects to the R2 URL. Uploading to only one of the two leaves them out of sync.
 
 `APP_DOWNLOAD_LINK_MAC` is currently unset, so `/analytics/download?platform=mac` returns 503.
 
