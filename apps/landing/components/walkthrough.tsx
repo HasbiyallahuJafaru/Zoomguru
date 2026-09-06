@@ -187,20 +187,23 @@ export function Walkthrough() {
                reader is not handed five screens at once. */
             aria-hidden={i !== index}
           >
-            {/* Every slide is the same height, so the controls below do not
-                jump as you page through. The tallest slide sets the number. */}
-            <div className="grid items-center gap-8 md:min-h-[460px] md:grid-cols-12 md:gap-12">
-              <div className="flex justify-center md:col-span-4 md:justify-start">
-                {/* Fixed width. The shot is a 420x600 window, so letting it
-                    fill the column made it the size of the whole viewport. */}
-                <div className="app-shot w-[230px] sm:w-[272px]">
+            {/* Side by side at every width. On a phone that gives the copy a
+                narrow column, which is why the type steps down there. Every
+                slide is the same height on desktop, so the controls below do
+                not jump as you page through. */}
+            <div className="grid grid-cols-12 items-center gap-4 sm:gap-8 md:min-h-[460px] md:gap-12">
+              <div className="col-span-5 flex justify-center md:col-span-4 md:justify-start">
+                {/* Fills its column on a phone; fixed beyond that. The shot is
+                    a 420x600 window, so letting it fill a wide column rendered
+                    it at the size of the whole viewport. */}
+                <div className="app-shot w-full md:w-[272px]">
                   <Image
                     src={`/walkthrough/${step.screen}.png`}
                     alt={`ZoomGuru — ${step.title}`}
                     width={420}
                     height={600}
                     quality={90}
-                    sizes="272px"
+                    sizes="(max-width: 767px) 45vw, 272px"
                     className="block h-auto w-full"
                     /* Only the first slide is on screen at load. */
                     priority={i === 0}
@@ -208,24 +211,24 @@ export function Walkthrough() {
                 </div>
               </div>
 
-              <div className="md:col-span-7 md:col-start-6">
-                <span className="font-mono text-xs text-overlay">{step.n}</span>
-                <h3 className="mt-3 text-2xl md:text-[1.75rem]">{step.title}</h3>
-                <p className="mt-3 max-w-[48ch] text-[0.9375rem] leading-relaxed text-muted">
+              <div className="col-span-7 md:col-span-7 md:col-start-6">
+                <span className="font-mono text-[0.625rem] text-overlay sm:text-xs">{step.n}</span>
+                <h3 className="mt-2 text-lg sm:mt-3 sm:text-2xl md:text-[1.75rem]">{step.title}</h3>
+                <p className="mt-2 max-w-[48ch] text-[0.8125rem] leading-relaxed text-muted sm:mt-3 sm:text-[0.9375rem]">
                   {step.body}
                 </p>
 
-                <ul className="mt-5 flex flex-col gap-2.5 border-t border-rule pt-5">
+                <ul className="mt-3 flex flex-col gap-2 border-t border-rule pt-3 sm:mt-5 sm:gap-2.5 sm:pt-5">
                   {step.how.map((line) => (
-                    <li key={line} className="flex gap-3 text-sm leading-snug">
-                      <span aria-hidden="true" className="mt-[0.6em] h-px w-3.5 shrink-0 bg-overlay" />
+                    <li key={line} className="flex gap-2 text-[0.8125rem] leading-snug sm:gap-3 sm:text-sm">
+                      <span aria-hidden="true" className="mt-[0.6em] h-px w-2.5 shrink-0 bg-overlay sm:w-3.5" />
                       <span className="text-ink/80">{line}</span>
                     </li>
                   ))}
                 </ul>
 
                 {step.keys && (
-                  <div className="mt-5 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
                     {step.keys.map((k) => (
                       <kbd key={k} className="keycap">{k}</kbd>
                     ))}
@@ -276,6 +279,30 @@ export function Walkthrough() {
           className="walk-arrow"
         >
           &rarr;
+        </button>
+
+        {/* Sits at the edge of the row, apart from the stepping controls,
+            because it changes the carousel's behaviour rather than its
+            position. aria-pressed carries the state; the glyph alone would
+            leave a screen reader guessing which way it is about to go. */}
+        <button
+          type="button"
+          onClick={() => setPlaying((p) => !p)}
+          aria-pressed={!playing}
+          aria-label={playing ? 'Pause automatic advance' : 'Play automatically'}
+          title={playing ? 'Pause' : 'Play'}
+          className="walk-arrow ml-1"
+        >
+          {playing ? (
+            <svg width="9" height="10" viewBox="0 0 9 10" fill="currentColor" aria-hidden="true">
+              <rect x="0" y="0" width="3" height="10" rx="1" />
+              <rect x="6" y="0" width="3" height="10" rx="1" />
+            </svg>
+          ) : (
+            <svg width="9" height="10" viewBox="0 0 9 10" fill="currentColor" aria-hidden="true">
+              <path d="M0 0.7a.7.7 0 0 1 1.07-.6l7 4.3a.7.7 0 0 1 0 1.2l-7 4.3A.7.7 0 0 1 0 9.3Z" />
+            </svg>
+          )}
         </button>
       </div>
 

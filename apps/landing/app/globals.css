@@ -274,6 +274,15 @@
     min-width: 0;
   }
 
+  /* The pause toggle is a walk-arrow with a glyph in it, so it has to centre
+     its child rather than sit on the text baseline like the arrows do. */
+  .walk-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+  }
+
   .walk-arrow,
   .walk-num {
     font-family: var(--font-mono);
