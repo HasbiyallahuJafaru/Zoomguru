@@ -83,12 +83,12 @@ export class BroadcastQueueService {
         tags: [{ name: 'broadcast_id', value: batch.broadcast_id }],
       }));
 
-      // Resend batch API allows up to 100 emails per call
-      const result = await this.resend.batch.send(emails);
-      const failed = (result as unknown as { data?: Array<{ error?: unknown }> } | null)?.data?.filter((r) => r.error) ?? [];
-      if (failed.length > 0) {
-        console.warn(`[BroadcastQueue] Batch partial failure: ${failed.length} emails failed in batch ${batch.batch_index}`);
-      }
+      // Resend batch API allows up to 100 emails per call.
+      // A rejected batch is reported on `error`; there is no per-recipient
+      // error unless the request opts into permissive batch validation, which
+      // this does not. Throwing here hands the batch to the retry path below.
+      const { error } = await this.resend.batch.send(emails);
+      if (error) throw new Error(`${error.name}: ${error.message}`);
 
       await db.query(
         `UPDATE broadcast_batches
