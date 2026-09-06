@@ -1,5 +1,17 @@
 import { useEffect, useRef, useCallback, type CSSProperties } from 'react';
 
+// This said ⌘⇧L on every platform. The app ships Windows-only today, so the
+// two hotkeys a new user most needs were shown as keys their keyboard does not
+// have. Overlay.tsx already branches on platform for the close button; this
+// follows it.
+//
+// Read at render, not at module scope: the bridge is installed by preload
+// before the renderer runs, but a module-level read binds at import time and
+// throws anywhere the module is imported first.
+function hotkeyPrefix(): string {
+  return window.zoomguru?.platform === 'darwin' ? '⌘⇧' : 'Ctrl+Shift+';
+}
+
 function stripMarkdown(text: string): string {
   return text
     .replace(/\*\*(.*?)\*\*/gs, '$1')   // **bold**
@@ -90,7 +102,7 @@ export default function AnswerStream({ answer, isStreaming }: AnswerStreamProps)
         onScroll={handleScroll}
       >
         {isEmpty ? (
-          <p style={s.empty}>Press ⌘⇧L to listen · ⌘⇧S for screenshot</p>
+          <p style={s.empty}>Press {hotkeyPrefix()}L to listen · {hotkeyPrefix()}S for screenshot</p>
         ) : (
           <p style={s.answer}>
             {isStreaming && !answer

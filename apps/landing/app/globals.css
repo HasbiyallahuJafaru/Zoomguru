@@ -249,6 +249,19 @@
     transform: none;
   }
 
+  /* Frames a screenshot of the app. The shots are dark and the page is paper,
+     so the frame is what stops them reading as holes punched in the page:
+     a hairline, the app's own corner radius, and a shadow that lifts it. */
+  .app-shot {
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background: #07070b;
+    border: 1px solid color-mix(in srgb, var(--color-ink) 12%, transparent);
+    box-shadow:
+      0 2px 8px -4px color-mix(in srgb, var(--color-ink) 30%, transparent),
+      0 30px 60px -34px color-mix(in srgb, var(--color-ink) 55%, transparent);
+  }
+
   /* The terms gate on every download button. Deliberately quiet: paper, one
      hairline, no alarm colour. It is a thing to read, not a warning. */
   .gate {

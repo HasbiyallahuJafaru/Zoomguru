@@ -4,6 +4,7 @@ import { Section, SectionHead, Wrap } from '@/components/section';
 import { Reveal } from '@/components/reveal';
 import { DownloadButton } from '@/components/download-button';
 import { ComparisonTable } from '@/components/comparison-table';
+import { Walkthrough } from '@/components/walkthrough';
 import { FeatureMarquee } from '@/components/feature-marquee';
 import { FAQ } from '@/lib/faq';
 import { FEATURES } from '@/lib/site';
@@ -91,6 +92,15 @@ export default function HomePage() {
             </li>
           ))}
         </ol>
+      </Section>
+
+      <Section id="walkthrough" className="border-t border-rule">
+        <SectionHead
+          eyebrow="Every screen"
+          title="What it actually looks like."
+          lede="The whole app, in the order you meet it. These are the real screens, not illustrations of them."
+        />
+        <Walkthrough />
       </Section>
 
       <Section className="border-t border-rule">
