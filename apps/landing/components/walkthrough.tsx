@@ -34,11 +34,11 @@ const STEPS: Step[] = [
     screen: 'register',
     title: 'Make an account',
     body:
-      'Email, name, password. Nothing else is asked for, and there is no card at this stage.',
+      'Email, name, password. No card at this stage.',
     how: [
       'Enter your email, name and a password',
       'Tick the terms box, then Create Account',
-      'You land on the dashboard already signed in',
+      'You land on the dashboard, already signed in',
     ],
   },
   {
@@ -46,11 +46,11 @@ const STEPS: Step[] = [
     screen: 'login',
     title: 'Sign in after that',
     body:
-      'The app remembers you for three hours at a time, so this screen appears less often than you would expect. Forgot password emails you a reset link.',
+      "You stay signed in for three hours, so you'll see this screen less than you'd think. Forgot password sends a reset link.",
     how: [
-      'Email and password, or use Forgot password',
-      'Monthly and Yearly stay signed in on two computers',
-      'A third sign-in asks which device to sign out',
+      'Email and password, or Forgot password',
+      'Monthly and Yearly cover two computers at once',
+      'A third sign-in asks which device to drop',
     ],
   },
   {
@@ -58,9 +58,9 @@ const STEPS: Step[] = [
     screen: 'dashboard',
     title: 'Check your plan, pick a mode',
     body:
-      'The home screen. Your plan and the days left on it sit at the top, and everything the app does starts from here.',
+      'The home screen. Your plan and the days left sit at the top, and everything starts from here.',
     how: [
-      'Plan and remaining days, at a glance',
+      'Plan and days left, at a glance',
       'Interview Assistant opens the live copilot',
       'Take the Tour replays the in-app walkthrough',
     ],
@@ -70,11 +70,11 @@ const STEPS: Step[] = [
     screen: 'cv',
     title: 'Give it your CV and the job',
     body:
-      'The step that decides how good the answers are. Every answer is written against your actual background and the role you applied for, so a generic answer usually means this screen was skipped.',
+      "This is what makes the answers yours. Every one is written from your CV and the job you pasted in, so if they come out generic, it's usually because this got skipped.",
     how: [
-      'Upload a CV as PDF, DOCX, PPTX, TXT or MD',
+      'Upload a CV: PDF, DOCX, PPTX, TXT or MD',
       'Paste the job description underneath',
-      'Save an old .doc as .docx first — it is not read',
+      "Old .doc files won't read — save as .docx",
     ],
   },
   {
@@ -82,12 +82,12 @@ const STEPS: Step[] = [
     screen: 'overlay',
     title: 'The copilot, during the interview',
     body:
-      'A transparent panel over your screen. It hears the question, writes the answer, and stays out of the screen share — the interviewer sees an ordinary desktop. Answers are short on purpose, because you are reading them aloud while someone waits.',
+      "A transparent panel on your screen. It hears the question, writes the answer, and stays out of the screen share, so the interviewer sees an ordinary desktop. Answers stay short because you're reading them aloud while someone waits.",
     how: [
       'Listen catches one question and answers it',
-      'Screenshot answers whatever is on the shared screen',
-      'Auto keeps listening and answers each question hands-free',
-      'NS filters background noise before it is transcribed',
+      "Screenshot answers what's on the shared screen",
+      'Auto keeps listening and answers hands-free',
+      'NS strips background noise before transcription',
     ],
   },
 ];
@@ -301,10 +301,10 @@ export function Walkthrough() {
       <aside className="mx-auto mt-10 max-w-[62ch] border-t border-rule pt-6">
         <p className="label">Getting your account back</p>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
-          If other people are signed in on your account and you want it to yourself again,
-          reset your password &mdash; <span className="text-ink/80">Forgot password</span> on the
-          sign-in screen. The moment the reset is confirmed, every other device is signed out
-          and has to sign in again, which they cannot do with the old password.
+          Someone else signed in on your account? Reset your password &mdash;{' '}
+          <span className="text-ink/80">Forgot password</span> on the sign-in screen. The moment
+          it&rsquo;s confirmed, every other device is signed out, and the old password
+          won&rsquo;t get them back in.
         </p>
       </aside>
     </div>

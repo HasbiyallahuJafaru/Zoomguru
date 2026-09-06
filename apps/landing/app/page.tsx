@@ -48,7 +48,7 @@ export default function HomePage() {
         <SectionHead
           eyebrow="Every screen"
           title="What it actually looks like."
-          lede="The whole app, in the order you meet it. These are the real screens, not illustrations of them."
+          lede="The whole app, in the order you meet it. Real screens, not illustrations of them."
         />
         <Walkthrough />
       </Section>
