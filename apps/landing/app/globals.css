@@ -248,6 +248,36 @@
     opacity: 1;
     transform: none;
   }
+
+  /* The terms gate on every download button. Deliberately quiet: paper, one
+     hairline, no alarm colour. It is a thing to read, not a warning. */
+  .gate {
+    /* A modal <dialog> is centred by the UA's `margin: auto` against
+       `inset: 0`. Tailwind's preflight zeroes every margin, which drops it in
+       the top-left corner instead — so put it back explicitly. */
+    margin: auto;
+    max-width: min(28rem, calc(100vw - 2rem));
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--color-rule) 60%, transparent);
+    border-radius: var(--radius-lg);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    box-shadow: 0 32px 70px -34px color-mix(in srgb, var(--color-ink) 55%, transparent);
+  }
+
+  .gate::backdrop {
+    background: color-mix(in srgb, var(--color-ink) 34%, transparent);
+    backdrop-filter: blur(3px);
+  }
+
+  .gate[open] {
+    animation: gate-in 0.32s var(--ease-out-soft);
+  }
+
+  @keyframes gate-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+  }
 }
 
 @keyframes pulse-dot {

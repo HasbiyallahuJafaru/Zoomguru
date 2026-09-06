@@ -39,3 +39,4 @@ apps/graphify-out/
 
 # Wrangler local state (R2 uploads use --remote; this is the local simulator)
 .wrangler/
+apps/landing/gate.png
