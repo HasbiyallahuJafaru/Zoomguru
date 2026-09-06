@@ -3,6 +3,8 @@ export interface StatsResult {
   online_now: number;
   total_users: number;
   total_downloads: number;
+  /** Calendar month to date, UTC — resets on the 1st, not a rolling 30 days. */
+  downloads_this_month: number;
   active_subscriptions: number;
   yearly_subscriptions: number;
   total_ai_sessions: number;

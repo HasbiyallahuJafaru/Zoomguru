@@ -9,6 +9,8 @@ export interface StatsResult {
   online_now: number;
   total_users: number;
   total_downloads: number;
+  /** Calendar month to date, UTC — resets on the 1st, not a rolling 30 days. */
+  downloads_this_month: number;
   active_subscriptions: number;
   yearly_subscriptions: number;
   total_ai_sessions: number;
@@ -113,9 +115,15 @@ const subActiveSql = (alias = ''): string => {
 export class AdminService {
   async getStats(): Promise<StatsResult> {
     const pool = getDB();
-    const [users, downloads, monthlySubs, lifetimeSubs, sessions, online] = await Promise.all([
+    const [users, downloads, downloadsMonth, monthlySubs, lifetimeSubs, sessions, online] = await Promise.all([
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM users'),
       pool.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM downloads'),
+      // Calendar month to date, so the tile resets on the 1st and answers
+      // "how did this month go", not "the last 30 days".
+      pool.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count FROM downloads
+          WHERE created_at >= date_trunc('month', NOW())`,
+      ),
       // Every active plan, not just monthly. This counted `plan = 'monthly'`
       // only, so weekly subscribers — the most common plan — were missing from
       // the "Active Subs" tile entirely.
@@ -134,6 +142,7 @@ export class AdminService {
       online_now: online,
       total_users: users.rows[0].count,
       total_downloads: downloads.rows[0].count,
+      downloads_this_month: downloadsMonth.rows[0].count,
       active_subscriptions: monthlySubs.rows[0].count,
       yearly_subscriptions: lifetimeSubs.rows[0].count,
       total_ai_sessions: sessions.rows[0].count,

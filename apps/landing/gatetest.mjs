@@ -17,6 +17,13 @@ const page = await browser.newPage({
   reducedMotion: 'reduce',
 });
 
+// The download href is an ABSOLUTE production URL, so serving the page from
+// localhost does not make its links local. The ctrl-click case below really
+// did reach the live /analytics/download and record a download that nobody
+// made — real rows in the production table, from a test. Block the request at
+// the context (the ctrl-click opens a second tab, which page.route would miss).
+await page.context().route('**/analytics/download*', (route) => route.abort());
+
 const open = () => page.evaluate(() => document.querySelector('dialog.gate')?.open === true);
 const btn = () => page.locator('a.btn', { hasText: 'Download for Windows' }).first();
 

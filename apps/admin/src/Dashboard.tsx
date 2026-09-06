@@ -105,7 +105,8 @@ function Lede({ stats }: { stats: StatsResult | null }) {
   const counters: Array<{ label: string; value: number; note?: string }> = stats
     ? [
         { label: 'Total users', value: stats.total_users },
-        { label: 'Downloads', value: stats.total_downloads },
+        { label: 'Downloads', value: stats.total_downloads, note: 'All time' },
+        { label: 'Downloads this month', value: stats.downloads_this_month, note: 'Since the 1st, UTC' },
         { label: 'Active subs', value: stats.active_subscriptions, note: 'All plans, currently paid' },
         { label: 'Yearly subs', value: stats.yearly_subscriptions },
         { label: 'AI sessions', value: stats.total_ai_sessions },

@@ -14,11 +14,6 @@ export class AnalyticsController {
     const forwarded = req.headers['x-forwarded-for'];
     const ip = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim() ?? req.ip ?? '';
 
-    void getDB().query(
-      'INSERT INTO downloads (platform, ip) VALUES ($1, $2)',
-      [safePlatform, ip],
-    );
-
     // Named for what it holds, not who hosts it. The old name, R2_DOWNLOAD_URL_*,
     // outlived Cloudflare R2 by two migrations — it has pointed at a GitHub
     // release asset and now at Firebase Storage — and each time it sent someone
@@ -37,6 +32,16 @@ export class AnalyticsController {
       await reply.code(503).send({ error: 'Download not available yet' });
       return;
     }
+
+    // Counted here, AFTER the availability check, because this is the first
+    // line that means a file is actually being served. It used to run before
+    // the check, so ?platform=mac recorded a download and then 503'd — there
+    // is no macOS build, so every mac row in this table is a download that
+    // never happened. Nothing downstream can tell those apart afterwards.
+    void getDB().query(
+      'INSERT INTO downloads (platform, ip) VALUES ($1, $2)',
+      [safePlatform, ip],
+    );
 
     reply.raw.writeHead(302, { Location: downloadUrl });
     reply.raw.end();
