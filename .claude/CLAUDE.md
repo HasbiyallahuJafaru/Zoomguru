@@ -50,14 +50,44 @@ Database   → Supabase PostgreSQL 17  (NOT Neon — see warning below)
              Connected via the Supavisor pooler
              (aws-0-eu-west-1.pooler.supabase.com)
 
-Downloads  → Firebase Storage
-             Bucket: zoomguru-downloads.firebasestorage.app
-             Object: ZoomGuru-Setup.exe  (fixed name, overwritten in place)
-             Vars: APP_DOWNLOAD_LINK_WINDOWS / APP_DOWNLOAD_LINK_MAC. Renamed from
-             R2_DOWNLOAD_URL_* — that name survived two host moves and
-             misled a reader each time. The old names are still read as a
-             fallback; drop it once Railway no longer sets them.
+Downloads  → Cloudflare R2  (moved off Firebase 2026-09-06)
+             Account: jafaruhasbiyallahu@hotmail.com  (NOT the Google
+                      account the rest of the stack uses)
+             Bucket:  zoomguru-releases  (WEUR, created 2026-05-31)
+             Object:  ZoomGuru-Setup.exe  (fixed name, overwritten in place,
+                      so the URL never changes between releases)
+             Public:  https://dl.zoomguru.xyz  (custom domain, min TLS 1.2,
+                      zone 7c465953a791c6c9006a8961f44ecd64)
+                      r2.dev URL still exists but is NOT what is served
+             Vars: APP_DOWNLOAD_LINK_WINDOWS / APP_DOWNLOAD_LINK_MAC. Renamed
+             from R2_DOWNLOAD_URL_* — that name survived two host moves and
+             misled a reader each time. Both names are currently set to the
+             same R2 URL; the old one is still read as a fallback, drop it
+             once Railway no longer sets it.
              APP_DOWNLOAD_LINK_MAC is UNSET, so mac downloads 503.
+
+             Upload with wrangler — and note the trap:
+               npx wrangler r2 object put zoomguru-releases/ZoomGuru-Setup.exe \
+                 --file=apps/electron/release/ZoomGuru-Setup.exe \
+                 --content-type application/octet-stream --remote
+             ⚠ WITHOUT --remote, wrangler 4.x writes to a LOCAL simulator and
+             still prints "Upload complete". Nothing reaches Cloudflare. The
+             tell is that `wrangler r2 bucket info` (which IS remote) does not
+             change. bucket subcommands are remote by default; object ones are
+             not.
+
+             Custom domain attached 2026-09-06; r2.dev is rate-limited by
+             Cloudflare and unfit for production, so do not point anything
+             back at it.
+
+             Why not Firebase: the bucket
+             zoomguru-downloads.firebasestorage.app still holds the old
+             2026-08-28 build, but jhasbiyallahu@gmail.com has NO
+             storage.objects.create on it — its apparent read access is a
+             public allUsers grant, not a role. Nobody knows which identity
+             published that build. The bucket is also publicly LISTABLE.
+             Delete it once R2 is proven.
+
              electron-builder also has a GitHub publish provider; that
              release asset is NOT what the download button serves.
 ```
@@ -265,7 +295,7 @@ Dashboard
     → POST /subscription/verify → Continue → CvSetup
 
 CvSetup
-    Upload CV (PDF/TXT/MD) → parsed via pdf-parse → stored in electron-store
+    Upload CV (PDF/DOCX/TXT/MD) → parsed by electron/documents.ts → electron-store
     Paste job description text → stored in electron-store
     → Done → Overlay
 
@@ -405,6 +435,47 @@ rather than trusting any figure written here.
 
 ---
 
+## Email Is Stored And Compared Lowercase
+
+Invariant, added 2026-09-06 after a support report. `auth.service.ts` does
+`VALUES (lower($1), ...)` on register and `WHERE email = lower($1)` on both
+login and forgot-password. Do not reintroduce an exact match anywhere.
+
+```
+register  VALUES (lower($1), ...)
+login     WHERE email = lower($1)   -- email branch of the UNION only
+forgot    WHERE email = lower($1)
+```
+
+Two things this fixes. A user registered as `Ksadiqadam67@gmail.com`, typed it
+lowercase on forgot-password, and got "If that email exists, a reset link was
+sent" with no email — the lookup found nothing and the handler returned early.
+Reproduced on production, same account, minutes apart: the lowercase form
+created no token, the stored casing created one. The generic reply is
+deliberate (it stops account enumeration) but it also made the failure
+invisible, which is why a `console.warn` now marks the no-match path.
+
+Second, `users_email_key` is a CASE-SENSITIVE unique index and register only
+detects duplicates by catching its 23505, so `Foo@x.com` and `foo@x.com` could
+become two accounts. Storing lowercase makes that index mean what it looks
+like it means.
+
+Existing rows were migrated on 2026-09-06:
+
+```sql
+UPDATE users SET email = lower(email) WHERE email <> lower(email);
+```
+
+Verify collision-free before ever re-running it:
+`SELECT lower(email) FROM users GROUP BY 1 HAVING count(*) > 1;`
+
+**Passwords stay case-SENSITIVE.** bcrypt compares the exact string, and that
+is correct. Do not "fix" a login failure by normalising password case — it
+would slash the keyspace and is never the right answer. Email casing was the
+bug; password casing is the design.
+
+---
+
 ## Concurrent Session Cap
 
 Seats are per plan. Monthly and yearly run on two computers at once — a third
@@ -478,6 +549,43 @@ machine cannot claim repeated trials. That is anti-abuse, not licensing.
 The subscriptions.locked_key_id / locked_key_id_2 columns still exist but
 are never read or written. Inert.
 ```
+
+---
+
+## Document Parsing (CV + meeting/doc copilot)
+
+`apps/electron/electron/documents.ts` — one helper behind both `cv:parse` and
+`meeting-doc:parse`. They used to hold identical copies and therefore
+identical bugs.
+
+```
+PDF   pdf-parse          empty extraction is an ERROR, not success
+DOCX  adm-zip            word/document.xml, same shape as the pptx path
+PPTX  adm-zip            ppt/slides/slideN.xml
+TXT   fs.readFileSync
+MD    fs.readFileSync
+DOC   rejected on purpose - binary OLE, not a zip. Tells the user to save
+      as .docx. Without that it fell through to the utf-8 branch and stored
+      binary garbage as a CV.
+```
+
+Two failures this exists to prevent:
+
+- pdf-parse surfaces pdf.js internals ("bad XRef entry", "Invalid PDF
+  structure", "PDFDocument: stream must have data") and they went straight
+  into the UI. The wording is not even stable between runs, so matching on
+  the message set is a treadmill — anything not a password problem gets one
+  honest sentence and the internal goes to console.error.
+- A scanned or photographed CV is a VALID PDF with no text layer, so parsing
+  "succeeded" with an empty string. The app stored an empty CV, showed the
+  filename as if it worked, and every answer afterwards silently lost its CV
+  context. Empty extraction is now an error.
+
+Parsing runs on the MAIN process at ~34ms/page (measured), so a large file
+freezes the app, overlay included. Hence MAX_DOC_BYTES = 20MB. If decks get
+big, move it to a utilityProcess.
+
+Self-check: `cd apps/electron && node scripts/check-documents.mjs`
 
 ---
 
