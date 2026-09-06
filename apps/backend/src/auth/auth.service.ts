@@ -26,18 +26,40 @@ export interface LoginResult {
   };
 }
 
-async function checkLoginRateLimit(ip: string): Promise<boolean> {
+// Per-ACCOUNT login throttle. The per-IP limiter in auth.controller.ts caps a
+// single caller at 10/900s; this caps a single ACCOUNT across every IP, which
+// is the axis credential stuffing actually attacks. This replaced a second
+// per-IP limiter that was dead code — the controller rejected at 10/900s
+// before this one's 20/900s could ever fire.
+//
+// Only FAILED attempts count, so an attacker grinding an account can never
+// lock its owner out: a correct password still gets straight in. Failures are
+// counted for unknown identifiers too, so that tripping the limit never
+// reveals whether an account exists.
+export const FAILED_LOGIN_MAX = 20;
+export const FAILED_LOGIN_WINDOW_SEC = 900;
+
+// Lowercased so a case-flipped identifier cannot buy a fresh 20 attempts.
+const failKey = (identifier: string) => `lf:${identifier.toLowerCase()}`;
+
+export async function tooManyFailures(identifier: string): Promise<boolean> {
+  try {
+    const count = await getRedis().get(failKey(identifier));
+    return count !== null && Number(count) >= FAILED_LOGIN_MAX;
+  } catch {
+    return false; // Redis down fails OPEN, same as every other Redis check here
+  }
+}
+
+export async function recordLoginFailure(identifier: string): Promise<void> {
   try {
     const redis = getRedis();
-    const key = `lr:${ip}`;
-    const [[, count]] = (await redis
-      .pipeline()
-      .incr(key)
-      .expire(key, 900)
-      .exec()) as [[null, number], [null, number]];
-    return count <= 20;
+    const key = failKey(identifier);
+    if ((await redis.incr(key)) === 1) {
+      await redis.expire(key, FAILED_LOGIN_WINDOW_SEC);
+    }
   } catch {
-    return true;
+    // An unrecorded failure beats a login outage.
   }
 }
 
@@ -125,8 +147,8 @@ export class AuthService {
     userAgent?: string,
     revokeSid?: string,
   ): Promise<LoginResult> {
-    if (ip && !(await checkLoginRateLimit(ip))) {
-      throw new UnauthorizedException('Too many login attempts. Try again in 15 minutes.');
+    if (await tooManyFailures(identifier)) {
+      throw new UnauthorizedException('Too many failed attempts for this account. Try again in 15 minutes.');
     }
     const pool = getDB();
 
@@ -142,11 +164,17 @@ export class AuthService {
 
     const user = result.rows[0];
     if (!user) {
+      // Counted even though there is no account to protect. If unknown
+      // identifiers were skipped, the counter would only ever trip for REAL
+      // accounts, and the distinct 'too many attempts' message below would
+      // become an account-existence oracle.
+      await recordLoginFailure(identifier);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
+      await recordLoginFailure(identifier);
       throw new UnauthorizedException('Invalid credentials');
     }
 

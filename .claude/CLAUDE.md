@@ -25,7 +25,8 @@ Beyond the core flows, the product now also ships: AI Interviewer
 (mock interview + scoring), Meeting/Doc Copilot, a referral system
 with Paystack payouts, email broadcasts, and free trials.
 
-Next priority: brute-force protection on auth.
+Brute-force protection on auth is done — per IP and per account, see
+"Known Security Issues".
 
 ---
 
@@ -595,7 +596,9 @@ Self-check: `cd apps/electron && node scripts/check-documents.mjs`
 15 requests per 60 seconds per user
 Enforced via Redis INCR + EXPIRE
 Returns 429 { error: 'rate_limit', retryAfter: N } when exceeded
-Auth endpoints are NOT rate limited yet — post-launch priority
+
+Auth endpoints ARE limited too — per IP in auth.controller.ts and per
+account in auth.service.ts. See "Known Security Issues" for both.
 ```
 
 ---
@@ -816,19 +819,43 @@ DONE — auth endpoints ARE rate limited (this file said otherwise until
         register   5 / 3600s
         login     10 /  900s
         forgot     3 /  300s
-    checkLoginRateLimit() in auth.service.ts, per IP
-        login     20 /  900s   ← UNREACHABLE, see below
+
+DONE 2026-09-06 — the dead second limiter is gone and the account axis is
+covered. Both were one fix: checkLoginRateLimit() was a SECOND per-IP
+limiter at 20/900s that could never fire (the controller rejected at
+10/900s first, same IP, same window), so its slot became the per-account
+check that was actually missing.
+
+    tooManyFailures() / recordLoginFailure() in auth.service.ts, per ACCOUNT
+        login     20 failures / 900s, across every IP
+
+    Only FAILED attempts count, and that is the point: an attacker grinding
+    an account can never lock its owner out, because a correct password
+    still gets straight in. Counting every attempt would have handed anyone
+    a way to deny any user access by name.
+
+    The key is lower(identifier), so a case-flipped email cannot buy a
+    fresh 20 attempts — same reasoning as the lowercase-email invariant
+    above.
+
+    Unknown identifiers are counted TOO, even though they protect no
+    account. Skipping them looks harmless and is not: the counter would
+    then only ever trip for accounts that exist, so the distinct 'too many
+    attempts' message would tell an attacker exactly which identifiers are
+    real. Enumeration is guarded elsewhere in this file (see the generic
+    forgot-password reply) — do not reintroduce it here. Caught in review
+    before this shipped; check-login-throttle.mjs now asserts it.
+
+    Redis down fails OPEN, like every other Redis check here. It is an
+    abuse control, not a security boundary.
+
+    Self-check: npm run build && node scripts/check-login-throttle.mjs
 
 OPEN — implement before scaling:
-    1. The two login limiters are redundant and the looser one is dead.
-       The controller rejects at 10/900s before the service's 20/900s can
-       ever fire, so checkLoginRateLimit() never runs. Delete one. Keep
-       whichever number you actually want; do not leave both.
-    2. Rate limiting is per IP ONLY, never per account. One attacker with
-       many IPs can still grind a single account, and each IP gets a fresh
-       10 attempts. If credential stuffing shows up, add a per-user counter
-       keyed on the account, not the caller.
-    3. Device fingerprint is client-generated and forgeable
+    1. Per-account throttling counts failures but does not notify. A user
+       locked out by someone else's grinding learns nothing about it. Add a
+       "suspicious sign-in attempts" email if support tickets show up.
+    2. Device fingerprint is client-generated and forgeable
        (architectural — needs server-side challenge post-launch)
 ```
 
